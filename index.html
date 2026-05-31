@@ -248,7 +248,7 @@
 <div id="bar">
   <div id="scrubber"><div id="scrubber-fill"></div></div>
   <div id="controls">
-    <button id="btn-play">▶</button>
+    <button id="btn-play">▶&#xFE0E;</button>
     <div id="now-playing">
       <div id="np-title">—</div>
       <div id="np-artist"></div>
@@ -415,7 +415,7 @@
   }
 
   function updateBtn() {
-    document.getElementById("btn-play").textContent = playing ? "⏸" : "▶";
+    document.getElementById("btn-play").textContent = playing ? "⏸︎" : "▶︎";
   }
 
   document.getElementById("btn-play").addEventListener("click", () => {
