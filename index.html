@@ -442,8 +442,13 @@
     if (e.key === " ") {
       e.preventDefault();
       if (!player) return;
-      if (currentIndex === -1) { load(0); return; }
-      playing ? player.pauseVideo() : player.playVideo();
+      if (focusedIndex >= 0) {
+        onTrackClick(focusedIndex);
+      } else if (currentIndex === -1) {
+        load(0);
+      } else {
+        playing ? player.pauseVideo() : player.playVideo();
+      }
     } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
       e.preventDefault();
       setFocused(focusedIndex < 0 ? (currentIndex >= 0 ? currentIndex : 0) : (focusedIndex + 1) % n);
