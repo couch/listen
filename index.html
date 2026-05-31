@@ -70,6 +70,12 @@
       transition: width 0.5s linear;
     }
 
+    .track.kb-focused {
+      box-shadow: inset 2px 0 0 rgba(255,255,255,0.55);
+    }
+
+    .track:focus { outline: none; }
+
     .track-num {
       font-size: 13px;
       opacity: 0.4;
@@ -213,6 +219,16 @@
       #bar { padding: 12px 20px max(14px, env(safe-area-inset-bottom)); }
       #time { display: none; }
     }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 <body>
@@ -222,25 +238,26 @@
   Run: <code>cd muxtape &amp;&amp; python3 -m http.server 8080</code> then visit <code>localhost:8080</code>
 </div>
 
-<div id="tape">
+<div id="tape" role="region" aria-label="Playlist">
   <p id="tape-title"></p>
   <ul id="track-list"></ul>
 </div>
 
-<div id="bar">
-  <div id="scrubber"><div id="scrubber-fill"></div></div>
+<div id="bar" role="region" aria-label="Player controls">
+  <div id="scrubber" role="slider" aria-label="Playback position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0:00"><div id="scrubber-fill"></div></div>
   <div id="controls">
-    <button id="btn-play">▶&#xFE0E;</button>
+    <button id="btn-play" aria-label="Play">▶&#xFE0E;</button>
     <div id="now-playing">
-      <div id="np-title">—</div>
+      <div id="np-title"></div>
       <div id="np-artist"></div>
     </div>
-    <div id="time">—:—— / —:——</div>
+    <div id="time"></div>
   </div>
   <a id="attribution" href="#" target="_blank" rel="noopener noreferrer">audio via YouTube</a>
 </div>
 
-<div id="yt-player"></div>
+<div id="a11y-announce" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+<div id="yt-player" aria-hidden="true"></div>
 
 <script src="config.js"></script>
 <script>
@@ -266,6 +283,22 @@
     const li = document.createElement("li");
     li.className = "track";
     li.dataset.i = i;
+    li.setAttribute("tabindex", "0");
+    li.setAttribute("aria-label", `${track.title} by ${track.artist}`);
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-pressed", "false");
+    li.addEventListener("focus", () => {
+      if (focusedIndex === i) return; // already set by setFocused, avoid loop
+      document.querySelectorAll(".track.kb-focused").forEach(el => el.classList.remove("kb-focused"));
+      focusedIndex = i;
+      li.classList.add("kb-focused");
+    });
+    li.addEventListener("blur", e => {
+      if (!e.relatedTarget?.classList.contains("track")) {
+        li.classList.remove("kb-focused");
+        focusedIndex = -1;
+      }
+    });
 
     const num = document.createElement("span");
     num.className = "track-num";
@@ -296,6 +329,7 @@
   let currentIndex = -1;
   let playing = false;
   let ticker = null;
+  let focusedIndex = -1;
 
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
@@ -353,7 +387,10 @@
     document.getElementById("np-title").textContent = t.title;
     document.getElementById("np-artist").textContent = t.artist;
     document.getElementById("attribution").href = `https://www.youtube.com/watch?v=${t.id}`;
-    trackEl(i).classList.add("active");
+    const el = trackEl(i);
+    el.classList.add("active");
+    el.setAttribute("aria-pressed", "true");
+    announce(`Now playing: ${t.title} by ${t.artist}`);
   }
 
   function next() {
@@ -364,13 +401,20 @@
       playing = false;
       updateBtn();
       document.getElementById("scrubber-fill").style.width = "0%";
-      document.getElementById("time").textContent = "—:—— / —:——";
+      document.getElementById("np-title").textContent = "";
+      document.getElementById("np-artist").textContent = "";
+      document.getElementById("time").textContent = "";
+      const s = document.getElementById("scrubber");
+      s.setAttribute("aria-valuenow", "0");
+      s.setAttribute("aria-valuetext", "0:00");
+      announce("Playlist ended.");
     }
   }
 
   function clearActive() {
     document.querySelectorAll(".track").forEach(el => {
       el.classList.remove("active", "playing", "paused");
+      el.setAttribute("aria-pressed", "false");
       const p = el.querySelector(".track-progress");
       if (p) {
         p.style.transition = "none";
@@ -380,12 +424,48 @@
     });
   }
 
+  function setFocused(i) {
+    document.querySelectorAll(".track.kb-focused").forEach(el => el.classList.remove("kb-focused"));
+    focusedIndex = i;
+    if (i < 0) return;
+    const el = trackEl(i);
+    if (el) {
+      el.classList.add("kb-focused");
+      el.focus({ preventScroll: true }); // moves real browser focus so Tab stays in sync
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    const n = TAPE.tracks.length;
+    if (e.key === " ") {
+      e.preventDefault();
+      if (!player) return;
+      if (currentIndex === -1) { load(0); return; }
+      playing ? player.pauseVideo() : player.playVideo();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocused(focusedIndex < 0 ? (currentIndex >= 0 ? currentIndex : 0) : (focusedIndex + 1) % n);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocused(focusedIndex < 0 ? (currentIndex >= 0 ? currentIndex : 0) : Math.max(focusedIndex - 1, 0));
+    } else if (e.key === "Enter" && focusedIndex >= 0) {
+      onTrackClick(focusedIndex);
+    } else if (e.key === "Tab" && !e.shiftKey && document.activeElement?.id === "attribution") {
+      e.preventDefault();
+      setFocused(0);
+    }
+  });
+
   function trackEl(i) {
     return document.querySelector(`.track[data-i="${i}"]`);
   }
 
   function updateBtn() {
-    document.getElementById("btn-play").textContent = playing ? "⏸︎" : "▶︎";
+    const btn = document.getElementById("btn-play");
+    btn.textContent = playing ? "⏸︎" : "▶︎";
+    btn.setAttribute("aria-label", playing ? "Pause" : "Play");
   }
 
   document.getElementById("btn-play").addEventListener("click", () => {
@@ -431,7 +511,16 @@
       document.getElementById("time").textContent = `${fmt(cur)} / ${fmt(dur)}`;
       const p = trackEl(currentIndex)?.querySelector(".track-progress");
       if (p) p.style.width = pct;
+      const s = document.getElementById("scrubber");
+      s.setAttribute("aria-valuenow", Math.round((cur / dur) * 100));
+      s.setAttribute("aria-valuetext", `${fmt(cur)} of ${fmt(dur)}`);
     }, 500);
+  }
+
+  function announce(msg) {
+    const el = document.getElementById("a11y-announce");
+    el.textContent = "";
+    requestAnimationFrame(() => { el.textContent = msg; });
   }
 
   function fmt(s) {
