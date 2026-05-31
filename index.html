@@ -113,6 +113,13 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       padding: 14px 28px max(16px, env(safe-area-inset-bottom));
+      transform: translateY(calc(100% + 1px));
+      transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+    }
+
+    #bar.bar-visible {
+      transform: translateY(0);
     }
 
     #scrubber {
@@ -381,6 +388,7 @@
 
   function load(i) {
     clearActive();
+    document.getElementById("bar").classList.add("bar-visible");
     currentIndex = i;
     const t = TAPE.tracks[i];
     player.loadVideoById(t.id);
