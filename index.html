@@ -78,24 +78,6 @@
       flex-shrink: 0;
     }
 
-    .track-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      opacity: 0;
-      background: rgba(255,255,255,0.9);
-      transition: opacity 0.15s;
-    }
-
-    .track.active .track-dot { opacity: 1; }
-    .track.playing .track-dot { animation: blink 1.1s ease-in-out infinite; }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.25; }
-    }
-
     .track-info { flex: 1; min-width: 0; }
 
     .track-title {
@@ -289,9 +271,6 @@
     num.className = "track-num";
     num.textContent = i + 1;
 
-    const dot = document.createElement("span");
-    dot.className = "track-dot";
-
     const info = document.createElement("div");
     info.className = "track-info";
 
@@ -307,7 +286,7 @@
     progress.className = "track-progress";
 
     info.append(title, artist);
-    li.append(progress, num, dot, info);
+    li.append(progress, num, info);
     li.addEventListener("click", () => onTrackClick(i));
     list.appendChild(li);
   });
@@ -345,13 +324,11 @@
   function onState(e) {
     if (e.data === YT.PlayerState.PLAYING) {
       playing = true;
-      setDot("playing");
       updateBtn();
       startTicker();
       updateMediaSession();
     } else if (e.data === YT.PlayerState.PAUSED) {
       playing = false;
-      setDot("paused");
       updateBtn();
       if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     } else if (e.data === YT.PlayerState.ENDED) {
@@ -389,13 +366,6 @@
       document.getElementById("scrubber-fill").style.width = "0%";
       document.getElementById("time").textContent = "—:—— / —:——";
     }
-  }
-
-  function setDot(state) {
-    const el = trackEl(currentIndex);
-    if (!el) return;
-    el.classList.remove("playing", "paused");
-    if (state) el.classList.add(state);
   }
 
   function clearActive() {
