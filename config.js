@@ -5,8 +5,11 @@ const TAPE = {
   color: "random",
 
   tracks: [
-    { id: "vch-Z9ccHTk", title: "Just a Lady", artist: "Kutiman" },
-    { id: "mCWiQYENMOM", title: "It's Over", artist: "Milosh" },
-    { id: "HOKEMlDCTNM", title: "A Long December (Live at Chateau Marmont)", artist: "MJ Lenderman" },
+    { id: "YRnST8QfH4A", title: "Hardy (ft Clairo)", artist: "Rostam" },
+    { id: "YDTazIuuDPY", title: "I Feel So Free (Peggy Gou Energy Mix)", artist: "Madonna" },
+    { id: "5249VcPAlfk", title: "Goose and The Juice", artist: "Drake" },
+    { id: "Yp257b5APOg", title: "Prettiest Virgin", artist: "Agar Agar" },
+    { id: "esIaYtpUrPM", title: "Jacuzzi", artist: "Croquet Club" },
+    { id: "Q1VU6z_2R0Q", title: "Aquamarine (Jacques Greene Edit)", artist: "Addison Rae" },
   ]
 };
