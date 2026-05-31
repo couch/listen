@@ -197,7 +197,7 @@
       margin-top: 10px;
       color: inherit;
       text-decoration: none;
-      display: block;
+      display: none;
       transition: opacity 0.15s;
     }
 
@@ -386,7 +386,9 @@
     player.loadVideoById(t.id);
     document.getElementById("np-title").textContent = t.title;
     document.getElementById("np-artist").textContent = t.artist;
-    document.getElementById("attribution").href = `https://www.youtube.com/watch?v=${t.id}`;
+    const attr = document.getElementById("attribution");
+    attr.href = `https://www.youtube.com/watch?v=${t.id}`;
+    attr.style.display = "block";
     const el = trackEl(i);
     el.classList.add("active");
     el.setAttribute("aria-pressed", "true");
@@ -404,6 +406,7 @@
       document.getElementById("np-title").textContent = "";
       document.getElementById("np-artist").textContent = "";
       document.getElementById("time").textContent = "";
+      document.getElementById("attribution").style.display = "none";
       const s = document.getElementById("scrubber");
       s.setAttribute("aria-valuenow", "0");
       s.setAttribute("aria-valuetext", "0:00");
