@@ -1,15 +1,22 @@
 const TAPE = {
-  title: "s/s 26",
+  title: "aufguss",
 
   // A hex color like "#c1440e", or "random" to pick one each load
   color: "random",
 
   tracks: [
-    { id: "YRnST8QfH4A", title: "Hardy (ft Clairo)", artist: "Rostam" },
-    { id: "YDTazIuuDPY", title: "I Feel So Free (Peggy Gou Energy Mix)", artist: "Madonna" },
-    { id: "5249VcPAlfk", title: "Goose and The Juice", artist: "Drake" },
-    { id: "Yp257b5APOg", title: "Prettiest Virgin", artist: "Agar Agar" },
-    { id: "esIaYtpUrPM", title: "Jacuzzi", artist: "Croquet Club" },
-    { id: "Q1VU6z_2R0Q", title: "Aquamarine (Jacques Greene Edit)", artist: "Addison Rae" },
+    { id: "eX_hqvSh_h8", title: "XX Intro", artist: "Kate Simko & London Electronic Orchestra" },
+    { id: "mbm3Llu2114", title: "Jacob and the Stone", artist: "Emile Mosseri" },
+    { id: "7eJ3I-_8Mr8", title: "The Departure", artist: "Max Richter" },
+    { id: "0gtj3ZzEixs", title: "Kangaru", artist: "Jóhann Jóhannsson" },
+    { id: "vqOoYVaGzL0", title: "What It's Like to Be a Bat 1", artist: "Finn Streuper" },
+    { id: "k3F79wemqHs", title: "From the Sea / It Looms (Chapters I & II)", artist: "Leon Vynehall" },
+    { id: "jzcWhWrDnAY", title: "saman", artist: "Ólafur Arnalds" },
+    { id: "GFbkF_fsW24", title: "Ambre", artist: "Nils Frahm" },
+    { id: "GZWxXIvc3y8", title: "Because This Must Be", artist: "Nils Frahm" },
+    { id: "0kYc55bXJFI", title: "Near Light", artist: "Ólafur Arnalds" },
+    { id: "eWQ7neoBhCE", title: "Agape", artist: "Nicholas Britell" },
+    { id: "ZzpvJT3t3u8", title: "Fish Beach", artist: "Michael Nyman" },
+    { id: "VOOyTL3PhZQ", title: "A Wild and Distant Shore", artist: "Michael Nyman" },
   ]
 };
