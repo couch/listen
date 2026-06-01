@@ -11,7 +11,6 @@ const TAPE = {
     { id: "0gtj3ZzEixs", title: "Kangaru", artist: "Jóhann Jóhannsson" },
     { id: "vqOoYVaGzL0", title: "What It's Like to Be a Bat 1", artist: "Finn Streuper" },
     { id: "k3F79wemqHs", title: "From the Sea / It Looms (Chapters I & II)", artist: "Leon Vynehall" },
-    { id: "jzcWhWrDnAY", title: "saman", artist: "Ólafur Arnalds" },
     { id: "GFbkF_fsW24", title: "Ambre", artist: "Nils Frahm" },
     { id: "GZWxXIvc3y8", title: "Because This Must Be", artist: "Nils Frahm" },
     { id: "0kYc55bXJFI", title: "Near Light", artist: "Ólafur Arnalds" },
