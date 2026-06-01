@@ -368,10 +368,12 @@
       updateBtn();
       startTicker();
       updateMediaSession();
+      startColorDrift();
     } else if (e.data === YT.PlayerState.PAUSED) {
       playing = false;
       updateBtn();
       if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
+      stopColorDrift();
     } else if (e.data === YT.PlayerState.ENDED) {
       next();
     }
@@ -419,6 +421,7 @@
       s.setAttribute("aria-valuenow", "0");
       s.setAttribute("aria-valuetext", "0:00");
       announce("Playlist ended.");
+      stopColorDrift();
     }
   }
 
@@ -542,6 +545,58 @@
   function fmt(s) {
     const m = Math.floor(s / 60);
     return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  }
+
+  // ── Generative background color drift ─────────────────────────────────────
+  // Interpolates slowly between palette colors while playing.
+  // smootherstep keeps the first few seconds nearly imperceptible.
+  const DRIFT_MS = 45000;
+  let driftFrame = null, driftFrom, driftTo, driftToHex, driftStart;
+
+  function hexToRgb(hex) {
+    const h = hex.trim().replace("#", "");
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  }
+
+  function rgbToHex([r,g,b]) {
+    return "#" + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,"0")).join("");
+  }
+
+  function smootherstep(t) { return t*t*t*(t*(t*6-15)+10); }
+
+  function pickDriftTarget(avoidHex) {
+    const opts = PALETTE.filter(c => c !== avoidHex);
+    return opts[Math.floor(Math.random() * opts.length)];
+  }
+
+  function startColorDrift() {
+    if (driftFrame) return;
+    const cur = document.documentElement.style.getPropertyValue("--bg").trim() || PALETTE[0];
+    driftFrom = hexToRgb(cur);
+    driftToHex = pickDriftTarget(cur);
+    driftTo = hexToRgb(driftToHex);
+    driftStart = performance.now();
+    driftFrame = requestAnimationFrame(tickDrift);
+  }
+
+  function tickDrift(now) {
+    const t = Math.min((now - driftStart) / DRIFT_MS, 1);
+    const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
+    document.documentElement.style.setProperty("--bg", rgbToHex(rgb));
+    if (t < 1) {
+      driftFrame = requestAnimationFrame(tickDrift);
+    } else {
+      driftFrom = driftTo;
+      const prev = driftToHex;
+      driftToHex = pickDriftTarget(prev);
+      driftTo = hexToRgb(driftToHex);
+      driftStart = now;
+      driftFrame = requestAnimationFrame(tickDrift);
+    }
+  }
+
+  function stopColorDrift() {
+    if (driftFrame) { cancelAnimationFrame(driftFrame); driftFrame = null; }
   }
 
   // MediaSession API — lock screen controls on mobile
