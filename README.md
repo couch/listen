@@ -8,6 +8,8 @@ Live at [listen.couch.studio](https://listen.couch.studio)
 
 - Streams audio from YouTube video IDs — no ads, no distractions
 - Per-playlist color themes (fixed or randomly chosen from a warm palette)
+- Background color slowly drifts through the palette while music plays
+- Player bar slides in from the bottom on first play
 - Scrubber bar with seek support, elapsed/total time display
 - Full keyboard navigation (arrows, space, enter, tab)
 - Screen reader accessible with ARIA roles and live announcements
@@ -18,6 +20,7 @@ Live at [listen.couch.studio](https://listen.couch.studio)
 
 ```
 index.html          # Player UI and all JS/CSS
+config.js           # Active playlist exported as TAPE — what the player reads
 playlists/
   index.json        # Active playlist pointer and list of all playlist IDs
   {id}.json         # Individual playlist files (timestamp-based IDs)
@@ -40,15 +43,27 @@ Create a new file in `playlists/` with a timestamp as the filename (e.g. `174864
 }
 ```
 
-`color` can be `"random"` or a hex value like `"#c1440e"`. Track `id` is the YouTube video ID.
+`color` can be `"random"` or a hex value like `"#c1440e"`. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist.
 
-Then update `playlists/index.json` to point to it:
+Update `playlists/index.json` to set it as active:
 
 ```json
 {
   "active": "1748649600000",
   "ids": ["1748649600000"]
 }
+```
+
+Then regenerate `config.js` to match (the player reads this file, not the playlist JSON directly):
+
+```js
+const TAPE = {
+  title: "my playlist",
+  color: "random",
+  tracks: [
+    { id: "dQw4w9WgXcQ", title: "Never Gonna Give You Up", artist: "Rick Astley" },
+  ]
+};
 ```
 
 ## Running Locally
