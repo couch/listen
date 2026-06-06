@@ -35,19 +35,14 @@
       "artist": "Leon Vynehall"
     },
     {
-      "id": "GFbkF_fsW24",
-      "title": "Ambre",
-      "artist": "Nils Frahm"
+      "id": "40ySIE_s6ps",
+      "title": "20:17",
+      "artist": "Ólafur Arnalds & Nils Frahm"
     },
     {
-      "id": "GZWxXIvc3y8",
-      "title": "Because This Must Be",
-      "artist": "Nils Frahm"
-    },
-    {
-      "id": "0kYc55bXJFI",
-      "title": "Near Light",
-      "artist": "Ólafur Arnalds"
+      "id": "CqMWEjXGJg0",
+      "title": "Sand Drawing",
+      "artist": "Judah Earl"
     },
     {
       "id": "eWQ7neoBhCE",
@@ -64,5 +59,11 @@
       "title": "A Wild and Distant Shore",
       "artist": "Michael Nyman"
     }
-  ]
+  ],
+  "location": {
+    "city": "New York",
+    "lat": 40.721,
+    "lng": -73.979
+  },
+  "lastEdited": "2026-06-06"
 }
