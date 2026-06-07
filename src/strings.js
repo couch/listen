@@ -18,6 +18,7 @@ export const L = STRINGS[lang] || STRINGS.en;
 export function fmtDate(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
+  if (!y || !m || !d || isNaN(+m) || isNaN(+d) || +m < 1 || +m > 12) return '';
   const dd = String(+d).padStart(2, '0');
   if (lang === 'zh' || lang === 'ja') return `${y}年${+m}月${dd}日`;
   if (lang === 'ko') return `${y}년 ${+m}월 ${dd}일`;

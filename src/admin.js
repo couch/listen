@@ -1,7 +1,7 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, extractId, fuzzyCoord, sha256 } from './utils.js';
+import { PALETTE, extractId, fuzzyCoord, sha256, buildConfig } from './utils.js';
 import { T } from './admin-strings.js';
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -111,37 +111,39 @@ async function githubCommit(files, message) {
     'Content-Type': 'application/json',
   };
 
-  const refRes = await fetch(`${base}/git/refs/heads/${gh.branch}`, { headers });
-  if (!refRes.ok) {
-    const e = await refRes.json().catch(() => ({}));
-    throw new Error(e.message || `GitHub ${refRes.status} — check token and repo settings`);
+  async function ghFetch(url, opts = {}) {
+    const res = await fetch(url, { headers, ...opts });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `GitHub ${res.status} — ${opts.method || 'GET'} ${url}`);
+    return data;
   }
-  const latestSha = (await refRes.json()).object.sha;
-  const { tree: { sha: treeSha } } = await fetch(`${base}/git/commits/${latestSha}`, { headers }).then(r => r.json());
+
+  const refData = await ghFetch(`${base}/git/refs/heads/${gh.branch}`);
+  const latestSha = refData.object.sha;
+  const { tree: { sha: treeSha } } = await ghFetch(`${base}/git/commits/${latestSha}`);
 
   const treeItems = await Promise.all(files.map(async ({ path, content }) => {
-    const { sha } = await fetch(`${base}/git/blobs`, {
-      method: 'POST', headers,
+    const { sha } = await ghFetch(`${base}/git/blobs`, {
+      method: 'POST',
       body: JSON.stringify({ content, encoding: 'utf-8' }),
-    }).then(r => r.json());
+    });
     return { path, mode: '100644', type: 'blob', sha };
   }));
 
-  const { sha: newTreeSha } = await fetch(`${base}/git/trees`, {
-    method: 'POST', headers,
+  const { sha: newTreeSha } = await ghFetch(`${base}/git/trees`, {
+    method: 'POST',
     body: JSON.stringify({ base_tree: treeSha, tree: treeItems }),
-  }).then(r => r.json());
+  });
 
-  const { sha: newCommitSha } = await fetch(`${base}/git/commits`, {
-    method: 'POST', headers,
+  const { sha: newCommitSha } = await ghFetch(`${base}/git/commits`, {
+    method: 'POST',
     body: JSON.stringify({ message, tree: newTreeSha, parents: [latestSha] }),
-  }).then(r => r.json());
+  });
 
-  const patchRes = await fetch(`${base}/git/refs/heads/${gh.branch}`, {
-    method: 'PATCH', headers,
+  await ghFetch(`${base}/git/refs/heads/${gh.branch}`, {
+    method: 'PATCH',
     body: JSON.stringify({ sha: newCommitSha }),
   });
-  if (!patchRes.ok) throw new Error('Failed to update branch ref');
 }
 
 async function githubDeleteFile(filePath, message) {
@@ -244,14 +246,18 @@ function renderSelect() {
     selectEl.appendChild(opt);
   });
   selectEl.value = currentId;
-  updateLiveUI();
+  updateLiveBadge();
   document.getElementById("delete-btn").disabled = idx.ids.length <= 1;
 }
 
-function updateLiveUI() {
+function updateLiveBadge() {
   const live = currentId === idx.active;
   document.getElementById("live-badge").hidden = !live;
   document.getElementById("set-live-btn").hidden = live;
+}
+
+function updateLiveUI() {
+  updateLiveBadge();
   selectEl.querySelectorAll("option").forEach(opt => {
     const id = opt.value;
     const p = playlists[id];
@@ -290,7 +296,7 @@ function loadPlaylist(id) {
   document.getElementById("yt-input").value = "";
   document.getElementById("meta-row").hidden = true;
   setFetchStatus("");
-  updateLiveUI();
+  updateLiveBadge();
   updateLocationDisplay();
 }
 
@@ -330,7 +336,7 @@ document.getElementById("delete-btn").addEventListener("click", async () => {
     await deletePlaylistFile(idToDelete);
     await saveFiles([
       { path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) },
-      { path: 'config.js', content: buildConfig() },
+      { path: 'config.js', content: buildConfig(playlists[idx.active]) },
     ], `delete playlist: ${p?.title || idToDelete}`);
     renderSelect();
     loadPlaylist(currentId);
@@ -581,19 +587,6 @@ function applyStrings() {
 }
 
 // ── Save ──
-function buildConfig() {
-  const p = playlists[idx.active];
-  if (!p) return "";
-  let extra = '';
-  if (p.created) extra += `\n  created: ${JSON.stringify(p.created)},`;
-  if (p.lastEdited) extra += `\n  lastEdited: ${JSON.stringify(p.lastEdited)},`;
-  if (p.location) extra += `\n  location: ${JSON.stringify(p.location)},`;
-  const lines = p.tracks
-    .map(t => `    { id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, artist: ${JSON.stringify(t.artist)} }`)
-    .join(",\n");
-  return `const TAPE = {\n  title: ${JSON.stringify(p.title)},\n\n  // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow\n  color: ${JSON.stringify(p.color)},${extra}\n\n  tracks: [\n${lines},\n  ]\n};\n`;
-}
-
 document.getElementById("save-btn").addEventListener("click", async () => {
   syncToPlaylists();
   await doSave();

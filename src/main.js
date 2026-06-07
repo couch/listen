@@ -23,6 +23,7 @@ const bg = (!TAPE.color || TAPE.color === "random" || isPride)
   ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
   : TAPE.color;
 document.documentElement.style.setProperty("--bg", bg);
+document.documentElement.lang = lang;
 document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
 document.title = TAPE.title;
 document.getElementById("tape-title").textContent = TAPE.title;
@@ -35,6 +36,7 @@ document.getElementById("pi-btn").setAttribute("aria-label", L.pi);
 
 // Build track list
 const list = document.getElementById("track-list");
+const trackEls = [];
 TAPE.tracks.forEach((track, i) => {
   const li = document.createElement("li");
   li.className = "track";
@@ -81,6 +83,7 @@ TAPE.tracks.forEach((track, i) => {
   info.append(title, artist);
   li.append(progress, num, info);
   li.addEventListener("click", () => onTrackClick(i));
+  trackEls.push(li);
   list.appendChild(li);
 });
 
@@ -165,7 +168,8 @@ function onTrackClick(i) {
 
 function load(i) {
   clearActive();
-  document.getElementById("bar").classList.add("bar-visible");
+  barEl.classList.add("bar-visible");
+  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; cachedPeekH = peekPanel.offsetHeight; });
   const scrubFill = document.getElementById("scrubber-fill");
   scrubFill.style.transition = "none";
   scrubFill.style.width = "0%";
@@ -188,7 +192,7 @@ function load(i) {
   const attr = document.getElementById("attribution");
   attr.href = `https://www.youtube.com/watch?v=${t.id}`;
   attr.style.display = "block";
-  const el = trackEl(i);
+  const el = trackEls[i];
   el.classList.add("active");
   if (el.dataset.prideColor) {
     el.style.backgroundImage = 'linear-gradient(rgba(0,0,0,0.18),rgba(0,0,0,0.18))';
@@ -220,24 +224,22 @@ function next() {
 }
 
 function clearActive() {
-  document.querySelectorAll(".track").forEach(el => {
+  const progEls = [];
+  trackEls.forEach(el => {
     el.classList.remove("active", "playing", "paused");
     el.setAttribute("aria-pressed", "false");
     if (el.dataset.prideColor) el.style.backgroundImage = '';
     const p = el.querySelector(".track-progress");
-    if (p) {
-      p.style.transition = "none";
-      p.style.width = "0%";
-      requestAnimationFrame(() => { p.style.transition = ""; });
-    }
+    if (p) { p.style.transition = "none"; p.style.width = "0%"; progEls.push(p); }
   });
+  if (progEls.length) requestAnimationFrame(() => progEls.forEach(p => { p.style.transition = ""; }));
 }
 
 function setFocused(i) {
   document.querySelectorAll(".track.kb-focused").forEach(el => el.classList.remove("kb-focused"));
   focusedIndex = i;
   if (i < 0) return;
-  const el = trackEl(i);
+  const el = trackEls[i];
   if (el) {
     el.classList.add("kb-focused");
     el.focus({ preventScroll: true }); // moves real browser focus so Tab stays in sync
@@ -280,10 +282,6 @@ document.addEventListener("keydown", e => {
   }
 });
 
-function trackEl(i) {
-  return document.querySelector(`.track[data-i="${i}"]`);
-}
-
 function updateBtn() {
   const btn = document.getElementById("btn-play");
   btn.textContent = playing ? "⏸︎" : "▶︎";
@@ -306,15 +304,35 @@ document.getElementById("scrubber").addEventListener("click", seek);
 
 // Scrubber — touch
 const scrubEl = document.getElementById("scrubber");
-scrubEl.addEventListener("touchstart", handleTouch, { passive: true });
-scrubEl.addEventListener("touchmove", handleTouch, { passive: true });
+let pendingScrubPct = null;
+scrubEl.addEventListener("touchstart", e => {
+  if (!player || currentIndex === -1) return;
+  const touch = e.touches[0];
+  const r = scrubEl.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
+  const dur = player.getDuration();
+  if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
+}, { passive: true });
+scrubEl.addEventListener("touchmove", e => {
+  if (!player || currentIndex === -1) return;
+  const touch = e.touches[0];
+  const r = scrubEl.getBoundingClientRect();
+  pendingScrubPct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
+  snapSeek(pendingScrubPct);
+}, { passive: true });
+scrubEl.addEventListener("touchend", () => {
+  if (pendingScrubPct === null) return;
+  const dur = player?.getDuration();
+  if (dur) player.seekTo(pendingScrubPct * dur, true);
+  pendingScrubPct = null;
+}, { passive: true });
 
 function snapSeek(pct) {
   const w = `${pct * 100}%`;
   // Scrubber fill — bypasses the 500ms ticker delay
   document.getElementById("scrubber-fill").style.width = w;
   // Track progress — disable transition for instant snap, restore for playback
-  const p = trackEl(currentIndex)?.querySelector(".track-progress");
+  const p = trackEls[currentIndex]?.querySelector(".track-progress");
   if (p) {
     p.style.transition = "none";
     p.style.width = w;
@@ -326,15 +344,6 @@ function seek(e) {
   if (!player || currentIndex === -1) return;
   const r = scrubEl.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-  const dur = player.getDuration();
-  if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
-}
-
-function handleTouch(e) {
-  if (!player || currentIndex === -1) return;
-  const touch = e.touches[0];
-  const r = scrubEl.getBoundingClientRect();
-  const pct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
   const dur = player.getDuration();
   if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
 }
@@ -353,7 +362,7 @@ function startTicker() {
     document.getElementById("time").textContent = `${fmt(cur)} / ${fmt(dur)}`;
     if (now - lastSlowUpdate >= 500) {
       lastSlowUpdate = now;
-      const p = trackEl(currentIndex)?.querySelector(".track-progress");
+      const p = trackEls[currentIndex]?.querySelector(".track-progress");
       if (p) p.style.width = pct;
       const s = document.getElementById("scrubber");
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
@@ -368,10 +377,12 @@ function stopTicker() {
   if (ticker) { cancelAnimationFrame(ticker); ticker = null; }
 }
 
+let announceFrame = null;
 function announce(msg) {
   const el = document.getElementById("a11y-announce");
+  if (announceFrame) cancelAnimationFrame(announceFrame);
   el.textContent = "";
-  requestAnimationFrame(() => { el.textContent = msg; });
+  announceFrame = requestAnimationFrame(() => { el.textContent = msg; announceFrame = null; });
 }
 
 // ── Generative background color drift ─────────────────────────────────────
@@ -436,24 +447,28 @@ function stopColorDrift() {
 
 // ── Peek panel ───────────────────────────────────────────────────────────────
 const peekPanel = document.getElementById('peek-panel');
+const barEl = document.getElementById('bar');
 const isMobile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 let peekReveal = 0;
 let naturalBeta = null;
 let geoRequested = false;
+let cachedPeekH = 0;
+let cachedBarH = 0;
+
+window.addEventListener('resize', () => {
+  cachedPeekH = peekPanel.offsetHeight;
+  if (barEl.classList.contains('bar-visible')) cachedBarH = barEl.offsetHeight;
+});
 
 function setReveal(t) {
   peekReveal = t;
-  const ph = peekPanel.offsetHeight || 100;
+  const ph = cachedPeekH || 100;
   peekPanel.style.transform = `translateY(${(1 - t) * 100}%)`;
-  const barEl = document.getElementById('bar');
   const barVisible = barEl.classList.contains('bar-visible');
-  if (barVisible) {
-    barEl.style.setProperty('--peek-push', `${t * ph}px`);
-  }
+  if (barVisible) barEl.style.setProperty('--peek-push', `${t * ph}px`);
   const piEl = document.getElementById('pi-btn');
   if (piEl && !piEl.hidden) {
-    const barH = barVisible ? barEl.offsetHeight : 0;
-    piEl.style.bottom = `${16 + barH + t * ph}px`;
+    piEl.style.bottom = `${16 + (barVisible ? cachedBarH : 0) + t * ph}px`;
   }
 }
 
@@ -502,9 +517,8 @@ function handleOrientation(e) {
 // Mobile: quick left/right roll → previous/next track
 function scrollTrackIntoView(el) {
   if (!el) return;
-  const bar = document.getElementById('bar');
-  const barH = bar.classList.contains('bar-visible') ? bar.offsetHeight : 0;
-  const peekH = Math.round(peekReveal * (peekPanel.offsetHeight || 0));
+  const barH = barEl.classList.contains('bar-visible') ? cachedBarH : 0;
+  const peekH = Math.round(peekReveal * cachedPeekH);
   const bottomClearance = barH + peekH + 12;
   const rect = el.getBoundingClientRect();
   const viewH = window.innerHeight;
@@ -587,20 +601,17 @@ if (isMobile) {
 
 // Desktop: cursor drift is gated behind the π button click
 if (!isMobile) {
-  let desktopPeekEnabled = false;
-  document.addEventListener('mousemove', e => {
-    if (!desktopPeekEnabled) return;
-    const vh = window.innerHeight;
-    const t = Math.max(0, Math.min(1, (e.clientY - vh * 0.80) / (vh * 0.20)));
-    setReveal(t);
-  });
-  document.addEventListener('mouseleave', () => { if (desktopPeekEnabled) setReveal(0); });
   if (hasPlaylistLoc) {
     piBtnEl.hidden = false;
     piBtnEl.addEventListener('click', () => {
-      desktopPeekEnabled = true;
       piBtnEl.hidden = true;
       requestViewerGeo();
+      document.addEventListener('mousemove', e => {
+        const vh = window.innerHeight;
+        const t = Math.max(0, Math.min(1, (e.clientY - vh * 0.80) / (vh * 0.20)));
+        setReveal(t);
+      });
+      document.addEventListener('mouseleave', () => setReveal(0));
     });
   }
 }

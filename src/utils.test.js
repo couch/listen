@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, extractId, haversine, fuzzyCoord, fmt, sha256 } from './utils.js';
+import { PALETTE, extractId, haversine, fuzzyCoord, fmt, sha256, buildConfig } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -19,6 +19,8 @@ describe('extractId', () => {
   it('returns null for non-YouTube URL', () => expect(extractId('https://vimeo.com/123456789')).toBeNull());
   it('returns null for a 10-char string', () => expect(extractId('dQw4w9WgXc')).toBeNull());
   it('returns null for a 12-char string', () => expect(extractId('dQw4w9WgXcQQ')).toBeNull());
+  it('extracts from a Shorts URL', () => expect(extractId('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ'));
+  it('extracts from a Music URL', () => expect(extractId('https://music.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ'));
 });
 
 describe('fmt', () => {
@@ -70,6 +72,46 @@ describe('fuzzyCoord', () => {
     const b = fuzzyCoord(45.523, -122.676);
     expect(a).toEqual(b);
     vi.restoreAllMocks();
+  });
+});
+
+describe('buildConfig', () => {
+  const playlist = {
+    title: 'Test Tape',
+    color: 'random',
+    tracks: [{ id: 'abc123defgh', title: 'Song One', artist: 'Artist A' }],
+  };
+
+  it('generates a TAPE declaration', () => {
+    const result = buildConfig(playlist);
+    expect(result).toContain('const TAPE = {');
+    expect(result).toContain('"Test Tape"');
+    expect(result).toContain('"random"');
+    expect(result).toContain('"abc123defgh"');
+    expect(result).toContain('"Song One"');
+    expect(result).toContain('"Artist A"');
+  });
+  it('includes optional fields when present', () => {
+    const p = { ...playlist, created: '2026-01-01', lastEdited: '2026-06-07', location: { city: 'Portland', lat: 45.523, lng: -122.676 } };
+    const result = buildConfig(p);
+    expect(result).toContain('created: "2026-01-01"');
+    expect(result).toContain('lastEdited: "2026-06-07"');
+    expect(result).toContain('"Portland"');
+  });
+  it('omits optional fields when absent', () => {
+    const result = buildConfig(playlist);
+    expect(result).not.toContain('created');
+    expect(result).not.toContain('location');
+  });
+  it('returns empty string for null/undefined', () => {
+    expect(buildConfig(null)).toBe('');
+    expect(buildConfig(undefined)).toBe('');
+  });
+  it('JSON-escapes special characters in strings', () => {
+    const p = { ...playlist, tracks: [{ id: 'abc123defgh', title: 'Song "Quoted"', artist: "Artist's" }] };
+    const result = buildConfig(p);
+    expect(result).toContain('\\"Quoted\\"');
+    expect(result).toContain("Artist's");
   });
 });
 

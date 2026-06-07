@@ -8,9 +8,22 @@ export function extractId(raw) {
   let m;
   if ((m = raw.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/))) return m[1];
   if ((m = raw.match(/[?&]v=([a-zA-Z0-9_-]{11})/))) return m[1];
+  if ((m = raw.match(/\/shorts\/([a-zA-Z0-9_-]{11})/))) return m[1];
   if ((m = raw.match(/embed\/([a-zA-Z0-9_-]{11})/))) return m[1];
   if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
   return null;
+}
+
+export function buildConfig(playlist) {
+  if (!playlist) return "";
+  let extra = '';
+  if (playlist.created) extra += `\n  created: ${JSON.stringify(playlist.created)},`;
+  if (playlist.lastEdited) extra += `\n  lastEdited: ${JSON.stringify(playlist.lastEdited)},`;
+  if (playlist.location) extra += `\n  location: ${JSON.stringify(playlist.location)},`;
+  const lines = playlist.tracks
+    .map(t => `    { id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, artist: ${JSON.stringify(t.artist)} }`)
+    .join(",\n");
+  return `const TAPE = {\n  title: ${JSON.stringify(playlist.title)},\n\n  // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow\n  color: ${JSON.stringify(playlist.color)},${extra}\n\n  tracks: [\n${lines},\n  ]\n};\n`;
 }
 
 export function haversine(lat1, lng1, lat2, lng2) {

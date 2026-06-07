@@ -46,6 +46,11 @@ describe('fmtDate', () => {
     expect(fmtDate('2026-12-01')).toBe('01 Dec 2026');
     expect(fmtDate('2026-02-28')).toBe('28 Feb 2026');
   });
+  it('returns empty string for malformed ISO strings', () => {
+    expect(fmtDate('2026')).toBe('');
+    expect(fmtDate('not-a-date')).toBe('');
+    expect(fmtDate('2026-13-45')).toBe('');
+  });
 });
 
 describe('pluralization', () => {

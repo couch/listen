@@ -36,11 +36,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first: JS/CSS bundles and other static assets
-  if (
-    url.pathname.startsWith('/assets/') ||
-    url.pathname === '/sw.js'
-  ) {
+  // Cache-first: JS/CSS bundles and other static assets (sw.js excluded — must be fetched fresh for updates)
+  if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(event.request).then(cached => {
         if (cached) return cached;
