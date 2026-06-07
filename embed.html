@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>muxtape</title>
+
+  <!-- Preconnect hints -->
+  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://www.youtube-nocookie.com">
+  <link rel="preconnect" href="https://i.ytimg.com">
+
+  <!-- Open Graph / theme-color — set dynamically from TAPE after config.js loads -->
+  <meta property="og:title" content="muxtape">
+  <meta property="og:description" content="">
+  <meta name="theme-color" content="#c1440e">
+
+  <!-- config.js must load before the module bundle so TAPE is available globally -->
+  <script src="/config.js"></script>
+
+  <!-- Set OG tags from TAPE at parse time (runs before embed.js) -->
+  <script>
+    if (typeof TAPE !== 'undefined') {
+      document.querySelector('meta[property="og:title"]').setAttribute('content', TAPE.title);
+      const trackCount = TAPE.tracks?.length ?? 0;
+      document.querySelector('meta[property="og:description"]').setAttribute('content', trackCount + (trackCount === 1 ? ' track' : ' tracks'));
+    }
+  </script>
+</head>
+<body>
+
+<div id="tape" role="region" aria-label="Playlist">
+  <p id="tape-title"></p>
+  <ul id="track-list"></ul>
+</div>
+
+<div id="bar" role="region" aria-label="Player controls">
+  <div id="scrubber" role="slider" aria-label="Playback position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0:00"><div id="scrubber-fill"></div></div>
+  <div id="controls">
+    <button id="btn-play" aria-label="Play">▶&#xFE0E;</button>
+    <div id="now-playing">
+      <div id="np-title"></div>
+      <div id="np-artist"></div>
+    </div>
+    <div id="time"></div>
+  </div>
+  <a id="attribution" href="#" target="_blank" rel="noopener noreferrer">audio via YouTube</a>
+</div>
+
+<div id="a11y-announce" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+<div id="yt-player" aria-hidden="true"></div>
+
+<script type="module" src="/src/embed.js"></script>
+</body>
+</html>
