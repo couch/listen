@@ -1,3 +1,5 @@
 server.py
 start.sh
 admin.html
+node_modules/
+dist/

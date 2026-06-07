@@ -132,25 +132,35 @@ const TAPE = {
 
 ## Running Locally
 
-The YouTube IFrame API requires HTTP — `file://` won't work.
+```bash
+npm install          # first time only
+npm run dev          # Vite dev server at http://localhost:5173
+```
+
+Vite serves `config.js` and `playlists/` from the project root via a custom middleware so the player works without any extra steps. For admin work (creating/editing playlists), run `server.py` alongside:
 
 ```bash
-python3 server.py
-# open http://localhost:8080 for player
-# open http://localhost:8080/admin.html for admin
+python3 server.py    # http://localhost:8080/admin.html — handles admin POST saves
 ```
 
 ### Testing on iOS (tilt, gestures, location)
 
-iOS requires HTTPS for device orientation and geolocation permission. Use a Cloudflare quick tunnel:
+iOS requires HTTPS for device orientation and geolocation permission. Use a Cloudflare quick tunnel pointed at the Vite dev server:
 
 ```bash
-brew install cloudflared
-cloudflared tunnel --url http://localhost:8080
+cloudflared tunnel --url http://localhost:5173
 # open the printed https://....trycloudflare.com URL on your phone
 ```
 
 On first visit, tap the π button to grant orientation and location access. On subsequent visits the player probes silently and π stays hidden if permissions are still active.
+
+## Building and Deployment
+
+```bash
+npm run build        # outputs to dist/
+```
+
+GitHub Actions runs this automatically on every push to `main` and deploys to the `gh-pages` branch. **One-time setup required:** go to the repo's Settings → Pages and set the source to the `gh-pages` branch. After that, every push to `main` builds and goes live automatically.
 
 ## Keyboard Controls
 
@@ -169,6 +179,14 @@ Hosted on GitHub Pages. Push to `main` and it's live — no build required.
 ---
 
 ## Changelog
+
+### 2026-06-07 — `decde5b`
+- **Vite build** — source split into `src/strings.js`, `src/style.css`, `src/main.js`; bundles minified and hashed for production
+- **Deferred YouTube API** — `iframe_api` script loads on first track click rather than at parse time; play button shows `·` while API initialises
+- **Service worker** — shell cached after first visit; cache-first for bundles, network-first for `config.js` and playlists
+- **Open Graph + theme-color** — set from `TAPE` at parse time; `theme-color` matches playlist color
+- **Preconnect hints** — `youtube.com`, `youtube-nocookie.com`, `i.ytimg.com`
+- **GitHub Actions deployment** — push to `main` → Vite build → deploys to `gh-pages` branch automatically
 
 ### 2026-06-07 — `e9f9203`
 - **Pride color mode** — each track row shows its own full-width color from the Progress Pride flag; spectral order from a random entry point ensures adjacent rows are always harmonious; background drifts through the pride spectrum during playback
