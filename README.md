@@ -116,7 +116,7 @@ const TAPE = {
 - Node.js 18+
 - Python 3 (for local admin saves)
 - A GitHub repository (fork this one)
-- A GitHub personal access token with **Contents: Read and Write** on your repo (for remote admin saves)
+- A GitHub **fine-grained** personal access token scoped only to this repository with **Contents: Read and Write** — not a classic PAT, and not scoped to all repositories
 
 ### 1. Fork and configure
 

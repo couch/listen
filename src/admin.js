@@ -9,6 +9,8 @@ const GH_DEFAULTS = { owner: 'couch', repo: 'listen', branch: 'main' };
 
 // ── Auth ──
 
+const HASH_SALT = 'muxtape';
+
 function getGHConfig() {
   try { return { ...GH_DEFAULTS, ...JSON.parse(localStorage.getItem('muxtape-gh-config') || '{}') }; }
   catch { return { ...GH_DEFAULTS }; }
@@ -18,39 +20,66 @@ async function checkAuth() {
   if (IS_LOCAL) return;
 
   const storedHash = localStorage.getItem('muxtape-admin-hash');
+  const sessionToken = sessionStorage.getItem('muxtape-gh-token');
   const isSetup = !storedHash;
+  const needsToken = !isSetup && !sessionToken;
   const gh = getGHConfig();
 
   await new Promise(resolve => {
     const gate = document.createElement('div');
     gate.id = 'auth-gate';
-    gate.innerHTML = isSetup ? `
-      <div id="auth-box">
-        <h2>edit tape</h2>
-        <p class="auth-hint">First-time setup</p>
-        <input type="password" id="auth-pw" placeholder="set a password" autocomplete="new-password">
-        <input type="password" id="auth-confirm" placeholder="confirm password" autocomplete="new-password">
-        <input type="text" id="auth-token" placeholder="GitHub token (contents: write)" autocomplete="off" spellcheck="false">
-        <details id="auth-advanced">
-          <summary>GitHub repo</summary>
-          <input type="text" id="auth-owner" value="${gh.owner}" placeholder="owner">
-          <input type="text" id="auth-repo-name" value="${gh.repo}" placeholder="repo">
-          <input type="text" id="auth-branch" value="${gh.branch}" placeholder="branch">
-        </details>
-        <button id="auth-submit">Set up</button>
-        <p id="auth-error"></p>
-      </div>
-    ` : `
-      <div id="auth-box">
-        <h2>edit tape</h2>
-        <input type="password" id="auth-pw" placeholder="password" autocomplete="current-password">
-        <button id="auth-submit">Enter</button>
-        <p id="auth-error"></p>
-        <button id="auth-reset">Reset credentials</button>
-      </div>
-    `;
+
+    // All innerHTML is static — localStorage-derived values set via .value after creation
+    if (isSetup) {
+      gate.innerHTML = `
+        <div id="auth-box">
+          <h2>edit tape</h2>
+          <p class="auth-hint">First-time setup</p>
+          <input type="password" id="auth-pw" placeholder="set a password" autocomplete="new-password">
+          <input type="password" id="auth-confirm" placeholder="confirm password" autocomplete="new-password">
+          <input type="text" id="auth-token" placeholder="GitHub token (contents: write)" autocomplete="off" spellcheck="false">
+          <details id="auth-advanced">
+            <summary>GitHub repo</summary>
+            <input type="text" id="auth-owner" placeholder="owner">
+            <input type="text" id="auth-repo-name" placeholder="repo">
+            <input type="text" id="auth-branch" placeholder="branch">
+          </details>
+          <button id="auth-submit">Set up</button>
+          <p id="auth-error"></p>
+        </div>
+      `;
+    } else if (needsToken) {
+      gate.innerHTML = `
+        <div id="auth-box">
+          <h2>edit tape</h2>
+          <p class="auth-hint">New session — enter password and token</p>
+          <input type="password" id="auth-pw" placeholder="password" autocomplete="current-password">
+          <input type="text" id="auth-token" placeholder="GitHub token" autocomplete="off" spellcheck="false">
+          <button id="auth-submit">Enter</button>
+          <p id="auth-error"></p>
+          <button id="auth-reset">Reset credentials</button>
+        </div>
+      `;
+    } else {
+      gate.innerHTML = `
+        <div id="auth-box">
+          <h2>edit tape</h2>
+          <input type="password" id="auth-pw" placeholder="password" autocomplete="current-password">
+          <button id="auth-submit">Enter</button>
+          <p id="auth-error"></p>
+          <button id="auth-reset">Reset credentials</button>
+        </div>
+      `;
+    }
 
     document.body.prepend(gate);
+
+    if (isSetup) {
+      document.getElementById('auth-owner').value = gh.owner;
+      document.getElementById('auth-repo-name').value = gh.repo;
+      document.getElementById('auth-branch').value = gh.branch;
+    }
+
     document.getElementById('auth-pw').focus();
     const errorEl = document.getElementById('auth-error');
 
@@ -64,8 +93,8 @@ async function checkAuth() {
         const token = document.getElementById('auth-token').value.trim();
         if (pw !== confirmPw) { errorEl.textContent = 'Passwords do not match'; return; }
         if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
-        localStorage.setItem('muxtape-admin-hash', await sha256(pw));
-        localStorage.setItem('muxtape-gh-token', token);
+        localStorage.setItem('muxtape-admin-hash', await sha256(HASH_SALT + pw));
+        sessionStorage.setItem('muxtape-gh-token', token);
         localStorage.setItem('muxtape-gh-config', JSON.stringify({
           owner: document.getElementById('auth-owner').value.trim() || GH_DEFAULTS.owner,
           repo: document.getElementById('auth-repo-name').value.trim() || GH_DEFAULTS.repo,
@@ -73,8 +102,20 @@ async function checkAuth() {
         }));
         gate.remove();
         resolve();
+      } else if (needsToken) {
+        const token = document.getElementById('auth-token').value.trim();
+        if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
+        if (await sha256(HASH_SALT + pw) === storedHash) {
+          sessionStorage.setItem('muxtape-gh-token', token);
+          gate.remove();
+          resolve();
+        } else {
+          errorEl.textContent = 'Incorrect password';
+          document.getElementById('auth-pw').value = '';
+          document.getElementById('auth-pw').focus();
+        }
       } else {
-        if (await sha256(pw) === storedHash) {
+        if (await sha256(HASH_SALT + pw) === storedHash) {
           gate.remove();
           resolve();
         } else {
@@ -85,14 +126,17 @@ async function checkAuth() {
       }
     });
 
-    document.getElementById('auth-pw').addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('auth-submit').click();
+    ['auth-pw', 'auth-token'].forEach(id => {
+      document.getElementById(id)?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('auth-submit').click();
+      });
     });
 
     if (!isSetup) {
       document.getElementById('auth-reset').addEventListener('click', () => {
         if (!confirm('Clear admin credentials and start over?')) return;
-        ['muxtape-admin-hash', 'muxtape-gh-token', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
+        ['muxtape-admin-hash', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
+        sessionStorage.removeItem('muxtape-gh-token');
         location.reload();
       });
     }
@@ -102,7 +146,7 @@ async function checkAuth() {
 // ── GitHub API ──
 
 async function githubCommit(files, message) {
-  const token = localStorage.getItem('muxtape-gh-token');
+  const token = sessionStorage.getItem('muxtape-gh-token');
   const gh = getGHConfig();
   const base = `https://api.github.com/repos/${gh.owner}/${gh.repo}`;
   const headers = {
@@ -147,7 +191,7 @@ async function githubCommit(files, message) {
 }
 
 async function githubDeleteFile(filePath, message) {
-  const token = localStorage.getItem('muxtape-gh-token');
+  const token = sessionStorage.getItem('muxtape-gh-token');
   const gh = getGHConfig();
   const url = `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${filePath}`;
   const headers = {
