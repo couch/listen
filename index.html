@@ -18,20 +18,15 @@
   <!-- config.js must load before the module bundle so TAPE is available globally -->
   <script src="/config.js"></script>
 
-  <!-- Set OG tags and theme-color from TAPE at parse time (runs before main.js) -->
+  <!-- Set OG tags from TAPE at parse time (runs before main.js) -->
   <script>
     if (typeof TAPE !== 'undefined') {
       document.querySelector('meta[property="og:title"]').setAttribute('content', TAPE.title);
       const trackCount = TAPE.tracks?.length ?? 0;
       document.querySelector('meta[property="og:description"]').setAttribute('content', trackCount + (trackCount === 1 ? ' track' : ' tracks'));
-      const PALETTE = ["#a83232","#c1440e","#9c6b1a","#4a7a2e","#2e7a6e","#2e4a7a","#5c2e7a","#7a2e5c","#4a5f6e","#7a6b2e"];
-      const themeColor = (!TAPE.color || TAPE.color === 'random' || TAPE.color === 'pride')
-        ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
-        : TAPE.color;
-      document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
     }
   </script>
-  <script type="module" crossorigin src="/assets/main-kt0NmRsH.js"></script>
+  <script type="module" crossorigin src="/assets/main-BlR0w5sS.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/utils-BO7xkvPC.js">
   <link rel="stylesheet" crossorigin href="/assets/main-R71rloM7.css">
 </head>
