@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.7"
   }
 }

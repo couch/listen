@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>edit tape</title>
+</head>
+<body>
+<script src="/config.js"></script>
+
+<div class="page">
+
+  <div id="playlist-bar">
+    <select id="playlist-select"></select>
+    <button class="bar-btn" id="new-btn">+ New</button>
+    <button class="bar-btn" id="delete-btn">Delete</button>
+    <span id="live-badge">● live</span>
+    <button class="bar-btn" id="set-live-btn">Set as live</button>
+  </div>
+
+  <div id="settings">
+    <input id="tape-name" type="text" placeholder="tape title" spellcheck="false">
+    <div id="color-row"></div>
+    <div id="location-row">
+      <span id="location-display"></span>
+      <button type="button" id="location-btn" class="bar-btn">Set location</button>
+    </div>
+  </div>
+
+  <div id="tracks-section">
+    <p class="section-label">tracks</p>
+    <ul id="track-list"></ul>
+    <p id="empty-state" hidden>No tracks yet — add one below.</p>
+  </div>
+
+  <div id="add-section">
+    <p class="section-label">add track</p>
+    <div id="url-row">
+      <input id="yt-input" type="text" placeholder="YouTube URL or video ID" spellcheck="false" autocomplete="off">
+      <button id="fetch-btn">Fetch →</button>
+    </div>
+    <div id="meta-row" hidden>
+      <input id="meta-title" class="meta-field" type="text" placeholder="Title">
+      <input id="meta-artist" class="meta-field" type="text" placeholder="Artist">
+      <button id="add-btn">Add</button>
+    </div>
+    <p id="fetch-status"></p>
+  </div>
+
+  <div id="actions">
+    <button id="save-btn">Save</button>
+    <span id="save-status"></span>
+    <a id="view-link" href="index.html">View tape →</a>
+  </div>
+
+</div>
+
+<script type="module" src="/src/admin.js"></script>
+</body>
+</html>

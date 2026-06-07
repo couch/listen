@@ -67,18 +67,26 @@ Live at [listen.couch.studio](https://listen.couch.studio)
 - Set the playlist's location with one tap — uses the browser Geolocation API
 - Promote any playlist to live; `config.js` regenerates on every save
 - All UI strings fully localized across all 11 supported languages
+- **Remote editing** — admin is accessible from any device; saves commit directly to `main` via the GitHub API and deploy automatically
+- **Password gate** — first visit prompts for a password and GitHub token (stored in `localStorage`); subsequent visits just ask for the password
 
 **General**
-- No build step, no framework, no dependencies in the player (SortableJS only in admin)
+- No framework, no dependencies in the player (SortableJS only in admin)
 - Hosted on GitHub Pages; push to `main` and it's live
 
 ## Structure
 
 ```
-index.html          # Player UI — all JS and CSS inline
-admin.html          # Admin UI — create and manage playlists
+index.html          # Player entry point
+admin.html          # Admin entry point
 config.js           # Active playlist as TAPE const — what the player reads
 server.py           # Local dev server with POST endpoints for admin saves
+src/
+  main.js           # Player logic
+  style.css         # Player styles
+  strings.js        # i18n strings and helpers
+  admin.js          # Admin logic (auth, GitHub API, playlist management)
+  admin.css         # Admin styles
 playlists/
   index.json        # Active playlist pointer + list of all IDs
   {id}.json         # Individual playlists (timestamp-based IDs)
@@ -137,11 +145,13 @@ npm install          # first time only
 npm run dev          # Vite dev server at http://localhost:5173
 ```
 
-Vite serves `config.js` and `playlists/` from the project root via a custom middleware so the player works without any extra steps. For admin work (creating/editing playlists), run `server.py` alongside:
+Vite serves `config.js` and `playlists/` from the project root via a custom middleware so the player works without any extra steps. For admin work locally, run `server.py` alongside Vite — it handles the POST endpoints that write files to disk:
 
 ```bash
-python3 server.py    # http://localhost:8080/admin.html — handles admin POST saves
+python3 server.py    # handles admin saves at http://localhost:5173/admin.html
 ```
+
+When using the deployed admin, saves go directly to GitHub via the API instead — no server needed.
 
 ### Testing on iOS (tilt, gestures, location)
 
@@ -179,6 +189,12 @@ Hosted on GitHub Pages. Push to `main` and it's live — no build required.
 ---
 
 ## Changelog
+
+### 2026-06-07
+- **Admin Vite migration** — `src/admin.js` and `src/admin.css` extracted from inline script/style; `admin.html` added as a second Vite build entry; SortableJS installed as npm dep instead of CDN
+- **Remote admin editing** — saves from `listen.couch.studio/admin.html` commit directly to `main` via the GitHub Git Trees API (single commit per save); deploy triggers automatically
+- **Password gate** — first-time setup prompts for a password and GitHub token stored in `localStorage`; subsequent visits just check the password; localhost skips auth entirely
+- **Delete fix** — deleting a playlist now saves the updated index and config in the same operation
 
 ### 2026-06-07 — `decde5b`
 - **Vite build** — source split into `src/strings.js`, `src/style.css`, `src/main.js`; bundles minified and hashed for production
