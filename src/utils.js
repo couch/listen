@@ -3,6 +3,11 @@ export const PALETTE = [
   "#2e4a7a","#5c2e7a","#7a2e5c","#4a5f6e","#7a6b2e"
 ];
 
+export function extractPlaylistId(raw) {
+  const m = raw.trim().match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
 export function extractId(raw) {
   raw = raw.trim();
   let m;
@@ -17,6 +22,7 @@ export function extractId(raw) {
 export function buildConfig(playlist) {
   if (!playlist) return "";
   let extra = '';
+  if (playlist.id) extra += `\n  id: ${JSON.stringify(playlist.id)},`;
   if (playlist.created) extra += `\n  created: ${JSON.stringify(playlist.created)},`;
   if (playlist.lastEdited) extra += `\n  lastEdited: ${JSON.stringify(playlist.lastEdited)},`;
   if (playlist.location) extra += `\n  location: ${JSON.stringify(playlist.location)},`;

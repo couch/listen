@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>edit tape</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com https://www.youtube.com https://nominatim.openstreetmap.org;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://www.youtube.com https://nominatim.openstreetmap.org https://www.googleapis.com;">
 </head>
 <body>
 <script src="/config.js"></script>
@@ -26,12 +26,19 @@
       <span id="location-display"></span>
       <button type="button" id="location-btn" class="bar-btn">Set location</button>
     </div>
+    <div id="api-key-row">
+      <input id="yt-api-key" type="text" placeholder="YouTube API key (optional — enables playlist import)" spellcheck="false" autocomplete="off">
+    </div>
   </div>
 
   <div id="tracks-section">
     <p class="section-label">tracks</p>
     <ul id="track-list"></ul>
     <p id="empty-state" hidden>No tracks yet — add one below.</p>
+    <div id="undo-bar" hidden>
+      <span id="undo-msg"></span>
+      <button id="undo-btn" class="bar-btn">Undo</button>
+    </div>
   </div>
 
   <div id="add-section">
@@ -39,6 +46,10 @@
     <div id="url-row">
       <input id="yt-input" type="text" placeholder="YouTube URL or video ID" spellcheck="false" autocomplete="off">
       <button id="fetch-btn">Fetch →</button>
+    </div>
+    <div id="import-row" hidden>
+      <span id="import-status"></span>
+      <button id="import-btn" class="bar-btn">Import playlist →</button>
     </div>
     <div id="meta-row" hidden>
       <input id="meta-title" class="meta-field" type="text" placeholder="Title">

@@ -3,6 +3,7 @@ const TAPE = {
 
   // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow
   color: "random",
+  id: "1780262299494",
   created: "2026-05-31",
   lastEdited: "2026-06-07",
   location: {"city":"New York","lat":40.721,"lng":-73.979},

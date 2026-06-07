@@ -1,10 +1,11 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, extractId, fuzzyCoord, sha256, buildConfig } from './utils.js';
+import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, sha256, buildConfig } from './utils.js';
 import { T } from './admin-strings.js';
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const YT_API_KEY_STORE = 'muxtape-yt-api-key';
 const GH_DEFAULTS = { owner: 'couch', repo: 'listen', branch: 'main' };
 
 // ── Auth ──
@@ -240,6 +241,24 @@ let playlists = {};
 let currentId = null;
 const state = { title: "", color: "random", tracks: [], pendingId: null, location: null };
 
+// ── Undo state ──
+let undoState = null;
+let undoTimer = null;
+
+function showUndo(track, index) {
+  if (undoTimer) clearTimeout(undoTimer);
+  undoState = { track, index };
+  document.getElementById('undo-msg').textContent = T.undoRemoved(track.title);
+  document.getElementById('undo-bar').hidden = false;
+  undoTimer = setTimeout(hideUndo, 5000);
+}
+
+function hideUndo() {
+  if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+  undoState = null;
+  document.getElementById('undo-bar').hidden = true;
+}
+
 // ── Init ──
 async function init() {
   try {
@@ -272,6 +291,9 @@ async function init() {
   attachListeners();
   loadPlaylist(initialId);
   renderSelect();
+
+  const savedKey = localStorage.getItem(YT_API_KEY_STORE);
+  if (savedKey) document.getElementById('yt-api-key').value = savedKey;
 }
 
 // ── Helpers ──
@@ -321,6 +343,7 @@ function syncToPlaylists() {
 }
 
 function loadPlaylist(id) {
+  hideUndo();
   syncToPlaylists();
   currentId = id;
   const p = playlists[id];
@@ -542,7 +565,13 @@ function renderTracks() {
     const del = document.createElement("button");
     del.className = "track-delete";
     del.textContent = "×";
-    del.addEventListener("click", () => { state.tracks.splice(i, 1); renderTracks(); });
+    del.addEventListener("click", () => {
+      const deletedTrack = { ...track };
+      const deletedAt = i;
+      state.tracks.splice(i, 1);
+      renderTracks();
+      showUndo(deletedTrack, deletedAt);
+    });
 
     li.append(handle, num, titleInput, artistInput, del);
     trackList.appendChild(li);
@@ -573,7 +602,11 @@ const addBtn = document.getElementById("add-btn");
 
 async function doFetch() {
   const id = extractId(ytInput.value);
-  if (!id) { setFetchStatus(T.noId, true); return; }
+  if (!id) {
+    if (extractPlaylistId(ytInput.value)) { updateImportRow(); return; }
+    setFetchStatus(T.noId, true);
+    return;
+  }
   fetchBtn.disabled = true;
   setFetchStatus(T.fetching);
   metaRow.hidden = true;
@@ -610,6 +643,59 @@ function setFetchStatus(msg, isError = false) {
   el.className = isError ? "error" : "";
 }
 
+function setImportStatus(msg, isError = false) {
+  const el = document.getElementById('import-status');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+}
+
+function updateImportRow() {
+  const listId = extractPlaylistId(ytInput.value);
+  const importRow = document.getElementById('import-row');
+  if (!listId) { importRow.hidden = true; return; }
+  importRow.hidden = false;
+  const apiKey = document.getElementById('yt-api-key').value.trim() || localStorage.getItem(YT_API_KEY_STORE) || '';
+  const importBtn = document.getElementById('import-btn');
+  importBtn.disabled = !apiKey;
+  setImportStatus(apiKey ? '' : T.importNoKey);
+}
+
+async function doImport() {
+  const listId = extractPlaylistId(ytInput.value);
+  if (!listId) return;
+  const apiKey = (document.getElementById('yt-api-key').value.trim() || localStorage.getItem(YT_API_KEY_STORE) || '').trim();
+  if (!apiKey) { setImportStatus(T.importNoKey, true); return; }
+  const remaining = 12 - state.tracks.length;
+  if (remaining <= 0) { setImportStatus(T.atLimitFull, true); return; }
+  const importBtn = document.getElementById('import-btn');
+  importBtn.disabled = true;
+  setImportStatus(T.importing);
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${remaining}&playlistId=${encodeURIComponent(listId)}&key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error?.message || T.importFailed);
+    const items = (data.items || []).filter(item => {
+      const vid = item.snippet?.resourceId?.videoId;
+      const title = item.snippet?.title;
+      return vid && title && title !== 'Private video' && title !== 'Deleted video';
+    });
+    if (!items.length) { setImportStatus(T.importNone); return; }
+    items.forEach(item => {
+      if (state.tracks.length >= 12) return;
+      state.tracks.push({ id: item.snippet.resourceId.videoId, title: item.snippet.title, artist: item.snippet.videoOwnerChannelTitle || '' });
+    });
+    renderTracks();
+    setImportStatus(T.importAdded(items.length));
+    ytInput.value = '';
+    document.getElementById('import-row').hidden = true;
+  } catch (err) {
+    setImportStatus(err.message || T.importFailed, true);
+  } finally {
+    importBtn.disabled = false;
+  }
+}
+
 // ── i18n ──
 function applyStrings() {
   document.getElementById('new-btn').textContent = T.newBtn;
@@ -628,6 +714,8 @@ function applyStrings() {
   document.getElementById('save-btn').textContent = T.saveBtn;
   document.getElementById('view-link').textContent = T.viewLink;
   document.getElementById('location-btn').textContent = T.setLocBtn;
+  document.getElementById('import-btn').textContent = T.importBtn;
+  document.getElementById('undo-btn').textContent = T.undoBtn;
 }
 
 // ── Save ──
@@ -652,7 +740,7 @@ async function doSave() {
       files.push({ path: `playlists/${idx.active}.json`, content: JSON.stringify(playlists[idx.active], null, 2) });
     }
     files.push({ path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) });
-    files.push({ path: 'config.js', content: buildConfig() });
+    files.push({ path: 'config.js', content: buildConfig(playlists[idx.active]) });
 
     await saveFiles(files, `update: ${playlists[currentId]?.title || currentId}`);
     status.textContent = T.saved;
@@ -703,7 +791,24 @@ document.getElementById('location-btn').addEventListener('click', async () => {
 function attachListeners() {
   fetchBtn.addEventListener("click", doFetch);
   ytInput.addEventListener("keydown", e => { if (e.key === "Enter") doFetch(); });
+  ytInput.addEventListener("input", updateImportRow);
   metaArtist.addEventListener("keydown", e => { if (e.key === "Enter") addBtn.click(); });
+
+  document.getElementById('undo-btn').addEventListener('click', () => {
+    if (!undoState) return;
+    state.tracks.splice(undoState.index, 0, undoState.track);
+    hideUndo();
+    renderTracks();
+  });
+
+  document.getElementById('import-btn').addEventListener('click', doImport);
+
+  document.getElementById('yt-api-key').addEventListener('input', e => {
+    const val = e.target.value.trim();
+    if (val) localStorage.setItem(YT_API_KEY_STORE, val);
+    else localStorage.removeItem(YT_API_KEY_STORE);
+    updateImportRow();
+  });
 }
 
 // ── Bootstrap ──

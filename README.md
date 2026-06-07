@@ -13,10 +13,14 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Full keyboard navigation — arrows to move focus, space/enter to play, tab for standard flow
 - MediaSession API for lock screen and headphone controls on mobile
 - Service worker caches the shell; playlist data is always fetched fresh
+- Playback persistence: last track and seek position saved in `sessionStorage` per playlist ID; on reload the track is selected and the scrubber reflects the saved offset — no autoplay, play button is shown ready to resume
+- Offline indicator shown when the browser loses network
 
 **Playlist management (admin)**
 - Create, edit, reorder (drag-to-reorder), and delete playlists without touching JSON
 - Fetch track title and artist automatically from YouTube oEmbed
+- Import an entire YouTube playlist by URL — paste the link, hit Import; requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
+- 5-second undo after deleting a track
 - Color picker: fixed hex, random-per-load, custom, or Pride rainbow
 - Set a playlist's geographic location with one tap
 - Promote any playlist to live; `config.js` regenerates on every save
@@ -100,6 +104,7 @@ public/
 const TAPE = {
   title: "my playlist",
   color: "random",
+  id: "1748649600000",
   created: "2026-05-31",
   lastEdited: "2026-06-07",
   location: { "city": "Portland", "lat": 45.523, "lng": -122.676 },
@@ -108,6 +113,8 @@ const TAPE = {
   ]
 };
 ```
+
+`id` matches the playlist file's timestamp-based ID and is used to key session playback persistence — restoring to the correct track and position when the listener returns within the same browser session.
 
 ## Setting Up Your Own Instance
 

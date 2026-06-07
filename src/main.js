@@ -24,6 +24,14 @@ const bg = (!TAPE.color || TAPE.color === "random" || isPride)
   : TAPE.color;
 document.documentElement.style.setProperty("--bg", bg);
 document.documentElement.lang = lang;
+
+// ── Offline indicator ──
+const offlineEl = document.getElementById('offline-indicator');
+offlineEl.textContent = L.offline;
+function updateOnlineStatus() { offlineEl.hidden = navigator.onLine; }
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
 document.title = TAPE.title;
 document.getElementById("tape-title").textContent = TAPE.title;
@@ -97,6 +105,30 @@ let playing = false;
 let ticker = null;
 let focusedIndex = -1;
 
+// ── Playback persistence ──
+const POS_KEY = 'muxtape-pos';
+
+function savePosition(overrideTime) {
+  if (currentIndex < 0) return;
+  try {
+    sessionStorage.setItem(POS_KEY, JSON.stringify({
+      id: TAPE.id,
+      index: currentIndex,
+      time: overrideTime !== undefined ? overrideTime : (player?.getCurrentTime ? Math.floor(player.getCurrentTime()) : 0),
+    }));
+  } catch {}
+}
+
+function getSavedPosition() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(POS_KEY) || '');
+    if (TAPE.id && s?.id === TAPE.id && s.index >= 0 && s.index < TAPE.tracks.length) return s;
+  } catch {}
+  return null;
+}
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) savePosition(); });
+
 function loadYouTubeAPI() {
   if (ytApiLoading || ytApiReady) return;
   ytApiLoading = true;
@@ -117,16 +149,17 @@ window.onYouTubeIframeAPIReady = () => {
     },
     events: {
       onReady(e) {
-        // Required for background audio on iOS
         e.target.getIframe().setAttribute(
           "allow", "autoplay; encrypted-media; picture-in-picture"
         );
-        // Process any pending track click that happened while API was loading
         if (pendingTrackIndex >= 0) {
           const idx = pendingTrackIndex;
           pendingTrackIndex = -1;
-          updateBtn(); // restore button from loading state
+          updateBtn();
           load(idx);
+        } else {
+          const saved = getSavedPosition();
+          if (saved) load(saved.index, saved.time);
         }
       },
       onStateChange: onState,
@@ -145,10 +178,33 @@ function onState(e) {
     playing = false;
     updateBtn();
     stopTicker();
+    savePosition();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
   } else if (e.data === YT.PlayerState.ENDED) {
     next();
+  } else if (e.data === YT.PlayerState.CUED) {
+    playing = false;
+    updateBtn();
+    const cur = player.getCurrentTime();
+    const dur = player.getDuration();
+    if (dur > 0) {
+      const ratio = cur / dur;
+      const pct = `${ratio * 100}%`;
+      const scrubFill = document.getElementById("scrubber-fill");
+      scrubFill.style.transition = "none";
+      scrubFill.style.width = pct;
+      document.getElementById("time").textContent = `${fmt(cur)} / ${fmt(dur)}`;
+      const scrub = document.getElementById("scrubber");
+      scrub.setAttribute("aria-valuenow", Math.round(ratio * 100));
+      scrub.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
+      const p = trackEls[currentIndex]?.querySelector(".track-progress");
+      if (p) { p.style.transition = "none"; p.style.width = pct; }
+      requestAnimationFrame(() => {
+        scrubFill.style.transition = "";
+        if (p) p.style.transition = "";
+      });
+    }
   }
 }
 
@@ -166,7 +222,7 @@ function onTrackClick(i) {
   }
 }
 
-function load(i) {
+function load(i, startSeconds) {
   clearActive();
   barEl.classList.add("bar-visible");
   requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; cachedPeekH = peekPanel.offsetHeight; });
@@ -186,7 +242,11 @@ function load(i) {
     document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
   }
   const t = TAPE.tracks[i];
-  player.loadVideoById(t.id);
+  if (startSeconds !== undefined) {
+    player.cueVideoById({ videoId: t.id, startSeconds });
+  } else {
+    player.loadVideoById(t.id);
+  }
   document.getElementById("np-title").textContent = t.title;
   document.getElementById("np-artist").textContent = t.artist;
   const attr = document.getElementById("attribution");
@@ -361,9 +421,18 @@ function startTicker() {
     document.getElementById("scrubber-fill").style.width = pct;
     document.getElementById("time").textContent = `${fmt(cur)} / ${fmt(dur)}`;
     if (now - lastSlowUpdate >= 500) {
+      const first = lastSlowUpdate === 0;
       lastSlowUpdate = now;
       const p = trackEls[currentIndex]?.querySelector(".track-progress");
-      if (p) p.style.width = pct;
+      if (p) {
+        if (first) {
+          p.style.transition = "none";
+          p.style.width = pct;
+          requestAnimationFrame(() => { const q = trackEls[currentIndex]?.querySelector(".track-progress"); if (q) q.style.transition = ""; });
+        } else {
+          p.style.width = pct;
+        }
+      }
       const s = document.getElementById("scrubber");
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
