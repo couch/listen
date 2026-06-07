@@ -12,7 +12,7 @@ export const STRINGS = {
     mr: { mo:['जाने','फेब्रु','मार्च','एप्रि','मे','जून','जुलै','ऑग','सप्टें','ऑक्टो','नोव्हें','डिसें'], tr:n=>`${n} ट्रॅक`, cr:'बनवले', ed:'संपादित', nb:'जवळून ऐकत आहात', fa:n=>`${n.toLocaleString()} किमी दूरून ऐकत आहात`, au:'YouTube वरून ऑडिओ', mi:false, pl:'प्लेलिस्ट', pc:'प्लेयर नियंत्रणे', pp:'प्लेबॅक स्थान', play:'प्ले करा', pause:'थांबवा', by:(t,a)=>`${t} - ${a}`, np:(t,a)=>`आता वाजत आहे: ${t} - ${a}`, pe:'प्लेलिस्ट संपली.', of:(c,d)=>`${c} / ${d}`, pi:'झुकवणे सक्षम करा' },
   };
 
-export const lang = (navigator.language || 'en').split('-')[0].toLowerCase();
+export const lang = ((typeof navigator !== 'undefined' ? navigator.language : null) || 'en').split('-')[0].toLowerCase();
 export const L = STRINGS[lang] || STRINGS.en;
 
 export function fmtDate(iso) {

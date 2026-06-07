@@ -1,14 +1,10 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
+import { PALETTE, haversine, fmt } from './utils.js';
 
 if (location.protocol === 'file:') {
   document.getElementById('file-warning').style.display = 'block';
 }
-
-const PALETTE = [
-  "#a83232","#c1440e","#9c6b1a","#4a7a2e","#2e7a6e",
-  "#2e4a7a","#5c2e7a","#7a2e5c","#4a5f6e","#7a6b2e"
-];
 
 // Progress Pride flag colors in spectral order — every adjacent pair is harmonious,
 // and the cycle wraps (pink→brown→red) within the warm family.
@@ -153,10 +149,8 @@ function onState(e) {
 
 function onTrackClick(i) {
   if (!ytApiReady) {
-    // Defer: load the API now and remember which track was clicked
     pendingTrackIndex = i;
     document.getElementById("btn-play").textContent = "·";
-    loadYouTubeAPI();
     return;
   }
   if (!player || !player.loadVideoById) return;
@@ -199,6 +193,7 @@ function load(i) {
   }
   el.setAttribute("aria-pressed", "true");
   announce(L.np(t.title, t.artist));
+  scrollTrackIntoView(el);
 }
 
 function next() {
@@ -243,7 +238,7 @@ function setFocused(i) {
   if (el) {
     el.classList.add("kb-focused");
     el.focus({ preventScroll: true }); // moves real browser focus so Tab stays in sync
-    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    scrollTrackIntoView(el);
   }
 }
 
@@ -365,11 +360,6 @@ function announce(msg) {
   requestAnimationFrame(() => { el.textContent = msg; });
 }
 
-function fmt(s) {
-  const m = Math.floor(s / 60);
-  return `${m}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-}
-
 // ── Generative background color drift ─────────────────────────────────────
 // Interpolates slowly between palette colors while playing.
 // smootherstep keeps the first few seconds nearly imperceptible.
@@ -469,15 +459,6 @@ function setReveal(t) {
   }
 })();
 
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371; // km
-  const r = d => d * Math.PI / 180;
-  const dLat = r(lat2 - lat1), dLng = r(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 +
-    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function applyViewerLocation(lat, lng) {
   if (!TAPE.location?.lat) return;
   const distKm = haversine(TAPE.location.lat, TAPE.location.lng, lat, lng);
@@ -529,12 +510,10 @@ function handleMotion(e) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
     load(currentIndex - 1);
-    scrollTrackIntoView(trackEl(currentIndex));
   } else if (rate < -250 && currentIndex >= 0 && currentIndex < TAPE.tracks.length - 1) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
     load(currentIndex + 1);
-    scrollTrackIntoView(trackEl(currentIndex));
   }
 }
 
@@ -635,3 +614,8 @@ function updateMediaSession() {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
 }
+
+// Load YouTube API eagerly so it's ready before the first track click —
+// calling loadVideoById from an async callback (onReady) loses the user gesture
+// context on iOS, preventing autoplay.
+loadYouTubeAPI();

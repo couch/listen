@@ -2,99 +2,78 @@
 
 A minimalist web music player that streams curated playlists from YouTube. Inspired by the original [Muxtape](https://en.wikipedia.org/wiki/Muxtape) — a simple, no-frills tape-sharing aesthetic.
 
-Live at [listen.couch.studio](https://listen.couch.studio)
+An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 
 ## Features
 
-**Playback**
-- Streams audio from YouTube video IDs — no ads, no distractions
-- Scrubber with seek support; fill and track progress bar snap immediately on seek or track change
-- Player bar slides in from the bottom on first play
-- Background color slowly drifts through a warm palette while music plays
-- Per-playlist color themes — fixed hex, randomly chosen each load, or Pride rainbow (see below)
-- Full keyboard navigation (arrows, space, enter, tab)
-- MediaSession API integration for lock screen controls on mobile
+**Player**
+- Streams audio from YouTube video IDs — no ads, no video
+- Scrubber with seek, live timestamps, and per-track progress bar
+- Autoadvances through the playlist; player bar slides up from the bottom on first play
+- Full keyboard navigation — arrows to move focus, space/enter to play, tab for standard flow
+- MediaSession API for lock screen and headphone controls on mobile
+- Service worker caches the shell; playlist data is always fetched fresh
 
-**Pride color mode**
-- Setting `color: "pride"` gives each track row its own full-width color from the Progress Pride flag
-- 9 colors covering the flag's spectrum: red, orange, amber, green, teal, blue, violet, pink, brown
-- On each page load a random entry point into the spectral sequence is chosen — adjacent tracks are always harmonious regardless of where the sequence starts
-- The page background drifts through the pride spectrum during playback, advancing one color per 45-second cycle
-
-**Peek drawer**
-- A hidden metadata panel that reveals from the bottom of the screen via a physical gesture
-- On mobile: tilt the phone to between 45° and 75° past your natural hold position (calibrated on the first orientation event) — panel rises and physically lifts the player bar with it
-- On desktop: slide the cursor toward the bottom edge of the viewport — only active after the π button has been clicked
-- Shows track count, created date, last edited date, and listener distance
-- Both panels share the same frosted glass surface with an engraved dividing line between them
-
-**Gesture navigation (mobile)**
-- Quick left/right wrist roll (>250 deg/s on `rotationRate.gamma`) skips tracks: roll right → previous, roll left → next
-- Navigated track scrolls into view, accounting for the combined height of both bottom panels
-- Same device motion permission as orientation — no additional prompt required
-
-**π button**
-- Bottom-right corner on mobile and desktop (when playlist has a location set)
-- A nod to *The Net* (1995)
-- On iOS: probes for existing orientation permission silently on load; shows π only if not yet granted
-- Tapping π requests device orientation + device location (Geolocation API) in a single gesture
-- Once granted, π disappears; returns only if permissions are revoked
-- On Android: orientation starts automatically; π appears solely to request location
-- On desktop: π requests location and enables the cursor-drift peek reveal
-
-**Playlist location**
-- Each playlist stores the city and fuzzed coordinates of where it was last saved (±1 mile radius, 3 decimal places — exact location never written to disk)
-- City is reverse-geocoded from the precise position before fuzzing via OpenStreetMap Nominatim
-- Distance displayed in the peek drawer as "listening from X miles away" — derived from the viewer's device GPS (via π opt-in), not IP lookup
+**Playlist management (admin)**
+- Create, edit, reorder (drag-to-reorder), and delete playlists without touching JSON
+- Fetch track title and artist automatically from YouTube oEmbed
+- Color picker: fixed hex, random-per-load, custom, or Pride rainbow
+- Set a playlist's geographic location with one tap
+- Promote any playlist to live; `config.js` regenerates on every save
+- Password-gated; accessible from any device
+- Remote saves commit directly to `main` via the GitHub API — no server required, deploy triggers automatically (~60 seconds to live)
 
 **Localization**
-- All visible strings, ARIA labels, VoiceOver announcements, and date formats auto-detect from `navigator.language`
-- Supported: English, Spanish, Italian, German, French, Chinese, Japanese, Korean, Russian, Hindi, Marathi
-- CJK locales use native date formats (`YYYY年M月DD日` / `YYYY년 M월 DD일`) and artist–title ordering
-- Distance unit switches to km for all non-English locales
-- Russian uses full grammatical plural forms
+- All UI strings, ARIA labels, and date formats auto-detect from `navigator.language`
+- 11 languages: English, Spanish, Italian, German, French, Chinese, Japanese, Korean, Russian, Hindi, Marathi
+- CJK locales use native date formats and artist–title ordering; distance switches to km; Russian has full grammatical plural forms
 
 **Accessibility**
-- ARIA roles and live region announcements throughout, all localized
-- Track list labels use locale-appropriate "by" connectors (e.g. *par*, *von*, *di*, *de*)
+- ARIA roles and live region announcements throughout, fully localized
+- Locale-appropriate "by" connectors in track labels (*par*, *von*, *di*, *de*, …)
 - Scrubber `aria-valuetext` reads elapsed/total in the correct locale pattern
-- Mobile hover state uses `@media (hover: hover)` so touch devices never retain a lingering highlight
+- Hover states restricted to `@media (hover: hover)` — touch devices never retain a highlight
 
-**Admin (`admin.html`)**
-- Create, edit, reorder (drag), and delete playlists without touching JSON
-- Fetch track title and artist automatically from YouTube oEmbed
-- Color picker includes fixed hex, random, custom, and Pride rainbow swatches
-- Set the playlist's location with one tap — uses the browser Geolocation API
-- Promote any playlist to live; `config.js` regenerates on every save
-- All UI strings fully localized across all 11 supported languages
-- **Remote editing** — admin is accessible from any device; saves commit directly to `main` via the GitHub API and deploy automatically
-- **Password gate** — first visit prompts for a password and GitHub token (stored in `localStorage`); subsequent visits just ask for the password
+**Mobile gestures**
+- Quick wrist-flick left/right (>250°/s on `rotationRate.gamma`) skips tracks
+- Tilt-to-reveal metadata panel calibrated to your natural hold position
+- Currently playing track always scrolls into view above the player bar, regardless of how the track changed
 
-**General**
-- No framework, no dependencies in the player (SortableJS only in admin)
-- Hosted on GitHub Pages; push to `main` and it's live
+---
+
+**Visual and behavioral details**
+- Background color slowly drifts through a warm palette while music plays
+- Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
+- Pride mode: each track row gets its own full-width color from the Progress Pride flag; background drifts through the spectrum during playback; random spectral entry point ensures adjacent tracks are always harmonious
+- Peek drawer: metadata panel (track count, dates, listener distance) slides up from below the player bar via tilt on mobile or cursor-to-bottom on desktop
+- Playlist location: stores city and fuzzed coordinates (±1 mile, 3 decimal places — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown as "listening from X away" using the viewer's device GPS, not IP
+- π button: single tap requests device orientation + location on iOS; auto-skips if permissions already granted; a nod to *The Net* (1995)
 
 ## Structure
 
 ```
-index.html          # Player entry point
-admin.html          # Admin entry point
-config.js           # Active playlist as TAPE const — what the player reads
-server.py           # Local dev server with POST endpoints for admin saves
+index.html              # Player entry point
+admin.html              # Admin entry point (password-gated)
+config.js               # Active playlist — loaded by the player at parse time
+server.py               # Local dev server (handles admin file writes)
 src/
-  main.js           # Player logic
-  style.css         # Player styles
-  strings.js        # i18n strings and helpers
-  admin.js          # Admin logic (auth, GitHub API, playlist management)
-  admin.css         # Admin styles
+  main.js               # Player logic
+  style.css             # Player styles
+  strings.js            # Shared i18n strings, lang detection, fmtDate
+  utils.js              # Pure utilities: extractId, haversine, fuzzyCoord, fmt, sha256
+  admin.js              # Admin logic: auth, GitHub API, playlist management
+  admin.css             # Admin styles
+  admin-strings.js      # Admin i18n strings
 playlists/
-  index.json        # Active playlist pointer + list of all IDs
-  {id}.json         # Individual playlists (timestamp-based IDs)
-CNAME               # Custom domain for GitHub Pages
+  index.json            # { active: id, ids: [id, …] }
+  {id}.json             # Individual playlist files (timestamp-based IDs)
+public/
+  sw.js                 # Service worker
 ```
 
-### Playlist schema
+### Data formats
 
+**`playlists/{id}.json`**
 ```json
 {
   "id": "1748649600000",
@@ -109,68 +88,94 @@ CNAME               # Custom domain for GitHub Pages
 }
 ```
 
-`color` is `"random"`, a hex value like `"#c1440e"`, or `"pride"` for the rainbow mode. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist. `location` is optional and set via the admin UI.
+`color` is `"random"`, a hex string like `"#c1440e"`, or `"pride"`. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist. `location` is optional.
 
-### `playlists/index.json`
-
+**`playlists/index.json`**
 ```json
 { "active": "1748649600000", "ids": ["1748649600000"] }
 ```
 
-### `config.js`
-
-Generated automatically when saving from admin. The player reads this file, not the playlist JSON directly.
-
+**`config.js`** — regenerated by the admin on every save; the player reads this directly.
 ```js
 const TAPE = {
   title: "my playlist",
-
-  // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow
   color: "random",
-
   created: "2026-05-31",
   lastEdited: "2026-06-07",
   location: { "city": "Portland", "lat": 45.523, "lng": -122.676 },
-
   tracks: [
     { id: "dQw4w9WgXcQ", title: "Never Gonna Give You Up", artist: "Rick Astley" },
   ]
 };
 ```
 
-## Running Locally
+## Setting Up Your Own Instance
 
-```bash
-npm install          # first time only
-npm run dev          # Vite dev server at http://localhost:5173
+### Prerequisites
+
+- Node.js 18+
+- Python 3 (for local admin saves)
+- A GitHub repository (fork this one)
+- A GitHub personal access token with **Contents: Read and Write** on your repo (for remote admin saves)
+
+### 1. Fork and configure
+
+Fork this repository. Create `config.js` in the project root with your first playlist:
+
+```js
+const TAPE = {
+  title: "my playlist",
+  color: "random",   // or a hex like "#c1440e", or "pride"
+  tracks: [
+    { id: "VIDEO_ID", title: "Track Title", artist: "Artist Name" },
+  ]
+};
 ```
 
-Vite serves `config.js` and `playlists/` from the project root via a custom middleware so the player works without any extra steps. For admin work locally, run `server.py` alongside Vite — it handles the POST endpoints that write files to disk:
+Create `playlists/index.json` and a matching playlist file:
 
-```bash
-python3 server.py    # handles admin saves at http://localhost:5173/admin.html
+```json
+// playlists/index.json
+{ "active": "1", "ids": ["1"] }
+
+// playlists/1.json
+{ "id": "1", "title": "my playlist", "color": "random", "tracks": [] }
 ```
 
-When using the deployed admin, saves go directly to GitHub via the API instead — no server needed.
+### 2. Deploy to GitHub Pages
 
-### Testing on iOS (tilt, gestures, location)
+Go to your repository's **Settings → Pages** and set the source to the `gh-pages` branch. Push to `main` — GitHub Actions will build and deploy automatically. Set a custom domain via a `CNAME` file in the project root if desired.
 
-iOS requires HTTPS for device orientation and geolocation permission. Use a Cloudflare quick tunnel pointed at the Vite dev server:
+### 3. Use the admin
+
+**Locally:** run `npm run dev` and `python3 server.py` in parallel. Open the admin page in your browser. Changes save directly to disk; push to deploy.
+
+**Remotely:** open the admin page on your deployed site from any browser. On first visit you will be prompted for:
+- A password (used only for this device/browser gate — stored as a hash in `localStorage`)
+- Your GitHub token (stored in `localStorage`; used to commit saves directly to `main`)
+
+Subsequent visits on the same device only ask for the password. Saves create a single commit and trigger the GitHub Actions deploy.
+
+### 4. Test on iOS (tilt, gestures, location)
+
+iOS requires HTTPS for device orientation and geolocation. Use a Cloudflare quick tunnel against the local dev server:
 
 ```bash
 cloudflared tunnel --url http://localhost:5173
-# open the printed https://....trycloudflare.com URL on your phone
 ```
 
-On first visit, tap the π button to grant orientation and location access. On subsequent visits the player probes silently and π stays hidden if permissions are still active.
+Open the printed `https://….trycloudflare.com` URL on your phone and tap π to grant permissions.
 
-## Building and Deployment
+## Development
 
 ```bash
-npm run build        # outputs to dist/
+npm install       # install dependencies
+npm run dev       # Vite dev server at http://localhost:5173
+npm test          # run tests (Vitest)
+npm run build     # production build → dist/
 ```
 
-GitHub Actions runs this automatically on every push to `main` and deploys to the `gh-pages` branch. **One-time setup required:** go to the repo's Settings → Pages and set the source to the `gh-pages` branch. After that, every push to `main` builds and goes live automatically.
+`config.js` and `playlists/` are served from the project root by a custom Vite middleware — no extra steps needed for the player. The admin requires `python3 server.py` running alongside for local file saves.
 
 ## Keyboard Controls
 
@@ -181,65 +186,3 @@ GitHub Actions runs this automatically on every push to `main` and deploys to th
 | `Enter` / `Space` | Play focused track |
 | `Space` (no focus) | Play/pause current track |
 | `Tab` | Standard focus navigation |
-
-## Deployment
-
-Hosted on GitHub Pages. Push to `main` and it's live — no build required.
-
----
-
-## Changelog
-
-### 2026-06-07
-- **Admin Vite migration** — `src/admin.js` and `src/admin.css` extracted from inline script/style; `admin.html` added as a second Vite build entry; SortableJS installed as npm dep instead of CDN
-- **Remote admin editing** — saves from `listen.couch.studio/admin.html` commit directly to `main` via the GitHub Git Trees API (single commit per save); deploy triggers automatically
-- **Password gate** — first-time setup prompts for a password and GitHub token stored in `localStorage`; subsequent visits just check the password; localhost skips auth entirely
-- **Delete fix** — deleting a playlist now saves the updated index and config in the same operation
-
-### 2026-06-07 — `decde5b`
-- **Vite build** — source split into `src/strings.js`, `src/style.css`, `src/main.js`; bundles minified and hashed for production
-- **Deferred YouTube API** — `iframe_api` script loads on first track click rather than at parse time; play button shows `·` while API initialises
-- **Service worker** — shell cached after first visit; cache-first for bundles, network-first for `config.js` and playlists
-- **Open Graph + theme-color** — set from `TAPE` at parse time; `theme-color` matches playlist color
-- **Preconnect hints** — `youtube.com`, `youtube-nocookie.com`, `i.ytimg.com`
-- **GitHub Actions deployment** — push to `main` → Vite build → deploys to `gh-pages` branch automatically
-
-### 2026-06-07 — `e9f9203`
-- **Pride color mode** — each track row shows its own full-width color from the Progress Pride flag; spectral order from a random entry point ensures adjacent rows are always harmonious; background drifts through the pride spectrum during playback
-- **Gesture navigation** — quick left/right wrist roll skips tracks; navigated track scrolls into view above both panels
-- **π button expanded** — now requests device orientation + device location in a single tap; replaces IP geolocation with GPS; desktop shows π when playlist has a location and uses it to gate cursor-drift peek; iOS silently probes both permissions on load and skips π if already granted
-- **Tilt calibration** — natural hold position captured on first orientation event; reveal range is 30° from that baseline rather than fixed absolute angles
-- **Engraved divider** — 2px groove between peek and player panels; anchored to the bar's bottom edge as one compositing unit to eliminate flicker; visible only once playback starts
-- **Mobile hover fix** — track row hover style restricted to `@media (hover: hover)` so touch devices never retain a highlight after a track finishes
-
-### 2026-06-06 — `7ad222e`
-- **Peek drawer** — tilt (mobile) or cursor-to-bottom (desktop) reveals a metadata panel showing track count, dates, and listener distance; panel physically pushes the playback bar upward
-- **Playlist location** — admin stamps a fuzzy ±1mi location on each playlist; viewer sees "listening from X miles away"
-- **Created / last edited dates** — stored on playlists; shown in peek drawer
-- **π button** — opt-in motion access on iOS; auto-skips if permission already granted
-- **Scrubber reset** — zeroes immediately on track change
-- **Localization** — all visible strings, ARIA labels, VoiceOver announcements, and date formats across English, Spanish, Italian, German, French, Chinese, Japanese, Korean, Russian, Hindi, Marathi
-
-### 2026-05-31 — `a9b87f9`
-- Remove Saman from aufguss playlist
-
-### 2026-05-31 — `83d2ab4`
-- Update README: add config.js to structure, new features, playlist limit note
-
-### 2026-05-31 — `cf5a4b0`
-- Generative background color drift during playback
-
-### 2026-05-31 — `3be7911`
-- Publish aufguss as live playlist, archive s/s 26
-
-### 2026-05-31 — `b83a1b7`
-- Slide player bar in from bottom on first track play
-
-### Earlier
-- Admin UI with drag-to-reorder, YouTube oEmbed fetch, color picker, playlist management
-- VoiceOver / screen reader accessibility with ARIA roles and live announcements
-- Keyboard navigation (arrows, space, enter, tab with wrapping)
-- Per-playlist JSON files; timestamp-based IDs
-- MediaSession API for lock screen controls
-- YouTube attribution link shown only when a track is active
-- Initial player and muxtape-style aesthetic

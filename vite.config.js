@@ -37,8 +37,11 @@ function serveRootFiles() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(/** @type {import('vitest/config').UserConfig} */ ({
   plugins: [serveRootFiles()],
+  server: {
+    allowedHosts: ['.trycloudflare.com'],
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -48,4 +51,7 @@ export default defineConfig({
       },
     },
   },
-});
+  test: {
+    environment: 'node',
+  },
+}));
