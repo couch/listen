@@ -148,7 +148,7 @@ Go to your repository's **Settings → Pages** and set the source to the `gh-pag
 
 ### 3. Use the admin
 
-**Locally:** run `npm run dev` and `python3 server.py` in parallel. Open the admin page in your browser. Changes save directly to disk; push to deploy.
+**Locally:** `npm run dev` starts both Vite and `server.py` together via `concurrently`. Vite proxies the admin POST endpoints (`/save-*`, `/delete-playlist`) to `server.py` on port 8080, so the whole app runs on a single port (5173). Open the admin page in your browser. Changes save directly to disk; push to deploy.
 
 **Remotely:** open the admin page on your deployed site from any browser. On first visit you will be prompted for:
 - A password (used only for this device/browser gate — stored as a hash in `localStorage`)

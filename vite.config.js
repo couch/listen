@@ -41,6 +41,12 @@ export default defineConfig(/** @type {import('vitest/config').UserConfig} */ ({
   plugins: [serveRootFiles()],
   server: {
     allowedHosts: ['.trycloudflare.com'],
+    proxy: {
+      '/save-config': 'http://localhost:8080',
+      '/save-index': 'http://localhost:8080',
+      '/save-playlist': 'http://localhost:8080',
+      '/delete-playlist': 'http://localhost:8080',
+    },
   },
   build: {
     outDir: 'dist',

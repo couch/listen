@@ -23,6 +23,7 @@ const bg = (!TAPE.color || TAPE.color === "random" || isPride)
   ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
   : TAPE.color;
 document.documentElement.style.setProperty("--bg", bg);
+document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
 document.title = TAPE.title;
 document.getElementById("tape-title").textContent = TAPE.title;
 document.getElementById("attribution").textContent = L.au;
@@ -140,6 +141,7 @@ function onState(e) {
   } else if (e.data === YT.PlayerState.PAUSED) {
     playing = false;
     updateBtn();
+    stopTicker();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
   } else if (e.data === YT.PlayerState.ENDED) {
@@ -203,6 +205,7 @@ function next() {
     clearActive();
     playing = false;
     updateBtn();
+    stopTicker();
     document.getElementById("scrubber-fill").style.width = "0%";
     document.getElementById("np-title").textContent = "";
     document.getElementById("np-artist").textContent = "";
@@ -337,21 +340,32 @@ function handleTouch(e) {
 }
 
 function startTicker() {
-  clearInterval(ticker);
-  ticker = setInterval(() => {
+  stopTicker();
+  let lastSlowUpdate = 0;
+  function tick(now) {
     if (!player || !player.getCurrentTime) return;
     const cur = player.getCurrentTime();
     const dur = player.getDuration();
-    if (!dur) return;
-    const pct = `${(cur / dur) * 100}%`;
+    if (!dur) { ticker = requestAnimationFrame(tick); return; }
+    const ratio = cur / dur;
+    const pct = `${ratio * 100}%`;
     document.getElementById("scrubber-fill").style.width = pct;
     document.getElementById("time").textContent = `${fmt(cur)} / ${fmt(dur)}`;
-    const p = trackEl(currentIndex)?.querySelector(".track-progress");
-    if (p) p.style.width = pct;
-    const s = document.getElementById("scrubber");
-    s.setAttribute("aria-valuenow", Math.round((cur / dur) * 100));
-    s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
-  }, 500);
+    if (now - lastSlowUpdate >= 500) {
+      lastSlowUpdate = now;
+      const p = trackEl(currentIndex)?.querySelector(".track-progress");
+      if (p) p.style.width = pct;
+      const s = document.getElementById("scrubber");
+      s.setAttribute("aria-valuenow", Math.round(ratio * 100));
+      s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
+    }
+    ticker = requestAnimationFrame(tick);
+  }
+  ticker = requestAnimationFrame(tick);
+}
+
+function stopTicker() {
+  if (ticker) { cancelAnimationFrame(ticker); ticker = null; }
 }
 
 function announce(msg) {

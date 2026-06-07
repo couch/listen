@@ -3,12 +3,13 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n vite,server -c cyan,yellow \"vite\" \"python3 server.py\"",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "vite": "^6.3.5",
     "vitest": "^4.1.8"
   },
