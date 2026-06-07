@@ -58,7 +58,7 @@
       overflow: hidden;
     }
 
-    .track:hover { background: rgba(0,0,0,0.1); }
+    @media (hover: hover) { .track:hover { background: rgba(0,0,0,0.1); } }
     .track.active { background: rgba(0,0,0,0.15); }
 
     .track-progress {
@@ -109,7 +109,7 @@
       bottom: var(--peek-push, 0px);
       left: 0;
       right: 0;
-      background: rgba(0,0,0,0.42);
+      background-color: rgba(0,0,0,0.42);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       padding: 14px 28px max(16px, env(safe-area-inset-bottom));
@@ -117,8 +117,6 @@
       transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: transform;
       z-index: 2;
-      border-top: 1px solid rgba(0,0,0,0.22);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.055);
     }
 
     #bar.bar-visible {
@@ -241,16 +239,36 @@
       border: 0;
     }
 
+    /* ── Divider — anchored to bar's bottom edge, moves as one unit ── */
+    #bar::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 28px;
+      right: 28px;
+      height: 2px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.3) 50%, rgba(255,255,255,0.06) 50%);
+      opacity: 0;
+      transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    #bar.bar-visible::before { opacity: 1; }
+
+    @media (max-width: 480px) {
+      #bar::before { left: 20px; right: 20px; }
+    }
+
     /* ── Peek panel ── */
+
     #peek-panel {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(0,0,0,0.42);
+      background-color: rgba(0,0,0,0.42);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      padding: 20px 28px max(24px, env(safe-area-inset-bottom));
+      padding: 10px 28px max(24px, env(safe-area-inset-bottom));
       transform: translateY(100%);
       will-change: transform;
       z-index: 1;
@@ -272,7 +290,7 @@
     }
 
     @media (max-width: 480px) {
-      #peek-panel { padding: 16px 20px max(20px, env(safe-area-inset-bottom)); }
+      #peek-panel { padding: 8px 20px max(20px, env(safe-area-inset-bottom)); }
       .peek-top span { font-size: 13px; }
     }
 
@@ -345,6 +363,19 @@
     "#2e4a7a","#5c2e7a","#7a2e5c","#4a5f6e","#7a6b2e"
   ];
 
+  // Progress Pride flag colors in spectral order — every adjacent pair is harmonious,
+  // and the cycle wraps (pink→brown→red) within the warm family.
+  const PRIDE_COLORS = [
+    "#b33030","#c25a10","#9a7a10","#2a7a30",
+    "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
+  ];
+  const isPride = TAPE.color === 'pride';
+  // Random entry point into the spectrum — adjacent tracks always see adjacent hues
+  const prideStartIdx = isPride ? Math.floor(Math.random() * PRIDE_COLORS.length) : 0;
+  const trackPrideColors = TAPE.tracks.map((_, i) =>
+    PRIDE_COLORS[(prideStartIdx + i) % PRIDE_COLORS.length]
+  );
+
   const STRINGS = {
     en: { mo:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], tr:n=>n===1?'1 track':`${n} tracks`, cr:'created', ed:'edited', nb:'listening from nearby', fa:n=>`listening from ${n.toLocaleString()} miles away`, au:'audio via YouTube', mi:true, pl:'Playlist', pc:'Player controls', pp:'Playback position', play:'Play', pause:'Pause', by:(t,a)=>`${t} by ${a}`, np:(t,a)=>`Now playing: ${t} by ${a}`, pe:'Playlist ended.', of:(c,d)=>`${c} of ${d}`, pi:'Enable tilt peek' },
     es: { mo:['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'], tr:n=>n===1?'1 pista':`${n} pistas`, cr:'creado', ed:'editado', nb:'escuchando desde cerca', fa:n=>`escuchando desde ${n.toLocaleString()} km`, au:'audio vía YouTube', mi:false, pl:'Lista de reproducción', pc:'Controles del reproductor', pp:'Posición de reproducción', play:'Reproducir', pause:'Pausar', by:(t,a)=>`${t} de ${a}`, np:(t,a)=>`Reproduciendo: ${t} de ${a}`, pe:'Lista de reproducción finalizada.', of:(c,d)=>`${c} de ${d}`, pi:'Activar vista con inclinación' },
@@ -370,7 +401,7 @@
     return `${dd} ${L.mo[+m - 1]} ${y}`;
   }
 
-  const bg = (!TAPE.color || TAPE.color === "random")
+  const bg = (!TAPE.color || TAPE.color === "random" || isPride)
     ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
     : TAPE.color;
   document.documentElement.style.setProperty("--bg", bg);
@@ -423,6 +454,10 @@
 
     const progress = document.createElement("div");
     progress.className = "track-progress";
+    if (isPride) {
+      li.style.backgroundColor = trackPrideColors[i];
+      li.dataset.prideColor = trackPrideColors[i];
+    }
 
     info.append(title, artist);
     li.append(progress, num, info);
@@ -500,6 +535,11 @@
     document.getElementById("time").textContent = "";
     setReveal(peekReveal);
     currentIndex = i;
+    if (isPride) {
+      prideColorIdx = (prideStartIdx + i) % PRIDE_COLORS.length;
+      stopColorDrift();
+      document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
+    }
     const t = TAPE.tracks[i];
     player.loadVideoById(t.id);
     document.getElementById("np-title").textContent = t.title;
@@ -509,6 +549,9 @@
     attr.style.display = "block";
     const el = trackEl(i);
     el.classList.add("active");
+    if (el.dataset.prideColor) {
+      el.style.backgroundImage = 'linear-gradient(rgba(0,0,0,0.18),rgba(0,0,0,0.18))';
+    }
     el.setAttribute("aria-pressed", "true");
     announce(L.np(t.title, t.artist));
   }
@@ -537,6 +580,7 @@
     document.querySelectorAll(".track").forEach(el => {
       el.classList.remove("active", "playing", "paused");
       el.setAttribute("aria-pressed", "false");
+      if (el.dataset.prideColor) el.style.backgroundImage = '';
       const p = el.querySelector(".track-progress");
       if (p) {
         p.style.transition = "none";
@@ -609,12 +653,25 @@
   scrubEl.addEventListener("touchstart", handleTouch, { passive: true });
   scrubEl.addEventListener("touchmove", handleTouch, { passive: true });
 
+  function snapSeek(pct) {
+    const w = `${pct * 100}%`;
+    // Scrubber fill — bypasses the 500ms ticker delay
+    document.getElementById("scrubber-fill").style.width = w;
+    // Track progress — disable transition for instant snap, restore for playback
+    const p = trackEl(currentIndex)?.querySelector(".track-progress");
+    if (p) {
+      p.style.transition = "none";
+      p.style.width = w;
+      requestAnimationFrame(() => { p.style.transition = ""; });
+    }
+  }
+
   function seek(e) {
     if (!player || currentIndex === -1) return;
     const r = scrubEl.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
     const dur = player.getDuration();
-    if (dur) player.seekTo(pct * dur, true);
+    if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
   }
 
   function handleTouch(e) {
@@ -623,7 +680,7 @@
     const r = scrubEl.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
     const dur = player.getDuration();
-    if (dur) player.seekTo(pct * dur, true);
+    if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
   }
 
   function startTicker() {
@@ -660,6 +717,7 @@
   // smootherstep keeps the first few seconds nearly imperceptible.
   const DRIFT_MS = 45000;
   let driftFrame = null, driftFrom, driftTo, driftToHex, driftStart;
+  let prideColorIdx = 0;
 
   function hexToRgb(hex) {
     const h = hex.trim().replace("#", "");
@@ -681,7 +739,9 @@
     if (driftFrame) return;
     const cur = document.documentElement.style.getPropertyValue("--bg").trim() || PALETTE[0];
     driftFrom = hexToRgb(cur);
-    driftToHex = pickDriftTarget(cur);
+    driftToHex = isPride
+      ? PRIDE_COLORS[(prideColorIdx + 1) % PRIDE_COLORS.length]
+      : pickDriftTarget(cur);
     driftTo = hexToRgb(driftToHex);
     driftStart = performance.now();
     driftFrame = requestAnimationFrame(tickDrift);
@@ -696,7 +756,12 @@
     } else {
       driftFrom = driftTo;
       const prev = driftToHex;
-      driftToHex = pickDriftTarget(prev);
+      if (isPride) {
+        prideColorIdx = (prideColorIdx + 1) % PRIDE_COLORS.length;
+        driftToHex = PRIDE_COLORS[(prideColorIdx + 1) % PRIDE_COLORS.length];
+      } else {
+        driftToHex = pickDriftTarget(prev);
+      }
       driftTo = hexToRgb(driftToHex);
       driftStart = now;
       driftFrame = requestAnimationFrame(tickDrift);
@@ -710,16 +775,23 @@
   // ── Peek panel ───────────────────────────────────────────────────────────────
   const peekPanel = document.getElementById('peek-panel');
   const isMobile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-  let locFetched = false;
   let peekReveal = 0;
+  let naturalBeta = null;
+  let geoRequested = false;
 
   function setReveal(t) {
     peekReveal = t;
     const ph = peekPanel.offsetHeight || 100;
     peekPanel.style.transform = `translateY(${(1 - t) * 100}%)`;
     const barEl = document.getElementById('bar');
-    if (barEl.classList.contains('bar-visible')) {
+    const barVisible = barEl.classList.contains('bar-visible');
+    if (barVisible) {
       barEl.style.setProperty('--peek-push', `${t * ph}px`);
+    }
+    const piEl = document.getElementById('pi-btn');
+    if (piEl && !piEl.hidden) {
+      const barH = barVisible ? barEl.offsetHeight : 0;
+      piEl.style.bottom = `${16 + barH + t * ph}px`;
     }
   }
 
@@ -748,84 +820,138 @@
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  async function fetchViewerLoc() {
-    if (locFetched || !TAPE.location?.lat) return;
-    locFetched = true;
-    try {
-      const res = await fetch('https://ipapi.co/json/');
-      if (!res.ok) throw new Error();
-      const d = await res.json();
-      const distKm = haversine(TAPE.location.lat, TAPE.location.lng, d.latitude, d.longitude);
-      const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
-      const el = document.getElementById('peek-distance');
-      if (el) el.textContent = distKm < 24 ? L.nb : L.fa(dist);
-    } catch {
-      const el = document.getElementById('peek-distance');
-      if (el) el.textContent = '';
-    }
+  function applyViewerLocation(lat, lng) {
+    if (!TAPE.location?.lat) return;
+    const distKm = haversine(TAPE.location.lat, TAPE.location.lng, lat, lng);
+    const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
+    const el = document.getElementById('peek-distance');
+    if (el) el.textContent = distKm < 24 ? L.nb : L.fa(dist);
+  }
+
+  function requestViewerGeo() {
+    if (!TAPE.location?.lat || !navigator.geolocation || geoRequested) return;
+    geoRequested = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => applyViewerLocation(pos.coords.latitude, pos.coords.longitude),
+      () => { const el = document.getElementById('peek-distance'); if (el) el.textContent = ''; },
+      { timeout: 10000, maximumAge: 300000 }
+    );
   }
 
   // Mobile: tilt top of phone away → beta decreases from ~90 toward 0
   function handleOrientation(e) {
     if (e.beta === null) return;
-    // 0° tilt (upright, beta≈90): hidden. 45° tilt (beta≈45): starts. 75° tilt (beta≈15): full.
-    const t = Math.max(0, Math.min(1, (45 - e.beta) / 30));
+    if (naturalBeta === null) naturalBeta = e.beta; // calibrate to natural hold on first event
+    const t = Math.max(0, Math.min(1, (naturalBeta - e.beta) / 30));
     setReveal(t);
-    if (t > 0.05 && !locFetched) fetchViewerLoc();
   }
 
-  // π button: opt-in to tilt peek (mobile only)
+  // Mobile: quick left/right roll → previous/next track
+  function scrollTrackIntoView(el) {
+    if (!el) return;
+    const bar = document.getElementById('bar');
+    const barH = bar.classList.contains('bar-visible') ? bar.offsetHeight : 0;
+    const peekH = Math.round(peekReveal * (peekPanel.offsetHeight || 0));
+    const bottomClearance = barH + peekH + 12;
+    const rect = el.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    if (rect.top < 60) {
+      window.scrollBy({ top: rect.top - 72, behavior: 'smooth' });
+    } else if (rect.bottom > viewH - bottomClearance) {
+      window.scrollBy({ top: rect.bottom - (viewH - bottomClearance), behavior: 'smooth' });
+    }
+  }
+
+  let flickCooldown = false;
+  function handleMotion(e) {
+    if (flickCooldown || !player) return;
+    const rate = e.rotationRate?.gamma;
+    if (!rate) return;
+    if (rate > 250 && currentIndex > 0) {
+      flickCooldown = true;
+      setTimeout(() => { flickCooldown = false; }, 800);
+      load(currentIndex - 1);
+      scrollTrackIntoView(trackEl(currentIndex));
+    } else if (rate < -250 && currentIndex >= 0 && currentIndex < TAPE.tracks.length - 1) {
+      flickCooldown = true;
+      setTimeout(() => { flickCooldown = false; }, 800);
+      load(currentIndex + 1);
+      scrollTrackIntoView(trackEl(currentIndex));
+    }
+  }
+
+  function enableMotionListeners() {
+    window.addEventListener('deviceorientation', handleOrientation);
+    window.addEventListener('devicemotion', handleMotion);
+  }
+
+  // π button: opt-in to orientation + device location (mobile only)
   const piBtnEl = document.getElementById('pi-btn');
+  const hasPlaylistLoc = !!TAPE.location?.lat;
+
   if (isMobile) {
     if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      // iOS 13+: permission may already be granted from a prior visit.
-      // Probe by listening for events — they fire immediately if permission is active.
+      // iOS 13+: probe for existing orientation permission
       let resolved = false;
       const earlyCheck = () => {
         if (resolved) return;
         resolved = true;
         window.removeEventListener('deviceorientation', earlyCheck);
-        window.addEventListener('deviceorientation', handleOrientation);
-        // permission active — π stays hidden
+        enableMotionListeners();
+        // Orientation already granted — probe geo (silent if previously granted)
+        requestViewerGeo();
+        // π stays hidden
       };
       window.addEventListener('deviceorientation', earlyCheck);
       setTimeout(() => {
         if (resolved) return;
         resolved = true;
         window.removeEventListener('deviceorientation', earlyCheck);
-        // no events arrived — permission not yet granted, show π
         piBtnEl.hidden = false;
       }, 500);
 
       piBtnEl.addEventListener('click', async () => {
         try {
           const result = await DeviceOrientationEvent.requestPermission();
-          if (result === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-            piBtnEl.hidden = true;
-          }
-          // denied: π stays visible
+          if (result === 'granted') enableMotionListeners();
         } catch {
-          // HTTP context: try direct listener
-          window.addEventListener('deviceorientation', handleOrientation);
-          piBtnEl.hidden = true;
+          enableMotionListeners();
         }
+        piBtnEl.hidden = true;
+        requestViewerGeo();
       });
     } else {
-      // Android / no permission API: set up immediately, π never shows
-      window.addEventListener('deviceorientation', handleOrientation);
+      // Android: orientation fires without permission — set up immediately
+      enableMotionListeners();
+      if (hasPlaylistLoc) {
+        // Show π to request device location
+        piBtnEl.hidden = false;
+        piBtnEl.addEventListener('click', () => {
+          piBtnEl.hidden = true;
+          requestViewerGeo();
+        });
+      }
     }
   }
 
-  // Desktop: cursor drifting toward the bottom edge reveals the panel
+  // Desktop: cursor drift is gated behind the π button click
   if (!isMobile) {
+    let desktopPeekEnabled = false;
     document.addEventListener('mousemove', e => {
+      if (!desktopPeekEnabled) return;
       const vh = window.innerHeight;
       const t = Math.max(0, Math.min(1, (e.clientY - vh * 0.80) / (vh * 0.20)));
       setReveal(t);
-      if (t > 0.1 && !locFetched) fetchViewerLoc();
     });
-    document.addEventListener('mouseleave', () => setReveal(0));
+    document.addEventListener('mouseleave', () => { if (desktopPeekEnabled) setReveal(0); });
+    if (hasPlaylistLoc) {
+      piBtnEl.hidden = false;
+      piBtnEl.addEventListener('click', () => {
+        desktopPeekEnabled = true;
+        piBtnEl.hidden = true;
+        requestViewerGeo();
+      });
+    }
   }
 
   // MediaSession API — lock screen controls on mobile

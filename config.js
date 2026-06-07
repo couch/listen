@@ -1,10 +1,10 @@
 const TAPE = {
   title: "aufguss",
 
-  // A hex color like "#c1440e", or "random" to pick one each load
+  // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow
   color: "random",
   created: "2026-05-31",
-  lastEdited: "2026-06-06",
+  lastEdited: "2026-06-07",
   location: {"city":"New York","lat":40.721,"lng":-73.979},
 
   tracks: [
