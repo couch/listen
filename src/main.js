@@ -2,7 +2,9 @@ import './style.css';
 import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt } from './utils.js';
 
-if (location.protocol === 'file:') {
+const isEmbed = window !== window.top;
+
+if (!isEmbed && location.protocol === 'file:') {
   document.getElementById('file-warning').style.display = 'block';
 }
 
@@ -26,12 +28,14 @@ document.documentElement.style.setProperty("--bg", bg);
 document.documentElement.lang = lang;
 
 // ── Offline indicator ──
-const offlineEl = document.getElementById('offline-indicator');
-offlineEl.textContent = L.offline;
-function updateOnlineStatus() { offlineEl.hidden = navigator.onLine; }
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus();
+if (!isEmbed) {
+  const offlineEl = document.getElementById('offline-indicator');
+  offlineEl.textContent = L.offline;
+  const updateOnlineStatus = () => { offlineEl.hidden = navigator.onLine; };
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+}
 document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
 document.title = TAPE.title;
 document.getElementById("tape-title").textContent = TAPE.title;
@@ -40,7 +44,7 @@ document.getElementById("tape").setAttribute("aria-label", L.pl);
 document.getElementById("bar").setAttribute("aria-label", L.pc);
 document.getElementById("scrubber").setAttribute("aria-label", L.pp);
 document.getElementById("btn-play").setAttribute("aria-label", L.play);
-document.getElementById("pi-btn").setAttribute("aria-label", L.pi);
+document.getElementById("pi-btn")?.setAttribute("aria-label", L.pi);
 
 // Build track list
 const list = document.getElementById("track-list");
@@ -225,7 +229,7 @@ function onTrackClick(i) {
 function load(i, startSeconds) {
   clearActive();
   barEl.classList.add("bar-visible");
-  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; cachedPeekH = peekPanel.offsetHeight; });
+  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; if (peekPanel) cachedPeekH = peekPanel.offsetHeight; });
   const scrubFill = document.getElementById("scrubber-fill");
   scrubFill.style.transition = "none";
   scrubFill.style.width = "0%";
@@ -515,9 +519,9 @@ function stopColorDrift() {
 }
 
 // ── Peek panel ───────────────────────────────────────────────────────────────
-const peekPanel = document.getElementById('peek-panel');
+const peekPanel = isEmbed ? null : document.getElementById('peek-panel');
 const barEl = document.getElementById('bar');
-const isMobile = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 let peekReveal = 0;
 let naturalBeta = null;
 let geoRequested = false;
@@ -525,11 +529,12 @@ let cachedPeekH = 0;
 let cachedBarH = 0;
 
 window.addEventListener('resize', () => {
-  cachedPeekH = peekPanel.offsetHeight;
+  if (peekPanel) cachedPeekH = peekPanel.offsetHeight;
   if (barEl.classList.contains('bar-visible')) cachedBarH = barEl.offsetHeight;
 });
 
 function setReveal(t) {
+  if (!peekPanel) return;
   peekReveal = t;
   const ph = cachedPeekH || 100;
   peekPanel.style.transform = `translateY(${(1 - t) * 100}%)`;
@@ -541,7 +546,7 @@ function setReveal(t) {
   }
 }
 
-(function initPeekPanel() {
+if (!isEmbed) (function initPeekPanel() {
   const count = TAPE.tracks?.length ?? 0;
   let meta = L.tr(count);
   const created = TAPE.created;
@@ -619,6 +624,7 @@ function enableMotionListeners() {
   window.addEventListener('devicemotion', handleMotion);
 }
 
+if (!isEmbed) {
 // π button: opt-in to orientation + device location (mobile only)
 const piBtnEl = document.getElementById('pi-btn');
 const hasPlaylistLoc = !!TAPE.location?.lat;
@@ -684,6 +690,7 @@ if (!isMobile) {
     });
   }
 }
+} // end !isEmbed
 
 // MediaSession API — lock screen controls on mobile
 function updateMediaSession() {
@@ -705,7 +712,7 @@ function updateMediaSession() {
 }
 
 // Register service worker
-if ('serviceWorker' in navigator) {
+if (!isEmbed && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
 }
 
