@@ -36,7 +36,8 @@ if (!isEmbed) {
   window.addEventListener('offline', updateOnlineStatus);
   updateOnlineStatus();
 }
-document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+themeColorMeta.setAttribute('content', bg);
 document.title = TAPE.title;
 document.getElementById("tape-title").textContent = TAPE.title;
 document.getElementById("attribution").textContent = L.au;
@@ -496,7 +497,9 @@ function startColorDrift() {
 function tickDrift(now) {
   const t = Math.min((now - driftStart) / DRIFT_MS, 1);
   const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
-  document.documentElement.style.setProperty("--bg", rgbToHex(rgb));
+  const hex = rgbToHex(rgb);
+  document.documentElement.style.setProperty("--bg", hex);
+  themeColorMeta.setAttribute('content', hex);
   if (t < 1) {
     driftFrame = requestAnimationFrame(tickDrift);
   } else {
