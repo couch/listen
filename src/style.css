@@ -262,11 +262,13 @@ body {
   flex: 1;
   font-size: 12px;
   letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.28);
   opacity: 0;
-  text-shadow:
-    0 1px 1px rgba(255,255,255,0.15),
-    0 -1px 1px rgba(0,0,0,0.3);
+  transition: opacity 0.8s ease;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.08);
 }
+
+#playlist-meta.visible { opacity: 1; }
 
 @media (max-width: 480px) {
   #playlist-footer { padding: 32px 20px max(100px, env(safe-area-inset-bottom) + 80px); }
