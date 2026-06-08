@@ -54,6 +54,7 @@ export default defineConfig(/** @type {import('vitest/config').UserConfig} */ ({
       input: {
         main: 'index.html',
         admin: 'admin.html',
+        embed: 'embed.html',
       },
     },
   },
