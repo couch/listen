@@ -66,8 +66,11 @@ src/
   main.js               # Player logic (shared by index.html and embed.html)
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
-  utils.js              # Pure utilities: extractId, haversine, fuzzyCoord, fmt, sha256
-  admin.js              # Admin logic: auth, GitHub API, playlist management
+  utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt, sha256
+  auth.js               # PBKDF2 password hashing and verification
+  github.js             # GitHub git-tree commit and file-delete operations
+  schema.js             # Runtime validation: validateTrack, validatePlaylist, validateIndex
+  admin.js              # Admin logic: auth, playlist CRUD, save dispatch
   admin.css             # Admin styles
   admin-strings.js      # Admin i18n strings
 playlists/
