@@ -241,7 +241,7 @@ function onTrackClick(i) {
 function load(i, startSeconds) {
   clearActive();
   barEl.classList.add("bar-visible");
-  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; if (peekPanel) cachedPeekH = peekPanel.offsetHeight; });
+  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; });
   const scrubFill = document.getElementById("scrubber-fill");
   scrubFill.style.transition = "none";
   scrubFill.style.width = "0%";
@@ -250,7 +250,6 @@ function load(i, startSeconds) {
   scrub.setAttribute("aria-valuenow", "0");
   scrub.setAttribute("aria-valuetext", "0:00");
   document.getElementById("time").textContent = "";
-  setReveal(peekReveal);
   currentIndex = i;
   if (isPride) {
     prideColorIdx = (prideStartIdx + i) % PRIDE_COLORS.length;
@@ -289,7 +288,6 @@ function next() {
     stopColorDrift();
     currentIndex = -1;
     barEl.classList.remove("bar-visible");
-    setReveal(0);
     document.getElementById("scrubber-fill").style.width = "0%";
     document.getElementById("np-title").textContent = "";
     document.getElementById("np-artist").textContent = "";
@@ -672,29 +670,13 @@ if (!isMobile) {
   }
 }
 
-// Scroll-driven fade-in for playlist metadata
+// Fade-in for playlist metadata when scrolled into view
 const _metaEl = document.getElementById('playlist-meta');
-const _footerEl = document.getElementById('playlist-footer');
-if (_metaEl && _footerEl) {
-  function updateMetaOpacity() {
-    const pageBottom = document.documentElement.scrollHeight;
-    const viewH = window.innerHeight;
-    if (pageBottom <= viewH) {
-      _metaEl.style.opacity = 1;
-      window.removeEventListener('scroll', updateMetaOpacity);
-      return;
-    }
-    const scrollBottom = window.scrollY + viewH;
-    const footerTop = _footerEl.getBoundingClientRect().top + window.scrollY;
-    const footerH = _footerEl.offsetHeight;
-    const fadeStart = footerTop + footerH * 0.4;
-    const raw = (scrollBottom - fadeStart) / (pageBottom - fadeStart);
-    const t = Math.max(0, Math.min(1, raw));
-    _metaEl.style.opacity = smootherstep(t);
-    if (t >= 1) window.removeEventListener('scroll', updateMetaOpacity);
-  }
-  window.addEventListener('scroll', updateMetaOpacity, { passive: true });
-  updateMetaOpacity();
+if (_metaEl) {
+  const io = new IntersectionObserver(([e]) => {
+    if (e.isIntersecting) { _metaEl.classList.add('visible'); io.disconnect(); }
+  }, { threshold: 0 });
+  io.observe(_metaEl);
 }
 } // end !isEmbed
 
