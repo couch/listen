@@ -241,7 +241,10 @@ function onTrackClick(i) {
 function load(i, startSeconds) {
   clearActive();
   barEl.classList.add("bar-visible");
-  requestAnimationFrame(() => { cachedBarH = barEl.offsetHeight; });
+  requestAnimationFrame(() => {
+    cachedBarH = barEl.offsetHeight;
+    document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
+  });
   const scrubFill = document.getElementById("scrubber-fill");
   scrubFill.style.transition = "none";
   scrubFill.style.width = "0%";
@@ -288,6 +291,7 @@ function next() {
     stopColorDrift();
     currentIndex = -1;
     barEl.classList.remove("bar-visible");
+    document.documentElement.style.setProperty('--bar-h', '0px');
     document.getElementById("scrubber-fill").style.width = "0%";
     document.getElementById("np-title").textContent = "";
     document.getElementById("np-artist").textContent = "";
@@ -540,7 +544,10 @@ let geoRequested = false;
 let cachedBarH = 0;
 
 window.addEventListener('resize', () => {
-  if (barEl.classList.contains('bar-visible')) cachedBarH = barEl.offsetHeight;
+  if (barEl.classList.contains('bar-visible')) {
+    cachedBarH = barEl.offsetHeight;
+    document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
+  }
 });
 
 if (!isEmbed) (function initPlaylistMeta() {
@@ -673,10 +680,18 @@ if (!isMobile) {
 // Fade-in for playlist metadata when scrolled into view
 const _metaEl = document.getElementById('playlist-meta');
 if (_metaEl) {
-  const io = new IntersectionObserver(([e]) => {
-    if (e.isIntersecting) { _metaEl.classList.add('visible'); io.disconnect(); }
-  }, { threshold: 0 });
-  io.observe(_metaEl);
+  function revealMeta() {
+    if (_metaEl.classList.contains('visible')) return;
+    const rect = _metaEl.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      _metaEl.classList.add('visible');
+      window.removeEventListener('scroll', revealMeta);
+      window.removeEventListener('touchmove', revealMeta);
+    }
+  }
+  window.addEventListener('scroll', revealMeta, { passive: true });
+  window.addEventListener('touchmove', revealMeta, { passive: true });
+  revealMeta();
 }
 } // end !isEmbed
 

@@ -255,23 +255,23 @@ body {
 #playlist-footer {
   display: flex;
   align-items: flex-end;
-  padding: 40px 28px max(120px, env(safe-area-inset-bottom) + 90px);
+  padding: 40px 28px max(calc(var(--bar-h, 0px) + 40px), calc(env(safe-area-inset-bottom) + 28px));
 }
 
 #playlist-meta {
   flex: 1;
   font-size: 12px;
   letter-spacing: 0.04em;
-  color: rgba(255,255,255,0.28);
+  color: rgba(0,0,0,0.2);
   opacity: 0;
-  transition: opacity 0.8s ease;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.08);
+  transition: opacity 0.9s ease;
+  text-shadow: 0 1px 1px rgba(255,255,255,0.3);
 }
 
 #playlist-meta.visible { opacity: 1; }
 
 @media (max-width: 480px) {
-  #playlist-footer { padding: 32px 20px max(100px, env(safe-area-inset-bottom) + 80px); }
+  #playlist-footer { padding: 32px 20px max(calc(var(--bar-h, 0px) + 36px), calc(env(safe-area-inset-bottom) + 24px)); }
 }
 
 #pi-btn {
