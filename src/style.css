@@ -22,7 +22,7 @@ body {
 }
 
 #tape {
-  padding: 56px 0 260px;
+  padding: 56px 0 0;
 }
 
 #tape-title {
@@ -99,7 +99,7 @@ body {
 /* Bottom bar */
 #bar {
   position: fixed;
-  bottom: var(--peek-push, 0px);
+  bottom: 0;
   left: 0;
   right: 0;
   background-color: rgba(0,0,0,0.42);
@@ -213,7 +213,6 @@ body {
 }
 
 @media (max-width: 480px) {
-  #tape { padding-bottom: 240px; }
   #tape-title { font-size: 15px; padding: 0 20px; }
   .track { padding: 13px 20px; gap: 14px; }
   .track-title { font-size: 16px; }
@@ -251,47 +250,29 @@ body {
   #bar::before { left: 20px; right: 20px; }
 }
 
-/* ── Peek panel ── */
+/* ── Playlist footer ── */
 
-#peek-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: rgba(0,0,0,0.42);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 10px 28px max(24px, env(safe-area-inset-bottom));
-  transform: translateY(100%);
-  will-change: transform;
-  z-index: 1;
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
+#playlist-footer {
+  display: flex;
+  align-items: flex-end;
+  padding: 40px 28px max(120px, env(safe-area-inset-bottom) + 90px);
 }
 
-.peek-top {
-  margin-bottom: 7px;
-}
-
-.peek-top span { font-size: 14px; opacity: 0.8; }
-
-#peek-meta {
+#playlist-meta {
+  flex: 1;
   font-size: 12px;
-  opacity: 0.38;
   letter-spacing: 0.04em;
+  opacity: 0;
+  text-shadow:
+    0 1px 1px rgba(255,255,255,0.15),
+    0 -1px 1px rgba(0,0,0,0.3);
 }
 
 @media (max-width: 480px) {
-  #peek-panel { padding: 8px 20px max(20px, env(safe-area-inset-bottom)); }
-  .peek-top span { font-size: 13px; }
+  #playlist-footer { padding: 32px 20px max(100px, env(safe-area-inset-bottom) + 80px); }
 }
 
 #pi-btn {
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
-  z-index: 10;
   background: none;
   border: none;
   color: rgba(255,255,255,0.3);
@@ -304,6 +285,7 @@ body {
   transition: color 0.15s;
   user-select: none;
   -webkit-user-select: none;
+  flex-shrink: 0;
 }
 
 #pi-btn:hover { color: rgba(255,255,255,0.55); }
