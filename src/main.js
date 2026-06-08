@@ -27,14 +27,103 @@ const bg = (!TAPE.color || TAPE.color === "random" || isPride)
 document.documentElement.style.setProperty("--bg", bg);
 document.documentElement.lang = lang;
 
-// ── Offline indicator ──
-if (!isEmbed) {
+// ── Offline / online handling ──
+let isOffline = false;
+let offlineBg = null;       // --bg captured when going offline
+let offlineHadBar = false;  // whether bar was visible when going offline
+
+function dimColor(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  const avg = (r + g + b) / 3;
+  return rgbToHex([
+    (r + (avg - r) * 0.65) * 0.42,
+    (g + (avg - g) * 0.65) * 0.42,
+    (b + (avg - b) * 0.65) * 0.42,
+  ]);
+}
+
+function goOffline() {
+  if (isOffline) return;
+  isOffline = true;
+
+  // Show banner
   const offlineEl = document.getElementById('offline-indicator');
   offlineEl.textContent = L.offline;
-  const updateOnlineStatus = () => { offlineEl.hidden = navigator.onLine; };
-  window.addEventListener('online', updateOnlineStatus);
-  window.addEventListener('offline', updateOnlineStatus);
-  updateOnlineStatus();
+  offlineEl.removeAttribute('hidden');
+  requestAnimationFrame(() => offlineEl.classList.add('banner-visible'));
+
+  // Dim background
+  offlineBg = document.documentElement.style.getPropertyValue('--bg').trim() || bg;
+  stopColorDrift();
+  const dimmed = dimColor(offlineBg);
+  document.documentElement.style.setProperty('--bg', dimmed);
+  themeColorMeta.setAttribute('content', dimmed);
+
+  // Disable tracks
+  document.body.classList.add('is-offline');
+  trackEls.forEach(el => el.setAttribute('tabindex', '-1'));
+
+  // Hide pi button if visible
+  const piEl = document.getElementById('pi-btn');
+  if (piEl && !piEl.hidden) {
+    piEl.dataset.wasVisible = '1';
+    piEl.hidden = true;
+  }
+
+  // Slide bar away if visible (playing or paused with active track)
+  offlineHadBar = barEl.classList.contains('bar-visible');
+  if (offlineHadBar) {
+    if (playing) {
+      player?.pauseVideo();
+      savePosition();
+    }
+    barEl.classList.remove('bar-visible');
+    document.documentElement.style.setProperty('--bar-h', '0px');
+  }
+}
+
+function goOnline() {
+  if (!isOffline) return;
+  isOffline = false;
+
+  // Slide banner out, then hide
+  const offlineEl = document.getElementById('offline-indicator');
+  offlineEl.classList.remove('banner-visible');
+  offlineEl.addEventListener('transitionend', () => { offlineEl.hidden = true; }, { once: true });
+
+  // Restore background
+  const restoredBg = offlineBg || bg;
+  document.documentElement.style.setProperty('--bg', restoredBg);
+  themeColorMeta.setAttribute('content', restoredBg);
+
+  // Re-enable tracks
+  document.body.classList.remove('is-offline');
+  trackEls.forEach(el => el.setAttribute('tabindex', '0'));
+
+  // Restore pi button if it was visible before
+  const piEl = document.getElementById('pi-btn');
+  if (piEl && piEl.dataset.wasVisible) {
+    piEl.hidden = false;
+    delete piEl.dataset.wasVisible;
+  }
+
+  // Restore playback bar if there was an active track
+  if (offlineHadBar && currentIndex >= 0) {
+    barEl.classList.add('bar-visible');
+    requestAnimationFrame(() => {
+      cachedBarH = barEl.offsetHeight;
+      document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
+    });
+    updateBtn();
+  }
+  offlineHadBar = false;
+}
+
+if (!isEmbed) {
+  window.addEventListener('online', goOnline);
+  window.addEventListener('offline', goOffline);
+  // Defer initial check so all module-level vars (trackEls, barEl, themeColorMeta) are ready
+  setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
 }
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 themeColorMeta.setAttribute('content', bg);
@@ -330,6 +419,7 @@ function setFocused(i) {
 }
 
 document.addEventListener("keydown", e => {
+  if (isOffline) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const n = TAPE.tracks.length;
   if (e.key === " ") {
