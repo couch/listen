@@ -5,20 +5,21 @@ const TAPE = {
   color: "random",
   id: "1780262299494",
   created: "2026-05-31",
-  lastEdited: "2026-06-07",
+  lastEdited: "2026-06-08",
   location: {"city":"New York","lat":40.721,"lng":-73.979},
 
   tracks: [
     { id: "eX_hqvSh_h8", title: "XX Intro", artist: "Kate Simko & London Electronic Orchestra" },
     { id: "mbm3Llu2114", title: "Jacob and the Stone", artist: "Emile Mosseri" },
-    { id: "7eJ3I-_8Mr8", title: "The Departure", artist: "Max Richter" },
     { id: "0gtj3ZzEixs", title: "Kangaru", artist: "Jóhann Jóhannsson" },
     { id: "vqOoYVaGzL0", title: "What It's Like to Be a Bat 1", artist: "Finn Streuper" },
     { id: "k3F79wemqHs", title: "From the Sea / It Looms (Chapters I & II)", artist: "Leon Vynehall" },
     { id: "40ySIE_s6ps", title: "20:17", artist: "Ólafur Arnalds & Nils Frahm" },
     { id: "CqMWEjXGJg0", title: "Sand Drawing", artist: "Judah Earl" },
     { id: "eWQ7neoBhCE", title: "Agape", artist: "Nicholas Britell" },
-    { id: "ZzpvJT3t3u8", title: "Fish Beach", artist: "Michael Nyman" },
-    { id: "VOOyTL3PhZQ", title: "A Wild and Distant Shore", artist: "Michael Nyman" },
+    { id: "7Fb4-XC6eWg", title: "This Version of You (feat. Julianna Barwick)", artist: "ODESZA" },
+    { id: "qWxHWOBM5EQ", title: "i saw you", artist: "Fred again.." },
+    { id: "OlaTeXX3uH8", title: "An Ending (Ascent)", artist: "Brian Eno" },
+    { id: "tBF8I58vBrk", title: "Outro", artist: "Emile Mosseri" },
   ]
 };

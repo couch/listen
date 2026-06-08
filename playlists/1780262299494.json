@@ -15,11 +15,6 @@
       "artist": "Emile Mosseri"
     },
     {
-      "id": "7eJ3I-_8Mr8",
-      "title": "The Departure",
-      "artist": "Max Richter"
-    },
-    {
       "id": "0gtj3ZzEixs",
       "title": "Kangaru",
       "artist": "Jóhann Jóhannsson"
@@ -50,14 +45,24 @@
       "artist": "Nicholas Britell"
     },
     {
-      "id": "ZzpvJT3t3u8",
-      "title": "Fish Beach",
-      "artist": "Michael Nyman"
+      "id": "7Fb4-XC6eWg",
+      "title": "This Version of You (feat. Julianna Barwick)",
+      "artist": "ODESZA"
     },
     {
-      "id": "VOOyTL3PhZQ",
-      "title": "A Wild and Distant Shore",
-      "artist": "Michael Nyman"
+      "id": "qWxHWOBM5EQ",
+      "title": "i saw you",
+      "artist": "Fred again.."
+    },
+    {
+      "id": "OlaTeXX3uH8",
+      "title": "An Ending (Ascent)",
+      "artist": "Brian Eno"
+    },
+    {
+      "id": "tBF8I58vBrk",
+      "title": "Outro",
+      "artist": "Emile Mosseri"
     }
   ],
   "location": {
@@ -65,5 +70,5 @@
     "lat": 40.721,
     "lng": -73.979
   },
-  "lastEdited": "2026-06-07"
+  "lastEdited": "2026-06-08"
 }
