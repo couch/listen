@@ -100,6 +100,17 @@ TAPE.tracks.forEach((track, i) => {
   list.appendChild(li);
 });
 
+if (!isEmbed) {
+  const footer = document.createElement('div');
+  footer.id = 'playlist-footer';
+  const metaEl = document.createElement('div');
+  metaEl.id = 'playlist-meta';
+  footer.appendChild(metaEl);
+  const piEl = document.getElementById('pi-btn');
+  if (piEl) footer.appendChild(piEl);
+  list.after(footer);
+}
+
 // Player state
 let player = null;
 let ytApiLoading = false;
@@ -525,35 +536,16 @@ function stopColorDrift() {
   if (driftFrame) { cancelAnimationFrame(driftFrame); driftFrame = null; }
 }
 
-// ── Peek panel ───────────────────────────────────────────────────────────────
-const peekPanel = isEmbed ? null : document.getElementById('peek-panel');
 const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-let peekReveal = 0;
-let naturalBeta = null;
 let geoRequested = false;
-let cachedPeekH = 0;
 let cachedBarH = 0;
 
 window.addEventListener('resize', () => {
-  if (peekPanel) cachedPeekH = peekPanel.offsetHeight;
   if (barEl.classList.contains('bar-visible')) cachedBarH = barEl.offsetHeight;
 });
 
-function setReveal(t) {
-  if (!peekPanel) return;
-  peekReveal = t;
-  const ph = cachedPeekH || 100;
-  peekPanel.style.transform = `translateY(${(1 - t) * 100}%)`;
-  const barVisible = barEl.classList.contains('bar-visible');
-  if (barVisible) barEl.style.setProperty('--peek-push', `${t * ph}px`);
-  const piEl = document.getElementById('pi-btn');
-  if (piEl && !piEl.hidden) {
-    piEl.style.bottom = `${16 + (barVisible ? cachedBarH : 0) + t * ph}px`;
-  }
-}
-
-if (!isEmbed) (function initPeekPanel() {
+if (!isEmbed) (function initPlaylistMeta() {
   const count = TAPE.tracks?.length ?? 0;
   let meta = L.tr(count);
   const created = TAPE.created;
@@ -562,19 +554,18 @@ if (!isEmbed) (function initPeekPanel() {
     meta += ` · ${L.cr} ${fmtDate(created)}`;
     if (lastEdited && lastEdited !== created) meta += ` · ${L.ed} ${fmtDate(lastEdited)}`;
   }
-  document.getElementById('peek-meta').textContent = meta;
-
-  if (TAPE.location?.lat) {
-    document.getElementById('peek-distance').textContent = '·';
-  }
+  const el = document.getElementById('playlist-meta');
+  if (el) { el.dataset.base = meta; el.textContent = meta; }
 })();
 
 function applyViewerLocation(lat, lng) {
   if (!TAPE.location?.lat) return;
   const distKm = haversine(TAPE.location.lat, TAPE.location.lng, lat, lng);
   const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
-  const el = document.getElementById('peek-distance');
-  if (el) el.textContent = distKm < 24 ? L.nb : L.fa(dist);
+  const el = document.getElementById('playlist-meta');
+  if (!el) return;
+  const distText = distKm < 24 ? L.nb : L.fa(dist);
+  el.textContent = (el.dataset.base || '') + ' · ' + distText;
 }
 
 function requestViewerGeo() {
@@ -582,25 +573,16 @@ function requestViewerGeo() {
   geoRequested = true;
   navigator.geolocation.getCurrentPosition(
     pos => applyViewerLocation(pos.coords.latitude, pos.coords.longitude),
-    () => { const el = document.getElementById('peek-distance'); if (el) el.textContent = ''; },
+    () => {},
     { timeout: 10000, maximumAge: 300000 }
   );
-}
-
-// Mobile: tilt top of phone away → beta decreases from ~90 toward 0
-function handleOrientation(e) {
-  if (e.beta === null) return;
-  if (naturalBeta === null) naturalBeta = e.beta; // calibrate to natural hold on first event
-  const t = Math.max(0, Math.min(1, (naturalBeta - e.beta) / 30));
-  setReveal(t);
 }
 
 // Mobile: quick left/right roll → previous/next track
 function scrollTrackIntoView(el) {
   if (!el) return;
   const barH = barEl.classList.contains('bar-visible') ? cachedBarH : 0;
-  const peekH = Math.round(peekReveal * cachedPeekH);
-  const bottomClearance = barH + peekH + 12;
+  const bottomClearance = barH + 12;
   const rect = el.getBoundingClientRect();
   const viewH = window.innerHeight;
   if (rect.top < 60) {
@@ -627,7 +609,6 @@ function handleMotion(e) {
 }
 
 function enableMotionListeners() {
-  window.addEventListener('deviceorientation', handleOrientation);
   window.addEventListener('devicemotion', handleMotion);
 }
 
@@ -681,21 +662,39 @@ if (isMobile) {
   }
 }
 
-// Desktop: cursor drift is gated behind the π button click
 if (!isMobile) {
   if (hasPlaylistLoc) {
     piBtnEl.hidden = false;
     piBtnEl.addEventListener('click', () => {
       piBtnEl.hidden = true;
       requestViewerGeo();
-      document.addEventListener('mousemove', e => {
-        const vh = window.innerHeight;
-        const t = Math.max(0, Math.min(1, (e.clientY - vh * 0.80) / (vh * 0.20)));
-        setReveal(t);
-      });
-      document.addEventListener('mouseleave', () => setReveal(0));
     });
   }
+}
+
+// Scroll-driven fade-in for playlist metadata
+const _metaEl = document.getElementById('playlist-meta');
+const _footerEl = document.getElementById('playlist-footer');
+if (_metaEl && _footerEl) {
+  function updateMetaOpacity() {
+    const pageBottom = document.documentElement.scrollHeight;
+    const viewH = window.innerHeight;
+    if (pageBottom <= viewH) {
+      _metaEl.style.opacity = 1;
+      window.removeEventListener('scroll', updateMetaOpacity);
+      return;
+    }
+    const scrollBottom = window.scrollY + viewH;
+    const footerTop = _footerEl.getBoundingClientRect().top + window.scrollY;
+    const footerH = _footerEl.offsetHeight;
+    const fadeStart = footerTop + footerH * 0.4;
+    const raw = (scrollBottom - fadeStart) / (pageBottom - fadeStart);
+    const t = Math.max(0, Math.min(1, raw));
+    _metaEl.style.opacity = smootherstep(t);
+    if (t >= 1) window.removeEventListener('scroll', updateMetaOpacity);
+  }
+  window.addEventListener('scroll', updateMetaOpacity, { passive: true });
+  updateMetaOpacity();
 }
 } // end !isEmbed
 
