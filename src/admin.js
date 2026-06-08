@@ -1,16 +1,15 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, sha256, buildConfig } from './utils.js';
+import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, buildConfig } from './utils.js';
 import { T } from './admin-strings.js';
+import { hashPassword, verifyPassword } from './auth.js';
+import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
+import { validatePlaylist, validateIndex } from './schema.js';
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const YT_API_KEY_STORE = 'muxtape-yt-api-key';
 const GH_DEFAULTS = { owner: 'couch', repo: 'listen', branch: 'main' };
-
-// ── Auth ──
-
-const HASH_SALT = 'muxtape';
 
 function getGHConfig() {
   try { return { ...GH_DEFAULTS, ...JSON.parse(localStorage.getItem('muxtape-gh-config') || '{}') }; }
@@ -20,7 +19,14 @@ function getGHConfig() {
 async function checkAuth() {
   if (IS_LOCAL) return;
 
+  // Migrate: legacy SHA-256 hash (no salt) → force re-setup with PBKDF2
+  if (localStorage.getItem('muxtape-admin-hash') && !localStorage.getItem('muxtape-admin-salt')) {
+    ['muxtape-admin-hash', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
+    sessionStorage.removeItem('muxtape-gh-token');
+  }
+
   const storedHash = localStorage.getItem('muxtape-admin-hash');
+  const storedSalt = localStorage.getItem('muxtape-admin-salt');
   const sessionToken = sessionStorage.getItem('muxtape-gh-token');
   const isSetup = !storedHash;
   const needsToken = !isSetup && !sessionToken;
@@ -94,7 +100,9 @@ async function checkAuth() {
         const token = document.getElementById('auth-token').value.trim();
         if (pw !== confirmPw) { errorEl.textContent = 'Passwords do not match'; return; }
         if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
-        localStorage.setItem('muxtape-admin-hash', await sha256(HASH_SALT + pw));
+        const { salt, hash } = await hashPassword(pw);
+        localStorage.setItem('muxtape-admin-salt', salt);
+        localStorage.setItem('muxtape-admin-hash', hash);
         sessionStorage.setItem('muxtape-gh-token', token);
         localStorage.setItem('muxtape-gh-config', JSON.stringify({
           owner: document.getElementById('auth-owner').value.trim() || GH_DEFAULTS.owner,
@@ -106,7 +114,7 @@ async function checkAuth() {
       } else if (needsToken) {
         const token = document.getElementById('auth-token').value.trim();
         if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
-        if (await sha256(HASH_SALT + pw) === storedHash) {
+        if (await verifyPassword(pw, storedSalt, storedHash)) {
           sessionStorage.setItem('muxtape-gh-token', token);
           gate.remove();
           resolve();
@@ -116,7 +124,7 @@ async function checkAuth() {
           document.getElementById('auth-pw').focus();
         }
       } else {
-        if (await sha256(HASH_SALT + pw) === storedHash) {
+        if (await verifyPassword(pw, storedSalt, storedHash)) {
           gate.remove();
           resolve();
         } else {
@@ -136,74 +144,12 @@ async function checkAuth() {
     if (!isSetup) {
       document.getElementById('auth-reset').addEventListener('click', () => {
         if (!confirm('Clear admin credentials and start over?')) return;
-        ['muxtape-admin-hash', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
+        ['muxtape-admin-hash', 'muxtape-admin-salt', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
         sessionStorage.removeItem('muxtape-gh-token');
         location.reload();
       });
     }
   });
-}
-
-// ── GitHub API ──
-
-async function githubCommit(files, message) {
-  const token = sessionStorage.getItem('muxtape-gh-token');
-  const gh = getGHConfig();
-  const base = `https://api.github.com/repos/${gh.owner}/${gh.repo}`;
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/vnd.github+json',
-    'Content-Type': 'application/json',
-  };
-
-  async function ghFetch(url, opts = {}) {
-    const res = await fetch(url, { headers, ...opts });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || `GitHub ${res.status} — ${opts.method || 'GET'} ${url}`);
-    return data;
-  }
-
-  const refData = await ghFetch(`${base}/git/refs/heads/${gh.branch}`);
-  const latestSha = refData.object.sha;
-  const { tree: { sha: treeSha } } = await ghFetch(`${base}/git/commits/${latestSha}`);
-
-  const treeItems = await Promise.all(files.map(async ({ path, content }) => {
-    const { sha } = await ghFetch(`${base}/git/blobs`, {
-      method: 'POST',
-      body: JSON.stringify({ content, encoding: 'utf-8' }),
-    });
-    return { path, mode: '100644', type: 'blob', sha };
-  }));
-
-  const { sha: newTreeSha } = await ghFetch(`${base}/git/trees`, {
-    method: 'POST',
-    body: JSON.stringify({ base_tree: treeSha, tree: treeItems }),
-  });
-
-  const { sha: newCommitSha } = await ghFetch(`${base}/git/commits`, {
-    method: 'POST',
-    body: JSON.stringify({ message, tree: newTreeSha, parents: [latestSha] }),
-  });
-
-  await ghFetch(`${base}/git/refs/heads/${gh.branch}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ sha: newCommitSha }),
-  });
-}
-
-async function githubDeleteFile(filePath, message) {
-  const token = sessionStorage.getItem('muxtape-gh-token');
-  const gh = getGHConfig();
-  const url = `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${filePath}`;
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    Accept: 'application/vnd.github+json',
-    'Content-Type': 'application/json',
-  };
-  const getRes = await fetch(`${url}?ref=${gh.branch}`, { headers });
-  if (!getRes.ok) return;
-  const { sha } = await getRes.json();
-  await fetch(url, { method: 'DELETE', headers, body: JSON.stringify({ message, sha, branch: gh.branch }) });
 }
 
 // ── Save dispatch ──
@@ -212,7 +158,8 @@ async function saveFiles(files, message) {
   if (IS_LOCAL) {
     for (const { path, content } of files) await localPost(path, content);
   } else {
-    await githubCommit(files, message);
+    const gh = { ...getGHConfig(), token: sessionStorage.getItem('muxtape-gh-token') };
+    await githubCommit(files, message, gh);
   }
 }
 
@@ -221,7 +168,8 @@ async function deletePlaylistFile(id) {
     const res = await fetch('/delete-playlist', { method: 'POST', body: JSON.stringify({ id }) });
     if (!res.ok) throw new Error(`/delete-playlist failed (${res.status})`);
   } else {
-    await githubDeleteFile(`playlists/${id}.json`, `delete playlist ${id}`);
+    const gh = { ...getGHConfig(), token: sessionStorage.getItem('muxtape-gh-token') };
+    await ghDeleteFile(`playlists/${id}.json`, `delete playlist ${id}`, gh);
   }
 }
 
@@ -264,11 +212,14 @@ async function init() {
   try {
     const res = await fetch("/playlists/index.json");
     if (!res.ok) throw new Error();
-    idx = await res.json();
+    const rawIdx = await res.json();
+    validateIndex(rawIdx);
+    idx = rawIdx;
     await Promise.all(idx.ids.map(async id => {
       const r = await fetch(`/playlists/${id}.json`);
       if (r.ok) {
         const pl = await r.json();
+        try { validatePlaylist(pl); } catch { return; }
         if (!pl.lastEdited) pl.lastEdited = pl.created || null;
         playlists[id] = pl;
       }
