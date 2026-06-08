@@ -275,6 +275,10 @@ function next() {
     playing = false;
     updateBtn();
     stopTicker();
+    stopColorDrift();
+    currentIndex = -1;
+    barEl.classList.remove("bar-visible");
+    setReveal(0);
     document.getElementById("scrubber-fill").style.width = "0%";
     document.getElementById("np-title").textContent = "";
     document.getElementById("np-artist").textContent = "";
@@ -283,8 +287,8 @@ function next() {
     const s = document.getElementById("scrubber");
     s.setAttribute("aria-valuenow", "0");
     s.setAttribute("aria-valuetext", "0:00");
+    try { sessionStorage.removeItem(POS_KEY); } catch {}
     announce(L.pe);
-    stopColorDrift();
   }
 }
 
@@ -499,7 +503,6 @@ function tickDrift(now) {
   const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
   const hex = rgbToHex(rgb);
   document.documentElement.style.setProperty("--bg", hex);
-  document.body.style.background = hex;
   themeColorMeta.setAttribute('content', hex);
   if (t < 1) {
     driftFrame = requestAnimationFrame(tickDrift);
