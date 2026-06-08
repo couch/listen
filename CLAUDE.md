@@ -39,6 +39,10 @@ Test files live alongside source: `src/utils.test.js`, `src/strings.test.js`, `s
 
 After any code change, run `npm test` to confirm all tests still pass before committing.
 
+## README
+
+`README.md` documents the application as it actually behaves. When modifying the app, update the README to match — with the same concision and specificity already present in the file. Don't pad or over-explain; don't leave stale descriptions. A feature that changes behavior, a new constraint, a renamed module, a new keyboard shortcut, a changed data format — any of these warrants a targeted update to the relevant section. The README is a living spec, not release notes.
+
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[] }`
