@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hashPassword, verifyPassword } from './auth.js';
 import { githubCommit, githubDeleteFile } from './github.js';
 import { validateTrack, validatePlaylist, validateIndex } from './schema.js';
+import { buildSaveFiles } from './utils.js';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -266,4 +267,102 @@ describe('validateIndex', () => {
     expect(() => validateIndex({ active: '1', ids: ['a', 2, 'b'] })).toThrow(/ids\[1\]/);
   });
   it('accepts empty ids array', () => expect(() => validateIndex({ active: '', ids: [] })).not.toThrow());
+});
+
+// ── Integration: save path ────────────────────────────────────────────────────
+
+function mockGitHubApi({ refSha = 'ref-sha', treeSha = 'tree-sha' } = {}) {
+  const blobCount = { n: 0 };
+  const fetchMock = vi.fn(async (url, opts) => {
+    const method = opts?.method || 'GET';
+    if (method === 'GET' && url.includes('/git/refs/')) return { ok: true, json: async () => ({ object: { sha: refSha } }) };
+    if (method === 'GET' && url.includes('/git/commits/')) return { ok: true, json: async () => ({ tree: { sha: treeSha } }) };
+    if (method === 'POST' && url.includes('/git/blobs')) { blobCount.n++; return { ok: true, json: async () => ({ sha: `blob-${blobCount.n}` }) }; }
+    if (method === 'POST' && url.includes('/git/trees')) return { ok: true, json: async () => ({ sha: 'new-tree' }) };
+    if (method === 'POST' && url.includes('/git/commits')) return { ok: true, json: async () => ({ sha: 'new-commit' }) };
+    if (method === 'PATCH' && url.includes('/git/refs/')) return { ok: true, json: async () => ({}) };
+    return { ok: false, json: async () => ({ message: `Unexpected: ${method} ${url}` }) };
+  });
+  return { fetchMock, blobCount };
+}
+
+describe('save path integration: buildSaveFiles → githubCommit', () => {
+  const track = { id: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up', artist: 'Rick Astley' };
+  const playlist = { id: '100', title: 'My Tape', color: 'random', tracks: [track] };
+  const idx = { active: '100', ids: ['100'] };
+
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it('commits exactly one blob per file generated', async () => {
+    const files = buildSaveFiles('100', { '100': playlist }, idx);
+    const { fetchMock, blobCount } = mockGitHubApi();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await githubCommit(files, 'update: My Tape', GH);
+
+    expect(blobCount.n).toBe(files.length);
+  });
+
+  it('all generated file paths appear as blobs in the tree POST', async () => {
+    const files = buildSaveFiles('100', { '100': playlist }, idx);
+    const { fetchMock } = mockGitHubApi();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await githubCommit(files, 'update: My Tape', GH);
+
+    const treeCall = fetchMock.mock.calls.find(([url, opts]) =>
+      opts?.method === 'POST' && url.includes('/git/trees')
+    );
+    const body = JSON.parse(treeCall[1].body);
+    const committedPaths = body.tree.map(item => item.path);
+    files.forEach(f => expect(committedPaths).toContain(f.path));
+  });
+
+  it('commit message is passed verbatim to the commits endpoint', async () => {
+    const files = buildSaveFiles('100', { '100': playlist }, idx);
+    const { fetchMock } = mockGitHubApi();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await githubCommit(files, 'update: My Tape', GH);
+
+    const commitCall = fetchMock.mock.calls.find(([url, opts]) =>
+      opts?.method === 'POST' && url.includes('/git/commits')
+    );
+    expect(JSON.parse(commitCall[1].body).message).toBe('update: My Tape');
+  });
+
+  it('config.js content in the commit contains the active playlist title', async () => {
+    const files = buildSaveFiles('100', { '100': playlist }, idx);
+    const { fetchMock } = mockGitHubApi();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const blobBodies = [];
+    const wrappedFetch = vi.fn(async (url, opts) => {
+      if (opts?.method === 'POST' && url.includes('/git/blobs')) blobBodies.push(JSON.parse(opts.body));
+      return fetchMock(url, opts);
+    });
+    vi.stubGlobal('fetch', wrappedFetch);
+
+    await githubCommit(files, 'update: My Tape', GH);
+
+    const configBlob = blobBodies.find(b => b.content?.includes('const TAPE'));
+    expect(configBlob).toBeDefined();
+    expect(configBlob.content).toContain('My Tape');
+    expect(configBlob.content).toContain('dQw4w9WgXcQ');
+  });
+
+  it('a two-playlist save commits four files (current, active, index, config)', async () => {
+    const active = { id: '200', title: 'Active Tape', color: '#c1440e', tracks: [] };
+    const twoPlaylists = { '100': playlist, '200': active };
+    const twoIdx = { active: '200', ids: ['100', '200'] };
+    const files = buildSaveFiles('100', twoPlaylists, twoIdx);
+
+    expect(files).toHaveLength(4);
+
+    const { fetchMock, blobCount } = mockGitHubApi();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await githubCommit(files, 'update: My Tape', GH);
+    expect(blobCount.n).toBe(4);
+  });
 });

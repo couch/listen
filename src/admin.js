@@ -1,7 +1,7 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, buildConfig } from './utils.js';
+import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
 import { T } from './admin-strings.js';
 import { hashPassword, verifyPassword } from './auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
@@ -684,15 +684,7 @@ async function doSave() {
   if (playlists[currentId]) playlists[currentId].lastEdited = today();
 
   try {
-    const files = [
-      { path: `playlists/${currentId}.json`, content: JSON.stringify(playlists[currentId], null, 2) },
-    ];
-    if (idx.active !== currentId && playlists[idx.active]) {
-      files.push({ path: `playlists/${idx.active}.json`, content: JSON.stringify(playlists[idx.active], null, 2) });
-    }
-    files.push({ path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) });
-    files.push({ path: 'config.js', content: buildConfig(playlists[idx.active]) });
-
+    const files = buildSaveFiles(currentId, playlists, idx);
     await saveFiles(files, `update: ${playlists[currentId]?.title || currentId}`);
     status.textContent = T.saved;
     setTimeout(() => { status.textContent = ""; }, 2500);
