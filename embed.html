@@ -18,7 +18,7 @@
   <!-- config.js must load before the module bundle so TAPE is available globally -->
   <script src="/config.js"></script>
 
-  <!-- Set OG tags from TAPE at parse time (runs before main.js) -->
+  <!-- Set OG tags from TAPE at parse time (runs before embed.js) -->
   <script>
     if (typeof TAPE !== 'undefined') {
       document.querySelector('meta[property="og:title"]').setAttribute('content', TAPE.title);
@@ -31,12 +31,6 @@
   <link rel="stylesheet" crossorigin href="/assets/main-R71rloM7.css">
 </head>
 <body>
-
-<div id="offline-indicator" hidden></div>
-<div id="file-warning">
-  Open this via a local server, not as a file:// URL — YouTube's API requires HTTP.<br>
-  Run: <code>cd muxtape &amp;&amp; python3 -m http.server 8080</code> then visit <code>localhost:8080</code>
-</div>
 
 <div id="tape" role="region" aria-label="Playlist">
   <p id="tape-title"></p>
@@ -56,14 +50,6 @@
   <a id="attribution" href="#" target="_blank" rel="noopener noreferrer">audio via YouTube</a>
 </div>
 
-<div id="peek-panel" aria-hidden="true">
-  <div class="peek-top">
-    <span id="peek-distance"></span>
-  </div>
-  <div id="peek-meta"></div>
-</div>
-
-<button id="pi-btn" hidden aria-label="Enable tilt peek">π</button>
 <div id="a11y-announce" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 <div id="yt-player" aria-hidden="true"></div>
 
