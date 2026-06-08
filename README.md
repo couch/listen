@@ -9,19 +9,20 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 **Player**
 - Streams audio from YouTube video IDs — no ads, no video
 - Scrubber with seek, live timestamps, and per-track progress bar
-- Autoadvances through the playlist; player bar slides up from the bottom on first play
-- Full keyboard navigation — arrows to move focus, space/enter to play, tab for standard flow
+- Autoadvances through the playlist; player bar slides up on first play
+- Full keyboard navigation — arrows to move focus, space/enter to play
 - MediaSession API for lock screen and headphone controls on mobile
-- Service worker caches the shell; playlist data is always fetched fresh
-- Playback persistence: last track and seek position saved in `sessionStorage` per playlist ID; on reload the track is selected and the scrubber reflects the saved offset — no autoplay, play button is shown ready to resume
-- Offline indicator shown when the browser loses network
+- Service worker caches the shell; playlist data always fetched fresh
+- Playback persistence: last track and seek position saved in `sessionStorage` per playlist; resumes on reload without autoplay
+- Offline indicator when the browser loses network
+- Embeddable via `embed.html` — stripped-down player for iframe integration (e.g. Ghost CMS)
 
 **Playlist management (admin)**
-- Create, edit, reorder (drag-to-reorder), and delete playlists without touching JSON
+- Create, edit, reorder (drag), and delete playlists without touching JSON
 - Fetch track title and artist automatically from YouTube oEmbed
-- Import an entire YouTube playlist by URL — paste the link, hit Import; requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
+- Import an entire YouTube playlist by URL — requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
 - 5-second undo after deleting a track
-- Color picker: fixed hex, random-per-load, custom, or Pride rainbow
+- Color picker: fixed hex, random-per-load, or Pride rainbow
 - Set a playlist's geographic location with one tap
 - Promote any playlist to live; `config.js` regenerates on every save
 - Password-gated; accessible from any device
@@ -41,27 +42,28 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 **Mobile gestures**
 - Quick wrist-flick left/right (>250°/s on `rotationRate.gamma`) skips tracks
 - Tilt-to-reveal metadata panel calibrated to your natural hold position
-- Currently playing track always scrolls into view above the player bar, regardless of how the track changed
+- Currently playing track always scrolls into view above the player bar
 
 ---
 
 **Visual and behavioral details**
 - Background color slowly drifts through a warm palette while music plays
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
-- Pride mode: each track row gets its own full-width color from the Progress Pride flag; background drifts through the spectrum during playback; random spectral entry point ensures adjacent tracks are always harmonious
+- Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
 - Peek drawer: metadata panel (track count, dates, listener distance) slides up from below the player bar via tilt on mobile or cursor-to-bottom on desktop
-- Playlist location: stores city and fuzzed coordinates (±1 mile, 3 decimal places — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown as "listening from X away" using the viewer's device GPS, not IP
-- π button: single tap requests device orientation + location on iOS; auto-skips if permissions already granted; a nod to *The Net* (1995)
+- Playlist location: stores city and fuzzed coordinates (±1 mile — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown using the viewer's device GPS, not IP
+- π button: requests device orientation + location on iOS; auto-skips if permissions already granted
 
 ## Structure
 
 ```
 index.html              # Player entry point
+embed.html              # Stripped-down player for iframe embedding
 admin.html              # Admin entry point (password-gated)
 config.js               # Active playlist — loaded by the player at parse time
 server.py               # Local dev server (handles admin file writes)
 src/
-  main.js               # Player logic
+  main.js               # Player logic (shared by index.html and embed.html)
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
   utils.js              # Pure utilities: extractId, haversine, fuzzyCoord, fmt, sha256
@@ -114,7 +116,7 @@ const TAPE = {
 };
 ```
 
-`id` matches the playlist file's timestamp-based ID and is used to key session playback persistence — restoring to the correct track and position when the listener returns within the same browser session.
+`id` matches the playlist file's timestamp-based ID and keys session playback persistence.
 
 ## Setting Up Your Own Instance
 
@@ -123,7 +125,7 @@ const TAPE = {
 - Node.js 18+
 - Python 3 (for local admin saves)
 - A GitHub repository (fork this one)
-- A GitHub **fine-grained** personal access token scoped only to this repository with **Contents: Read and Write** — not a classic PAT, and not scoped to all repositories
+- A GitHub **fine-grained** personal access token scoped only to this repository with **Contents: Read and Write**
 
 ### 1. Fork and configure
 
@@ -151,21 +153,21 @@ Create `playlists/index.json` and a matching playlist file:
 
 ### 2. Deploy to GitHub Pages
 
-Go to your repository's **Settings → Pages** and set the source to the `gh-pages` branch. Push to `main` — GitHub Actions will build and deploy automatically. Set a custom domain via a `CNAME` file in the project root if desired.
+Go to **Settings → Pages** and set the source to the `gh-pages` branch. Push to `main` — GitHub Actions will build and deploy automatically. Set a custom domain via a `CNAME` file in the project root if desired.
 
 ### 3. Use the admin
 
-**Locally:** `npm run dev` starts both Vite and `server.py` together via `concurrently`. Vite proxies the admin POST endpoints (`/save-*`, `/delete-playlist`) to `server.py` on port 8080, so the whole app runs on a single port (5173). Open the admin page in your browser. Changes save directly to disk; push to deploy.
+**Locally:** `npm run dev` starts both Vite and `server.py` via `concurrently`. Vite proxies admin POST endpoints to `server.py` on port 8080. Open the admin page in your browser — changes save to disk, push to deploy.
 
-**Remotely:** open the admin page on your deployed site from any browser. On first visit you will be prompted for:
-- A password (used only for this device/browser gate — stored as a hash in `localStorage`)
+**Remotely:** open the admin on your deployed site from any browser. On first visit you'll be prompted for:
+- A password (hashed and stored in `localStorage`)
 - Your GitHub token (stored in `localStorage`; used to commit saves directly to `main`)
 
-Subsequent visits on the same device only ask for the password. Saves create a single commit and trigger the GitHub Actions deploy.
+Subsequent visits on the same device only ask for the password.
 
 ### 4. Test on iOS (tilt, gestures, location)
 
-iOS requires HTTPS for device orientation and geolocation. Use a Cloudflare quick tunnel against the local dev server:
+iOS requires HTTPS for device orientation and geolocation. Use a Cloudflare quick tunnel:
 
 ```bash
 cloudflared tunnel --url http://localhost:5173
@@ -182,7 +184,7 @@ npm test          # run tests (Vitest)
 npm run build     # production build → dist/
 ```
 
-`config.js` and `playlists/` are served from the project root by a custom Vite middleware — no extra steps needed for the player. The admin requires `python3 server.py` running alongside for local file saves.
+`config.js` and `playlists/` are served from the project root by a custom Vite middleware. The admin requires `python3 server.py` running alongside for local file saves.
 
 ## Keyboard Controls
 
