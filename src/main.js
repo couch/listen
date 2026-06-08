@@ -499,6 +499,7 @@ function tickDrift(now) {
   const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
   const hex = rgbToHex(rgb);
   document.documentElement.style.setProperty("--bg", hex);
+  document.body.style.background = hex;
   themeColorMeta.setAttribute('content', hex);
   if (t < 1) {
     driftFrame = requestAnimationFrame(tickDrift);
