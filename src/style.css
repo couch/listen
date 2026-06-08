@@ -21,6 +21,37 @@ body {
   line-height: 1.5;
 }
 
+/* ── Offline banner ── */
+#offline-indicator {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(14,14,14,0.93);
+  color: rgba(255,255,255,0.55);
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  text-transform: lowercase;
+  text-align: center;
+  padding: 10px 16px;
+  z-index: 200;
+  transform: translateY(-100%);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+#offline-indicator.banner-visible {
+  transform: translateY(0);
+}
+
+/* Tracks disabled while offline */
+body.is-offline .track {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.45;
+  transition: opacity 0.4s ease;
+}
+
+body.is-offline .track:hover { background: transparent; }
+
 #tape {
   padding: 56px 0 0;
 }
