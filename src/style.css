@@ -334,16 +334,43 @@ body.is-offline .track:hover { background: transparent; }
 
 #pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
 
+@property --mask-l {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --mask-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 32px;
+}
+
 /* ── Marquee scroll for active / now-playing text ── */
 @keyframes marquee-scroll {
   0%, 12% { transform: translateX(0); }
   88%, 100% { transform: translateX(var(--marquee-offset, 0px)); }
 }
 
+@keyframes marquee-mask {
+  0%, 12%   { --mask-l: 0px; --mask-r: 2em; }
+  88%, 100% { --mask-l: 2em; --mask-r: 0px; }
+}
+
 .marquee-active {
   text-overflow: clip;
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 2em), transparent 100%);
-  mask-image: linear-gradient(to right, black calc(100% - 2em), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0,
+    black var(--mask-l, 0px),
+    black calc(100% - var(--mask-r, 2em)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right,
+    transparent 0,
+    black var(--mask-l, 0px),
+    black calc(100% - var(--mask-r, 2em)),
+    transparent 100%
+  );
+  animation: marquee-mask var(--marquee-dur, 4s) linear(0, 0.005 3%, 0.02 6%, 0.05 9%, 0.08 12%, 0.92 88%, 0.95 91%, 0.98 94%, 0.995 97%, 1) infinite alternate;
 }
 
 .marquee-active > span {
