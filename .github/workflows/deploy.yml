@@ -29,11 +29,27 @@ jobs:
 
       - name: Copy runtime files into dist
         run: |
-          cp config.js dist/
-          cp -r playlists dist/
+          if [ -f config.js ]; then
+            cp config.js dist/
+          elif [ -f config.example.js ]; then
+            echo "::warning::config.js not found — deploying config.example.js as fallback. Set up your playlist via the admin UI."
+            cp config.example.js dist/config.js
+          else
+            echo "::error::No config.js or config.example.js found." && exit 1
+          fi
+
+          if [ -d playlists ] && compgen -G "playlists/*.json" > /dev/null 2>&1; then
+            cp -r playlists dist/
+          elif [ -d playlists/example ]; then
+            echo "::warning::playlists/ is empty — copying playlists/example/ as bootstrap."
+            mkdir -p dist/playlists && cp -r playlists/example/. dist/playlists/
+          else
+            echo "::error::No playlists found." && exit 1
+          fi
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          cname: ${{ vars.CNAME }}

@@ -3,3 +3,6 @@ start.sh
 node_modules/
 dist/
 .DS_Store
+config.js
+playlists/*.json
+public/CNAME

@@ -130,55 +130,29 @@ const TAPE = {
 
 `id` matches the playlist file's timestamp-based ID and keys session playback persistence.
 
-## Setting Up Your Own Instance
+## Fork & Deploy
 
-### Prerequisites
+### 1. Fork and enable GitHub Pages
 
-- Node.js 18+
-- Python 3 (for local admin saves)
-- A GitHub repository (fork this one)
-- A GitHub **fine-grained** personal access token scoped only to this repository with **Contents: Read and Write**
+Fork this repo. In **Settings → Pages**, set the source to the `gh-pages` branch. Push anything to `main` — GitHub Actions builds and deploys automatically.
 
-### 1. Fork and configure
+### 2. Custom domain (optional)
 
-Fork this repository. Create `config.js` in the project root with your first playlist:
+In **Settings → Variables → Actions**, create a repository variable named `CNAME` set to your domain (e.g. `tapes.example.com`). The deploy workflow injects it automatically — no file to create or commit.
 
-```js
-const TAPE = {
-  title: "my playlist",
-  color: "random",   // or a hex like "#c1440e", or "pride"
-  tracks: [
-    { id: "VIDEO_ID", title: "Track Title", artist: "Artist Name" },
-  ]
-};
-```
+### 3. First playlist
 
-Create `playlists/index.json` and a matching playlist file:
+Copy `config.example.js` to `config.js` and fill in your tracks. Copy `playlists/example/` to `playlists/` and update `index.json` and the playlist file to match your `config.js` id. Both `config.js` and `playlists/` are gitignored — they stay local and are never committed directly.
 
-```json
-// playlists/index.json
-{ "active": "1", "ids": ["1"] }
+On a fresh deploy with no `config.js` committed yet, the workflow falls back to `config.example.js` with a warning. Use the admin UI to create your first real playlist — it commits `config.js` and `playlists/` directly to `main` via the GitHub API and triggers a redeploy (~60 seconds to live).
 
-// playlists/1.json
-{ "id": "1", "title": "my playlist", "color": "random", "tracks": [] }
-```
+### 4. Admin setup
 
-### 2. Deploy to GitHub Pages
+Create a GitHub **fine-grained** personal access token scoped to your fork with **Contents: Read and Write**. Open `/admin.html` on your deployed site — first visit prompts for a password (hashed locally, never transmitted), your GitHub token (session-only, cleared on tab close), and your GitHub owner/repo. Subsequent visits on the same device only ask for the password.
 
-Go to **Settings → Pages** and set the source to the `gh-pages` branch. Push to `main` — GitHub Actions will build and deploy automatically. Set a custom domain via a `CNAME` file in the project root if desired.
+**Locally:** `npm run dev` starts Vite and `server.py` together. Admin saves write to disk instead of GitHub. If `server.py` runs on a different port: `VITE_SERVER_PORT=9000 npm run dev`.
 
-### 3. Use the admin
-
-**Locally:** `npm run dev` starts both Vite and `server.py` via `concurrently`. Vite proxies admin POST endpoints to `server.py` on port 8080. Open the admin page in your browser — changes save to disk, push to deploy.
-
-**Remotely:** open the admin on your deployed site from any browser. On first visit you'll be prompted for:
-- A password (hashed with PBKDF2 and stored in `localStorage`)
-- Your GitHub token (stored in `sessionStorage` only — cleared when the tab closes)
-- Your GitHub **owner** and **repo** (required — no defaults are assumed)
-
-Subsequent visits on the same device only ask for the password.
-
-### 4. Test on iOS (tilt, gestures, location)
+### 5. Test on iOS (tilt, gestures, location)
 
 iOS requires HTTPS for device orientation and geolocation. Use a Cloudflare quick tunnel:
 

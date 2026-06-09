@@ -3,6 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { computeCacheVersion, buildPrecacheList, patchServiceWorker } from './src/sw-build.js';
 
+const SERVER_PORT = process.env.VITE_SERVER_PORT || '8080';
+const SERVER_TARGET = `http://localhost:${SERVER_PORT}`;
+
 // Custom plugin: during dev, serve /config.js and /playlists/* from the project root
 // (they live there because server.py writes to them and are not in public/)
 function serveRootFiles() {
@@ -18,6 +21,13 @@ function serveRootFiles() {
           if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/javascript');
             res.end(fs.readFileSync(filePath));
+            return;
+          }
+          const examplePath = path.resolve(__dirname, 'config.example.js');
+          if (fs.existsSync(examplePath)) {
+            console.warn('[listen] config.js not found — serving config.example.js. Copy it to config.js to get started.');
+            res.setHeader('Content-Type', 'application/javascript');
+            res.end(fs.readFileSync(examplePath));
             return;
           }
         }
@@ -59,10 +69,10 @@ export default defineConfig(/** @type {import('vitest/config').UserConfig} */ ({
   server: {
     allowedHosts: ['.trycloudflare.com'],
     proxy: {
-      '/save-config': 'http://localhost:8080',
-      '/save-index': 'http://localhost:8080',
-      '/save-playlist': 'http://localhost:8080',
-      '/delete-playlist': 'http://localhost:8080',
+      '/save-config': SERVER_TARGET,
+      '/save-index': SERVER_TARGET,
+      '/save-playlist': SERVER_TARGET,
+      '/delete-playlist': SERVER_TARGET,
     },
   },
   build: {
