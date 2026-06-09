@@ -122,6 +122,11 @@ if (!isEmbed) {
 
 // ── Wake Lock ──────────────────────────────────────────────────────────────
 let wakeLock = null;
+let lastPositionSave = 0;
+let bufferingWatchdog = null;
+function clearBufferingWatchdog() {
+  if (bufferingWatchdog) { clearTimeout(bufferingWatchdog); bufferingWatchdog = null; }
+}
 
 async function acquireWakeLock() {
   if (!('wakeLock' in navigator) || isEmbed || document.hidden) return;
@@ -267,6 +272,13 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+window.addEventListener('pagehide', () => {
+  savePosition();
+  stopTicker();
+  stopColorDrift();
+  releaseWakeLock();
+});
+
 function loadYouTubeAPI() {
   if (ytApiLoading || ytApiReady) return;
   ytApiLoading = true;
@@ -307,6 +319,7 @@ window.onYouTubeIframeAPIReady = () => {
 
 function onState(e) {
   if (e.data === YT.PlayerState.PLAYING) {
+    clearBufferingWatchdog();
     playing = true;
     updateBtn();
     startTicker();
@@ -316,6 +329,7 @@ function onState(e) {
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
   } else if (e.data === YT.PlayerState.PAUSED) {
+    clearBufferingWatchdog();
     playing = false;
     updateBtn();
     stopTicker();
@@ -325,9 +339,16 @@ function onState(e) {
     releaseWakeLock();
     trackEls[currentIndex]?.classList.remove('playing');
     trackEls[currentIndex]?.classList.add('paused');
+  } else if (e.data === YT.PlayerState.BUFFERING) {
+    clearBufferingWatchdog();
+    bufferingWatchdog = setTimeout(() => {
+      if (player?.getPlayerState() === YT.PlayerState.BUFFERING) next();
+    }, 15000);
   } else if (e.data === YT.PlayerState.ENDED) {
+    clearBufferingWatchdog();
     next();
   } else if (e.data === YT.PlayerState.CUED) {
+    clearBufferingWatchdog();
     playing = false;
     updateBtn();
     const cur = player.getCurrentTime();
@@ -615,7 +636,7 @@ function startTicker() {
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
-      updateMediaSession();
+      if (now - lastPositionSave >= 30000) { lastPositionSave = now; savePosition(); }
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -756,7 +777,10 @@ function handleMotion(e) {
   }
 }
 
+let motionListenersEnabled = false;
 function enableMotionListeners() {
+  if (motionListenersEnabled) return;
+  motionListenersEnabled = true;
   window.addEventListener('devicemotion', handleMotion);
 }
 
