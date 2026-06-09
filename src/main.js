@@ -189,11 +189,15 @@ TAPE.tracks.forEach((track, i) => {
 
   const title = document.createElement("div");
   title.className = "track-title";
-  title.textContent = track.title;
+  const titleSpan = document.createElement("span");
+  titleSpan.textContent = track.title;
+  title.appendChild(titleSpan);
 
   const artist = document.createElement("div");
   artist.className = "track-artist";
-  artist.textContent = track.artist;
+  const artistSpan = document.createElement("span");
+  artistSpan.textContent = track.artist;
+  artist.appendChild(artistSpan);
 
   const progress = document.createElement("div");
   progress.className = "track-progress";
@@ -387,8 +391,10 @@ function load(i, startSeconds, silent = false) {
   } else {
     player.loadVideoById(t.id);
   }
-  document.getElementById("np-title").textContent = t.title;
-  document.getElementById("np-artist").textContent = t.artist;
+  const npTitle = document.getElementById("np-title");
+  const npArtist = document.getElementById("np-artist");
+  npTitle.querySelector("span").textContent = t.title;
+  npArtist.querySelector("span").textContent = t.artist;
   const attr = document.getElementById("attribution");
   attr.href = `https://www.youtube.com/watch?v=${t.id}`;
   attr.style.display = "block";
@@ -400,6 +406,10 @@ function load(i, startSeconds, silent = false) {
   el.setAttribute("aria-pressed", "true");
   announce(L.np(t.title, t.artist));
   scrollTrackIntoView(el);
+  startMarquee(npTitle);
+  startMarquee(npArtist);
+  startMarquee(el.querySelector(".track-title"));
+  startMarquee(el.querySelector(".track-artist"));
 }
 
 function next() {
@@ -417,8 +427,12 @@ function next() {
     barEl.classList.remove("bar-visible");
     document.documentElement.style.setProperty('--bar-h', '0px');
     document.getElementById("scrubber-fill").style.width = "0%";
-    document.getElementById("np-title").textContent = "";
-    document.getElementById("np-artist").textContent = "";
+    const npTitle = document.getElementById("np-title");
+    const npArtist = document.getElementById("np-artist");
+    stopMarquee(npTitle);
+    stopMarquee(npArtist);
+    npTitle.querySelector("span").textContent = "";
+    npArtist.querySelector("span").textContent = "";
     document.getElementById("time").textContent = "";
     document.getElementById("attribution").style.display = "none";
     const s = document.getElementById("scrubber");
@@ -435,6 +449,8 @@ function clearActive() {
     el.classList.remove("active", "playing", "paused");
     el.setAttribute("aria-pressed", "false");
     if (el.dataset.prideColor) el.style.backgroundImage = '';
+    stopMarquee(el.querySelector(".track-title"));
+    stopMarquee(el.querySelector(".track-artist"));
     const p = el.querySelector(".track-progress");
     if (p) { p.style.transition = "none"; p.style.width = "0%"; progEls.push(p); }
   });
@@ -593,6 +609,7 @@ function startTicker() {
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
+      updateMediaSession();
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -814,6 +831,48 @@ if (_metaEl) {
   revealMeta();
 }
 } // end !isEmbed
+
+const marqueeResizeObserver = typeof ResizeObserver !== 'undefined'
+  ? new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const container = entry.target.parentElement;
+        if (!container?.classList.contains('marquee-active')) continue;
+        const overflow = container.scrollWidth - container.clientWidth;
+        if (overflow <= 1) {
+          stopMarquee(container);
+        } else {
+          container.style.setProperty('--marquee-offset', `-${overflow}px`);
+          container.style.setProperty('--marquee-dur', `${Math.max(3, overflow / 19).toFixed(2)}s`);
+        }
+      }
+    })
+  : null;
+
+function stopMarquee(el) {
+  if (!el) return;
+  const span = el.querySelector('span');
+  if (span && marqueeResizeObserver) marqueeResizeObserver.unobserve(span);
+  el.classList.remove('marquee-active');
+  el.style.removeProperty('--marquee-offset');
+  el.style.removeProperty('--marquee-dur');
+}
+
+function startMarquee(el) {
+  if (!el) return;
+  stopMarquee(el);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  requestAnimationFrame(() => {
+    const overflow = el.scrollWidth - el.clientWidth;
+    if (overflow <= 1) return;
+    // ~25px/s effective scroll speed; min 3s per direction
+    const dur = Math.max(3, overflow / 19).toFixed(2);
+    el.style.setProperty('--marquee-offset', `-${overflow}px`);
+    el.style.setProperty('--marquee-dur', `${dur}s`);
+    el.classList.add('marquee-active');
+    const span = el.querySelector('span');
+    if (span && marqueeResizeObserver) marqueeResizeObserver.observe(span);
+  });
+}
 
 // MediaSession API — lock screen controls on mobile
 function updateMediaSession() {
