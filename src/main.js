@@ -593,6 +593,7 @@ function startTicker() {
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
+      updateMediaSession();
     }
     ticker = requestAnimationFrame(tick);
   }
