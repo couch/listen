@@ -313,6 +313,8 @@ function onState(e) {
     updateMediaSession();
     startColorDrift();
     acquireWakeLock();
+    trackEls[currentIndex]?.classList.remove('paused');
+    trackEls[currentIndex]?.classList.add('playing');
   } else if (e.data === YT.PlayerState.PAUSED) {
     playing = false;
     updateBtn();
@@ -321,6 +323,8 @@ function onState(e) {
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
     releaseWakeLock();
+    trackEls[currentIndex]?.classList.remove('playing');
+    trackEls[currentIndex]?.classList.add('paused');
   } else if (e.data === YT.PlayerState.ENDED) {
     next();
   } else if (e.data === YT.PlayerState.CUED) {

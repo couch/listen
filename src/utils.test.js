@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, extractId, haversine, fuzzyCoord, fmt, sha256, buildConfig, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles } from './utils.js';
+import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -115,20 +115,6 @@ describe('buildConfig', () => {
   });
 });
 
-describe('sha256', () => {
-  it('hashes the empty string correctly', async () => {
-    expect(await sha256('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-  });
-  it('hashes "hello" correctly', async () => {
-    expect(await sha256('hello')).toBe('2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824');
-  });
-  it('is deterministic', async () => {
-    expect(await sha256('test')).toBe(await sha256('test'));
-  });
-  it('produces different hashes for different inputs', async () => {
-    expect(await sha256('foo')).not.toBe(await sha256('bar'));
-  });
-});
 
 describe('hexToRgb', () => {
   it('parses a known red', () => expect(hexToRgb('#ff0000')).toEqual([255, 0, 0]));

@@ -15,14 +15,16 @@ async function ghFetch(url, headers, opts = {}) {
   return data;
 }
 
-export async function githubCommit(files, message, { token, owner, repo, branch }) {
+export async function githubCommit(files, message, { token, owner, repo, branch }, onProgress) {
   const base = `${GH_API}/repos/${owner}/${repo}`;
   const headers = makeHeaders(token);
 
+  onProgress?.('connecting…');
   const refData = await ghFetch(`${base}/git/refs/heads/${branch}`, headers);
   const latestSha = refData.object.sha;
   const { tree: { sha: treeSha } } = await ghFetch(`${base}/git/commits/${latestSha}`, headers);
 
+  onProgress?.('uploading files…');
   const treeItems = await Promise.all(files.map(async ({ path, content }) => {
     const { sha } = await ghFetch(`${base}/git/blobs`, headers, {
       method: 'POST',
@@ -36,15 +38,23 @@ export async function githubCommit(files, message, { token, owner, repo, branch 
     body: JSON.stringify({ base_tree: treeSha, tree: treeItems }),
   });
 
+  onProgress?.('committing…');
   const { sha: newCommitSha } = await ghFetch(`${base}/git/commits`, headers, {
     method: 'POST',
     body: JSON.stringify({ message, tree: newTreeSha, parents: [latestSha] }),
   });
 
-  await ghFetch(`${base}/git/refs/heads/${branch}`, headers, {
+  onProgress?.('pushing…');
+  const refRes = await fetch(`${base}/git/refs/heads/${branch}`, {
     method: 'PATCH',
+    headers,
     body: JSON.stringify({ sha: newCommitSha }),
   });
+  if (refRes.status === 422) throw new Error('Save conflict — a newer change exists remotely. Reload and try again.');
+  if (!refRes.ok) {
+    const d = await refRes.json().catch(() => ({}));
+    throw new Error(d.message || `GitHub ${refRes.status}`);
+  }
 }
 
 export async function githubDeleteFile(filePath, message, { token, owner, repo, branch }) {

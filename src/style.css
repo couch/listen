@@ -88,12 +88,13 @@ body.is-offline .track:hover { background: transparent; }
 
 @media (hover: hover) { .track:hover { background: rgba(0,0,0,0.1); } }
 .track.active { background: rgba(0,0,0,0.15); }
+.track.active.playing { box-shadow: inset 3px 0 0 rgba(255,255,255,0.55); }
 
 .track-progress {
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 0%;
-  background: rgba(0,0,0,0.13);
+  background: rgba(0,0,0,0.22);
   pointer-events: none;
   transition: width 0.5s linear;
 }

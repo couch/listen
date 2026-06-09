@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 // Custom plugin: during dev, serve /config.js and /playlists/* from the project root
 // (they live there because server.py writes to them and are not in public/)
@@ -37,8 +38,25 @@ function serveRootFiles() {
   };
 }
 
+function swCacheVersion() {
+  return {
+    name: 'sw-cache-version',
+    writeBundle(options, bundle) {
+      const hash = crypto
+        .createHash('sha1')
+        .update(Object.keys(bundle).sort().join('\n'))
+        .digest('hex')
+        .slice(0, 8);
+      const swPath = path.join(options.dir, 'sw.js');
+      if (fs.existsSync(swPath)) {
+        fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf-8').replace('__CACHE_VERSION__', hash));
+      }
+    },
+  };
+}
+
 export default defineConfig(/** @type {import('vitest/config').UserConfig} */ ({
-  plugins: [serveRootFiles()],
+  plugins: [serveRootFiles(), swCacheVersion()],
   server: {
     allowedHosts: ['.trycloudflare.com'],
     proxy: {

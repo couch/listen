@@ -1,4 +1,4 @@
-const CACHE = 'muxtape-v1';
+const CACHE = 'muxtape-__CACHE_VERSION__';
 
 // Resources to pre-cache on install (the HTML shell + bundled assets)
 const PRECACHE = ['/'];

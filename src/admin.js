@@ -3,163 +3,20 @@ import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
 import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
 import { T } from './admin-strings.js';
-import { hashPassword, verifyPassword } from './auth.js';
+import { checkAuth, getGHConfig, IS_LOCAL } from './admin-auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
 import { validatePlaylist, validateIndex } from './schema.js';
 
-const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const YT_API_KEY_STORE = 'muxtape-yt-api-key';
-const GH_DEFAULTS = { owner: 'couch', repo: 'listen', branch: 'main' };
-
-function getGHConfig() {
-  try { return { ...GH_DEFAULTS, ...JSON.parse(localStorage.getItem('muxtape-gh-config') || '{}') }; }
-  catch { return { ...GH_DEFAULTS }; }
-}
-
-async function checkAuth() {
-  if (IS_LOCAL) return;
-
-  // Migrate: legacy SHA-256 hash (no salt) → force re-setup with PBKDF2
-  if (localStorage.getItem('muxtape-admin-hash') && !localStorage.getItem('muxtape-admin-salt')) {
-    ['muxtape-admin-hash', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
-    sessionStorage.removeItem('muxtape-gh-token');
-  }
-
-  const storedHash = localStorage.getItem('muxtape-admin-hash');
-  const storedSalt = localStorage.getItem('muxtape-admin-salt');
-  const sessionToken = sessionStorage.getItem('muxtape-gh-token');
-  const isSetup = !storedHash;
-  const needsToken = !isSetup && !sessionToken;
-  const gh = getGHConfig();
-
-  await new Promise(resolve => {
-    const gate = document.createElement('div');
-    gate.id = 'auth-gate';
-
-    // All innerHTML is static — localStorage-derived values set via .value after creation
-    if (isSetup) {
-      gate.innerHTML = `
-        <div id="auth-box">
-          <h2>edit tape</h2>
-          <p class="auth-hint">First-time setup</p>
-          <input type="password" id="auth-pw" placeholder="set a password" autocomplete="new-password">
-          <input type="password" id="auth-confirm" placeholder="confirm password" autocomplete="new-password">
-          <input type="text" id="auth-token" placeholder="GitHub token (contents: write)" autocomplete="off" spellcheck="false">
-          <details id="auth-advanced">
-            <summary>GitHub repo</summary>
-            <input type="text" id="auth-owner" placeholder="owner">
-            <input type="text" id="auth-repo-name" placeholder="repo">
-            <input type="text" id="auth-branch" placeholder="branch">
-          </details>
-          <button id="auth-submit">Set up</button>
-          <p id="auth-error"></p>
-        </div>
-      `;
-    } else if (needsToken) {
-      gate.innerHTML = `
-        <div id="auth-box">
-          <h2>edit tape</h2>
-          <p class="auth-hint">New session — enter password and token</p>
-          <input type="password" id="auth-pw" placeholder="password" autocomplete="current-password">
-          <input type="text" id="auth-token" placeholder="GitHub token" autocomplete="off" spellcheck="false">
-          <button id="auth-submit">Enter</button>
-          <p id="auth-error"></p>
-          <button id="auth-reset">Reset credentials</button>
-        </div>
-      `;
-    } else {
-      gate.innerHTML = `
-        <div id="auth-box">
-          <h2>edit tape</h2>
-          <input type="password" id="auth-pw" placeholder="password" autocomplete="current-password">
-          <button id="auth-submit">Enter</button>
-          <p id="auth-error"></p>
-          <button id="auth-reset">Reset credentials</button>
-        </div>
-      `;
-    }
-
-    document.body.prepend(gate);
-
-    if (isSetup) {
-      document.getElementById('auth-owner').value = gh.owner;
-      document.getElementById('auth-repo-name').value = gh.repo;
-      document.getElementById('auth-branch').value = gh.branch;
-    }
-
-    document.getElementById('auth-pw').focus();
-    const errorEl = document.getElementById('auth-error');
-
-    document.getElementById('auth-submit').addEventListener('click', async () => {
-      const pw = document.getElementById('auth-pw').value;
-      if (!pw) return;
-      errorEl.textContent = '';
-
-      if (isSetup) {
-        const confirmPw = document.getElementById('auth-confirm').value;
-        const token = document.getElementById('auth-token').value.trim();
-        if (pw !== confirmPw) { errorEl.textContent = 'Passwords do not match'; return; }
-        if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
-        const { salt, hash } = await hashPassword(pw);
-        localStorage.setItem('muxtape-admin-salt', salt);
-        localStorage.setItem('muxtape-admin-hash', hash);
-        sessionStorage.setItem('muxtape-gh-token', token);
-        localStorage.setItem('muxtape-gh-config', JSON.stringify({
-          owner: document.getElementById('auth-owner').value.trim() || GH_DEFAULTS.owner,
-          repo: document.getElementById('auth-repo-name').value.trim() || GH_DEFAULTS.repo,
-          branch: document.getElementById('auth-branch').value.trim() || GH_DEFAULTS.branch,
-        }));
-        gate.remove();
-        resolve();
-      } else if (needsToken) {
-        const token = document.getElementById('auth-token').value.trim();
-        if (!token) { errorEl.textContent = 'GitHub token is required'; return; }
-        if (await verifyPassword(pw, storedSalt, storedHash)) {
-          sessionStorage.setItem('muxtape-gh-token', token);
-          gate.remove();
-          resolve();
-        } else {
-          errorEl.textContent = 'Incorrect password';
-          document.getElementById('auth-pw').value = '';
-          document.getElementById('auth-pw').focus();
-        }
-      } else {
-        if (await verifyPassword(pw, storedSalt, storedHash)) {
-          gate.remove();
-          resolve();
-        } else {
-          errorEl.textContent = 'Incorrect password';
-          document.getElementById('auth-pw').value = '';
-          document.getElementById('auth-pw').focus();
-        }
-      }
-    });
-
-    ['auth-pw', 'auth-token'].forEach(id => {
-      document.getElementById(id)?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('auth-submit').click();
-      });
-    });
-
-    if (!isSetup) {
-      document.getElementById('auth-reset').addEventListener('click', () => {
-        if (!confirm('Clear admin credentials and start over?')) return;
-        ['muxtape-admin-hash', 'muxtape-admin-salt', 'muxtape-gh-config'].forEach(k => localStorage.removeItem(k));
-        sessionStorage.removeItem('muxtape-gh-token');
-        location.reload();
-      });
-    }
-  });
-}
 
 // ── Save dispatch ──
 
-async function saveFiles(files, message) {
+async function saveFiles(files, message, onProgress) {
   if (IS_LOCAL) {
     for (const { path, content } of files) await localPost(path, content);
   } else {
     const gh = { ...getGHConfig(), token: sessionStorage.getItem('muxtape-gh-token') };
-    await githubCommit(files, message, gh);
+    await githubCommit(files, message, gh, onProgress);
   }
 }
 
@@ -187,7 +44,13 @@ async function localPost(path, content) {
 let idx = { active: null, ids: [] };
 let playlists = {};
 let currentId = null;
-const state = { title: "", color: "random", tracks: [], pendingId: null, location: null };
+const state = {
+  title: "", color: "random", tracks: [], pendingId: null, location: null,
+  addTrack(t)       { this.tracks.push(t); },
+  removeTrack(i)    { return this.tracks.splice(i, 1)[0]; },
+  insertTrack(i, t) { this.tracks.splice(i, 0, t); },
+  reorder(arr)      { this.tracks = arr; },
+};
 
 // ── Undo state ──
 let undoState = null;
@@ -355,7 +218,7 @@ document.getElementById("delete-btn").addEventListener("click", async () => {
     await saveFiles([
       { path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) },
       { path: 'config.js', content: buildConfig(playlists[idx.active]) },
-    ], `delete playlist: ${p?.title || idToDelete}`);
+    ], `delete playlist: ${p?.title || idToDelete}`, msg => { status.textContent = msg; });
     renderSelect();
     loadPlaylist(currentId);
     status.textContent = T.saved;
@@ -519,7 +382,7 @@ function renderTracks() {
     del.addEventListener("click", () => {
       const deletedTrack = { ...track };
       const deletedAt = i;
-      state.tracks.splice(i, 1);
+      state.removeTrack(i);
       renderTracks();
       showUndo(deletedTrack, deletedAt);
     });
@@ -536,8 +399,8 @@ function buildSortable() {
     ghostClass: "sortable-ghost",
     chosenClass: "sortable-chosen",
     onEnd() {
-      state.tracks = [...trackList.querySelectorAll(".track-item")]
-        .map(el => JSON.parse(el.dataset.track));
+      state.reorder([...trackList.querySelectorAll(".track-item")]
+        .map(el => JSON.parse(el.dataset.track)));
       renderTracks();
     }
   });
@@ -581,7 +444,7 @@ async function doFetch() {
 addBtn.addEventListener("click", () => {
   if (!state.pendingId || !metaTitle.value.trim()) return;
   if (state.tracks.length >= 12) { setFetchStatus(T.atLimitFull, true); return; }
-  state.tracks.push({ id: state.pendingId, title: metaTitle.value.trim(), artist: metaArtist.value.trim() });
+  state.addTrack({ id: state.pendingId, title: metaTitle.value.trim(), artist: metaArtist.value.trim() });
   renderTracks();
   ytInput.value = ""; metaTitle.value = ""; metaArtist.value = "";
   metaRow.hidden = true; state.pendingId = null;
@@ -634,7 +497,7 @@ async function doImport() {
     if (!items.length) { setImportStatus(T.importNone); return; }
     items.forEach(item => {
       if (state.tracks.length >= 12) return;
-      state.tracks.push({ id: item.snippet.resourceId.videoId, title: item.snippet.title, artist: item.snippet.videoOwnerChannelTitle || '' });
+      state.addTrack({ id: item.snippet.resourceId.videoId, title: item.snippet.title, artist: item.snippet.videoOwnerChannelTitle || '' });
     });
     renderTracks();
     setImportStatus(T.importAdded(items.length));
@@ -680,12 +543,11 @@ async function doSave() {
   const status = document.getElementById("save-status");
   btn.disabled = true;
   status.className = "";
-  status.textContent = T.saving;
   if (playlists[currentId]) playlists[currentId].lastEdited = today();
 
   try {
     const files = buildSaveFiles(currentId, playlists, idx);
-    await saveFiles(files, `update: ${playlists[currentId]?.title || currentId}`);
+    await saveFiles(files, `update: ${playlists[currentId]?.title || currentId}`, msg => { status.textContent = msg; });
     status.textContent = T.saved;
     setTimeout(() => { status.textContent = ""; }, 2500);
   } catch (err) {
@@ -739,7 +601,7 @@ function attachListeners() {
 
   document.getElementById('undo-btn').addEventListener('click', () => {
     if (!undoState) return;
-    state.tracks.splice(undoState.index, 0, undoState.track);
+    state.insertTrack(undoState.index, undoState.track);
     hideUndo();
     renderTracks();
   });

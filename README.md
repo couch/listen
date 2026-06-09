@@ -10,6 +10,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Streams audio from YouTube video IDs — no ads, no video
 - Scrubber with seek, live timestamps, and per-track progress bar
 - Autoadvances through the playlist; player bar slides up on first play
+- Playing track shows a bright left-bar indicator; paused state returns to the plain active background
 - Full keyboard navigation — arrows to move focus, space/enter to play
 - MediaSession API: lock screen controls, album artwork, and scrubber position state
 - Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
@@ -30,7 +31,8 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Set a playlist's geographic location with one tap
 - Promote any playlist to live; `config.js` regenerates on every save
 - Password-gated; accessible from any device
-- Remote saves commit directly to `main` via the GitHub API — no server required, deploy triggers automatically (~60 seconds to live)
+- Remote saves commit directly to `main` via the GitHub API — no server required, deploy triggers automatically (~60 seconds to live); save status shows live progress ("connecting…" → "uploading files…" → "pushing…")
+- Conflict detection: if a concurrent save wins the race, a clear message prompts a reload rather than a raw GitHub error
 
 **Localization**
 - All UI strings, ARIA labels, and date formats auto-detect from `navigator.language`
@@ -72,11 +74,12 @@ src/
   main.js               # Player logic (shared by index.html and embed.html)
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
-  utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt, sha256
+  utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
   auth.js               # PBKDF2 password hashing and verification
   github.js             # GitHub git-tree commit and file-delete operations
   schema.js             # Runtime validation: validateTrack, validatePlaylist, validateIndex
-  admin.js              # Admin logic: auth, playlist CRUD, save dispatch
+  admin-auth.js         # Auth gate, GitHub repo config, credential storage
+  admin.js              # Admin: playlist CRUD, track management, save dispatch
   admin.css             # Admin styles
   admin-strings.js      # Admin i18n strings
 playlists/
@@ -171,6 +174,7 @@ Go to **Settings → Pages** and set the source to the `gh-pages` branch. Push t
 **Remotely:** open the admin on your deployed site from any browser. On first visit you'll be prompted for:
 - A password (hashed with PBKDF2 and stored in `localStorage`)
 - Your GitHub token (stored in `sessionStorage` only — cleared when the tab closes)
+- Your GitHub **owner** and **repo** (required — no defaults are assumed)
 
 Subsequent visits on the same device only ask for the password.
 
