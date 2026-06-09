@@ -842,7 +842,7 @@ const marqueeResizeObserver = typeof ResizeObserver !== 'undefined'
           stopMarquee(container);
         } else {
           container.style.setProperty('--marquee-offset', `-${overflow}px`);
-          container.style.setProperty('--marquee-dur', `${Math.max(3, overflow / 19).toFixed(2)}s`);
+          container.style.setProperty('--marquee-dur', `${Math.max(4, overflow / 10).toFixed(2)}s`);
         }
       }
     })
@@ -864,8 +864,7 @@ function startMarquee(el) {
   requestAnimationFrame(() => {
     const overflow = el.scrollWidth - el.clientWidth;
     if (overflow <= 1) return;
-    // ~25px/s effective scroll speed; min 3s per direction
-    const dur = Math.max(3, overflow / 19).toFixed(2);
+    const dur = Math.max(4, overflow / 10).toFixed(2);
     el.style.setProperty('--marquee-offset', `-${overflow}px`);
     el.style.setProperty('--marquee-dur', `${dur}s`);
     el.classList.add('marquee-active');
