@@ -832,8 +832,26 @@ if (_metaEl) {
 }
 } // end !isEmbed
 
+const marqueeResizeObserver = typeof ResizeObserver !== 'undefined'
+  ? new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const container = entry.target.parentElement;
+        if (!container?.classList.contains('marquee-active')) continue;
+        const overflow = container.scrollWidth - container.clientWidth;
+        if (overflow <= 1) {
+          stopMarquee(container);
+        } else {
+          container.style.setProperty('--marquee-offset', `-${overflow}px`);
+          container.style.setProperty('--marquee-dur', `${Math.max(3, overflow / 19).toFixed(2)}s`);
+        }
+      }
+    })
+  : null;
+
 function stopMarquee(el) {
   if (!el) return;
+  const span = el.querySelector('span');
+  if (span && marqueeResizeObserver) marqueeResizeObserver.unobserve(span);
   el.classList.remove('marquee-active');
   el.style.removeProperty('--marquee-offset');
   el.style.removeProperty('--marquee-dur');
@@ -851,6 +869,8 @@ function startMarquee(el) {
     el.style.setProperty('--marquee-offset', `-${overflow}px`);
     el.style.setProperty('--marquee-dur', `${dur}s`);
     el.classList.add('marquee-active');
+    const span = el.querySelector('span');
+    if (span && marqueeResizeObserver) marqueeResizeObserver.observe(span);
   });
 }
 
