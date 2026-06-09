@@ -11,11 +11,14 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Scrubber with seek, live timestamps, and per-track progress bar
 - Autoadvances through the playlist; player bar slides up on first play
 - Full keyboard navigation — arrows to move focus, space/enter to play
-- MediaSession API for lock screen and headphone controls on mobile
+- MediaSession API: lock screen controls, album artwork, and scrubber position state
+- Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
+- Web Share: `↑` button in the playlist footer opens the native share sheet (where supported)
 - Service worker caches the shell; playlist data always fetched fresh
 - Playback persistence: last track and seek position saved in `sessionStorage` per playlist; resumes on reload without autoplay
-- Offline indicator when the browser loses network
+- Offline indicator when the browser loses network — background dims, tracks disable, bar hides
 - Embeddable via `embed.html` — stripped-down player for iframe integration (e.g. Ghost CMS)
+- Respects `prefers-reduced-motion`: background color drift skipped; decorative transitions removed
 
 **Playlist management (admin)**
 - Create, edit, reorder (drag), and delete playlists without touching JSON
@@ -39,20 +42,20 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Scrubber `aria-valuetext` reads elapsed/total in the correct locale pattern
 - Hover states restricted to `@media (hover: hover)` — touch devices never retain a highlight
 
-**Mobile gestures**
+**Mobile**
 - Quick wrist-flick left/right (>250°/s on `rotationRate.gamma`) skips tracks
-- Tilt-to-reveal metadata panel calibrated to your natural hold position
+- Haptic feedback on each track change (Android Chrome; Vibration API not supported on iOS)
 - Currently playing track always scrolls into view above the player bar
 
 ---
 
 **Visual and behavioral details**
-- Background color slowly drifts through a warm palette while music plays
+- Background color slowly drifts through a warm palette while music plays (skipped when `prefers-reduced-motion` is set)
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
-- Peek drawer: metadata panel (track count, dates, listener distance) slides up from below the player bar via tilt on mobile or cursor-to-bottom on desktop
+- Playlist footer: track count, created/edited dates, and listener distance shown below the track list; scroll to reveal
 - Playlist location: stores city and fuzzed coordinates (±1 mile — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown using the viewer's device GPS, not IP
-- π button: requests device orientation + location on iOS; auto-skips if permissions already granted
+- π button: on iOS, tapping it requests DeviceMotion permission (required for wrist-flick); on Android, wrist-flick works without permission and π only appears when the playlist has a location set; in both cases, also prompts for device GPS to show listener distance; hidden until needed
 
 ## Structure
 
@@ -163,8 +166,8 @@ Go to **Settings → Pages** and set the source to the `gh-pages` branch. Push t
 **Locally:** `npm run dev` starts both Vite and `server.py` via `concurrently`. Vite proxies admin POST endpoints to `server.py` on port 8080. Open the admin page in your browser — changes save to disk, push to deploy.
 
 **Remotely:** open the admin on your deployed site from any browser. On first visit you'll be prompted for:
-- A password (hashed and stored in `localStorage`)
-- Your GitHub token (stored in `localStorage`; used to commit saves directly to `main`)
+- A password (hashed with PBKDF2 and stored in `localStorage`)
+- Your GitHub token (stored in `sessionStorage` only — cleared when the tab closes)
 
 Subsequent visits on the same device only ask for the password.
 
