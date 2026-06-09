@@ -617,6 +617,8 @@ if (!isEmbed) {
   window.addEventListener('online', goOnline);
   window.addEventListener('offline', goOffline);
   setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
+  // iOS Safari doesn't fire offline/online events for airplane mode; poll as fallback
+  setInterval(() => { navigator.onLine ? goOnline() : goOffline(); }, 3000);
 }
 
 window.addEventListener('resize', () => {
