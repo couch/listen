@@ -9,7 +9,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 **Player**
 - Streams audio from YouTube video IDs — no ads, no video
 - Scrubber with seek, live timestamps, and per-track progress bar
-- Autoadvances through the playlist; player bar slides up on first play
+- Autoadvances through the playlist; player bar slides up on first play; stuck tracks (unavailable, geo-blocked) auto-advance after 15 seconds
 - Playing track shows a bright left-bar indicator; paused state returns to the plain active background
 - Full keyboard navigation — arrows to move focus, space/enter to play
 - MediaSession API: lock screen controls, album artwork, and scrubber position state
