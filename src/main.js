@@ -386,6 +386,7 @@ function load(i, startSeconds, silent = false) {
     document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
   }
   const t = TAPE.tracks[i];
+  document.title = `${t.title} — ${t.artist} | ${TAPE.title}`;
   if (startSeconds !== undefined) {
     player.cueVideoById({ videoId: t.id, startSeconds });
   } else {
@@ -423,6 +424,7 @@ function next() {
     stopColorDrift();
     releaseWakeLock();
     navigator.mediaSession?.setPositionState?.({});
+    document.title = TAPE.title;
     currentIndex = -1;
     barEl.classList.remove("bar-visible");
     document.documentElement.style.setProperty('--bar-h', '0px');
