@@ -30,7 +30,7 @@ body {
   border-radius: 4px;
   color: inherit;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   padding: 8px 10px;
   outline: none;
   cursor: pointer;
@@ -45,7 +45,7 @@ body {
   color: inherit;
   cursor: pointer;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   padding: 8px 13px;
   white-space: nowrap;
   transition: background 0.15s;
@@ -56,7 +56,7 @@ body {
 .bar-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
 
 #live-badge {
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 8px 12px;
   background: rgba(255,255,255,0.18);
   border: 1px solid rgba(255,255,255,0.35);
@@ -73,7 +73,7 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.25);
   color: inherit;
   font-family: inherit;
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 500;
   width: 100%;
   padding: 4px 0 6px;
@@ -93,13 +93,13 @@ body {
   border: 2px solid transparent;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px;
+  font-size: 0.6875rem;
   transition: border-color 0.15s, transform 0.1s;
 }
 
 .swatch:hover { transform: scale(1.15); }
 .swatch.active { border-color: rgba(255,255,255,0.85); }
-.swatch-random { background: rgba(255,255,255,0.15); font-size: 12px; }
+.swatch-random { background: rgba(255,255,255,0.15); font-size: 0.75rem; }
 .swatch-pride { background: linear-gradient(135deg, #b33030 0%, #c25a10 20%, #9a7a10 38%, #2a7a30 52%, #1a4a8a 68%, #5a2080 82%, #9e2a60 100%); }
 
 #custom-color-wrap { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
@@ -111,7 +111,7 @@ body {
   cursor: pointer;
   background: rgba(255,255,255,0.15);
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 #custom-color-swatch.active { border-color: rgba(255,255,255,0.85); }
@@ -124,7 +124,7 @@ body {
 
 /* ── Section labels ── */
 .section-label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   opacity: 0.45;
@@ -146,14 +146,14 @@ body {
 
 .drag-handle {
   cursor: grab; opacity: 0.3;
-  font-size: 14px; padding: 4px 2px;
+  font-size: 0.875rem; padding: 4px 2px;
   flex-shrink: 0; line-height: 1;
   user-select: none;
 }
 
 .drag-handle:active { cursor: grabbing; }
 
-.track-num { font-size: 12px; opacity: 0.4; width: 18px; text-align: right; flex-shrink: 0; }
+.track-num { font-size: 0.75rem; opacity: 0.4; width: 18px; text-align: right; flex-shrink: 0; }
 
 .track-field {
   background: none; border: none;
@@ -165,25 +165,25 @@ body {
 
 .track-field:focus { border-bottom-color: rgba(255,255,255,0.4); }
 .track-field::placeholder { opacity: 0.3; }
-.track-title-field { font-size: 15px; font-weight: 500; flex: 2; }
-.track-artist-field { font-size: 13px; opacity: 0.65; flex: 1.5; }
+.track-title-field { font-size: 0.9375rem; font-weight: 500; flex: 2; }
+.track-artist-field { font-size: 0.8125rem; opacity: 0.65; flex: 1.5; }
 
 .track-delete {
   background: none; border: none; color: inherit;
-  cursor: pointer; opacity: 0.25; font-size: 16px;
+  cursor: pointer; opacity: 0.25; font-size: 1rem;
   padding: 4px 6px; flex-shrink: 0;
   transition: opacity 0.15s; line-height: 1;
 }
 
 .track-delete:hover { opacity: 0.7; }
-#empty-state { font-size: 14px; opacity: 0.4; padding: 16px 0; }
+#empty-state { font-size: 0.875rem; opacity: 0.4; padding: 16px 0; }
 
 #undo-bar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 6px 0 4px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 #undo-msg { flex: 1; opacity: 0.65; }
@@ -200,7 +200,7 @@ body {
   border-radius: 4px;
   color: inherit;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   padding: 8px 12px;
   outline: none;
   transition: border-color 0.15s;
@@ -220,7 +220,7 @@ body {
 
 #import-status {
   flex: 1;
-  font-size: 12px;
+  font-size: 0.75rem;
   opacity: 0.55;
 }
 
@@ -231,7 +231,7 @@ body {
   background: rgba(0,0,0,0.15);
   border: 1px solid rgba(255,255,255,0.2);
   border-radius: 4px;
-  color: inherit; font-family: inherit; font-size: 14px;
+  color: inherit; font-family: inherit; font-size: 0.875rem;
   padding: 9px 12px; outline: none;
   transition: border-color 0.15s;
 }
@@ -243,7 +243,7 @@ body {
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.25);
   border-radius: 4px; color: inherit;
-  cursor: pointer; font-size: 14px;
+  cursor: pointer; font-size: 0.875rem;
   padding: 9px 16px; transition: background 0.15s; white-space: nowrap;
 }
 
@@ -262,28 +262,28 @@ body {
 
 .meta-field:focus { border-bottom-color: rgba(255,255,255,0.7); }
 .meta-field::placeholder { opacity: 0.35; }
-#meta-title { font-size: 15px; font-weight: 500; flex: 2; min-width: 140px; }
-#meta-artist { font-size: 14px; flex: 1.5; min-width: 100px; opacity: 0.8; }
+#meta-title { font-size: 0.9375rem; font-weight: 500; flex: 2; min-width: 140px; }
+#meta-artist { font-size: 0.875rem; flex: 1.5; min-width: 100px; opacity: 0.8; }
 
 #add-btn {
   background: rgba(255,255,255,0.9);
   border: none; border-radius: 4px;
   color: var(--bg, #c1440e);
   cursor: pointer; font-family: inherit;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   padding: 7px 16px; flex-shrink: 0;
   transition: background 0.15s;
 }
 
 #add-btn:hover { background: #fff; }
 
-#fetch-status { font-size: 12px; opacity: 0.55; margin-top: 8px; min-height: 16px; }
+#fetch-status { font-size: 0.75rem; opacity: 0.55; margin-top: 8px; min-height: 16px; }
 #fetch-status.error { opacity: 0.8; color: rgba(255,180,180,1); }
 
 /* ── Actions ── */
 #actions { display: flex; align-items: center; gap: 16px; }
 
-#save-status { font-size: 13px; opacity: 0.6; }
+#save-status { font-size: 0.8125rem; opacity: 0.6; }
 #save-status.error { color: rgba(255,180,180,1); opacity: 1; }
 
 #save-btn {
@@ -291,14 +291,14 @@ body {
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 4px; color: inherit;
   cursor: pointer; font-family: inherit;
-  font-size: 14px; padding: 10px 20px;
+  font-size: 0.875rem; padding: 10px 20px;
   transition: background 0.15s;
 }
 
 #save-btn:hover { background: rgba(255,255,255,0.25); }
 #save-btn:disabled { opacity: 0.4; cursor: default; }
 
-#view-link { font-size: 14px; color: inherit; opacity: 0.55; text-decoration: none; transition: opacity 0.15s; }
+#view-link { font-size: 0.875rem; color: inherit; opacity: 0.55; text-decoration: none; transition: opacity 0.15s; }
 #view-link:hover { opacity: 0.9; }
 
 #location-row {
@@ -309,7 +309,7 @@ body {
 }
 
 #location-display {
-  font-size: 13px;
+  font-size: 0.8125rem;
   opacity: 0.5;
   flex: 1;
 }
@@ -335,13 +335,13 @@ body {
 }
 
 #auth-box h2 {
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .auth-hint {
-  font-size: 13px;
+  font-size: 0.8125rem;
   opacity: 0.55;
   margin-top: -4px;
 }
@@ -353,7 +353,7 @@ body {
   border-radius: 4px;
   color: inherit;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   padding: 10px 12px;
   outline: none;
   width: 100%;
@@ -364,7 +364,7 @@ body {
 #auth-box input::placeholder { opacity: 0.4; }
 
 #auth-advanced {
-  font-size: 13px;
+  font-size: 0.8125rem;
   opacity: 0.65;
 }
 
@@ -383,7 +383,7 @@ body {
   color: var(--bg, #c1440e);
   cursor: pointer;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   padding: 10px;
   transition: background 0.15s;
@@ -397,7 +397,7 @@ body {
   color: inherit;
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   opacity: 0.35;
   padding: 0;
   text-align: center;
@@ -407,7 +407,7 @@ body {
 #auth-reset:hover { opacity: 0.65; }
 
 #auth-error {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: rgba(255,180,180,1);
   min-height: 16px;
 }
