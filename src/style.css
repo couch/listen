@@ -340,10 +340,15 @@ body.is-offline .track:hover { background: transparent; }
   88%, 100% { transform: translateX(var(--marquee-offset, 0px)); }
 }
 
-.marquee-active { text-overflow: clip; }
+.marquee-active {
+  text-overflow: clip;
+  border-radius: 0.4em;
+}
 
 .marquee-active > span {
   animation: marquee-scroll var(--marquee-dur, 4s) ease-in-out infinite alternate;
+  /* slow ease-in → constant velocity → slow ease-out; falls back to ease-in-out on older browsers */
+  animation-timing-function: linear(0, 0.005 3%, 0.02 6%, 0.05 9%, 0.08 12%, 0.92 88%, 0.95 91%, 0.98 94%, 0.995 97%, 1);
   will-change: transform;
 }
 
