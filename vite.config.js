@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
+import { computeCacheVersion, buildPrecacheList, patchServiceWorker } from './src/sw-build.js';
 
 // Custom plugin: during dev, serve /config.js and /playlists/* from the project root
 // (they live there because server.py writes to them and are not in public/)
@@ -42,14 +42,13 @@ function swCacheVersion() {
   return {
     name: 'sw-cache-version',
     writeBundle(options, bundle) {
-      const hash = crypto
-        .createHash('sha1')
-        .update(Object.keys(bundle).sort().join('\n'))
-        .digest('hex')
-        .slice(0, 8);
+      const keys = Object.keys(bundle);
+      const version = computeCacheVersion(keys);
+      const precache = buildPrecacheList(keys);
       const swPath = path.join(options.dir, 'sw.js');
       if (fs.existsSync(swPath)) {
-        fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf-8').replace('__CACHE_VERSION__', hash));
+        const patched = patchServiceWorker(fs.readFileSync(swPath, 'utf-8'), version, precache);
+        fs.writeFileSync(swPath, patched);
       }
     },
   };
