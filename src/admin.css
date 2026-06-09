@@ -1,5 +1,9 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+  font-size: calc(100% * env(preferred-text-scale, 1));
+}
+
 body {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   min-height: 100vh;
