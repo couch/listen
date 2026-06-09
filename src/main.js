@@ -1,6 +1,6 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, haversine, fmt } from './utils.js';
+import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
 
 const isEmbed = window !== window.top;
 
@@ -32,15 +32,6 @@ let isOffline = false;
 let offlineBg = null;       // --bg captured when going offline
 let offlineHadBar = false;  // whether bar was visible when going offline
 
-function dimColor(hex) {
-  const [r, g, b] = hexToRgb(hex);
-  const avg = (r + g + b) / 3;
-  return rgbToHex([
-    (r + (avg - r) * 0.65) * 0.42,
-    (g + (avg - g) * 0.65) * 0.42,
-    (b + (avg - b) * 0.65) * 0.42,
-  ]);
-}
 
 function goOffline() {
   if (isOffline) return;
@@ -573,21 +564,6 @@ const DRIFT_MS = 45000;
 let driftFrame = null, driftFrom, driftTo, driftToHex, driftStart;
 let prideColorIdx = 0;
 
-function hexToRgb(hex) {
-  const h = hex.trim().replace("#", "");
-  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
-}
-
-function rgbToHex([r,g,b]) {
-  return "#" + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,"0")).join("");
-}
-
-function smootherstep(t) { return t*t*t*(t*(t*6-15)+10); }
-
-function pickDriftTarget(avoidHex) {
-  const opts = PALETTE.filter(c => c !== avoidHex);
-  return opts[Math.floor(Math.random() * opts.length)];
-}
 
 function startColorDrift() {
   if (driftFrame) return;

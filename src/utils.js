@@ -59,3 +59,45 @@ export async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+// ── Color utilities ──
+
+export function hexToRgb(hex) {
+  const h = hex.trim().replace('#', '');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+export function rgbToHex([r,g,b]) {
+  return '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+}
+
+export function smootherstep(t) { return t*t*t*(t*(t*6-15)+10); }
+
+export function dimColor(hex) {
+  const [r,g,b] = hexToRgb(hex);
+  const avg = (r+g+b)/3;
+  return rgbToHex([
+    (r+(avg-r)*0.65)*0.42,
+    (g+(avg-g)*0.65)*0.42,
+    (b+(avg-b)*0.65)*0.42,
+  ]);
+}
+
+export function pickDriftTarget(avoidHex) {
+  const opts = PALETTE.filter(c => c !== avoidHex);
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+
+// ── Save file list ──
+
+export function buildSaveFiles(currentId, playlists, idx) {
+  const files = [
+    { path: `playlists/${currentId}.json`, content: JSON.stringify(playlists[currentId], null, 2) },
+  ];
+  if (idx.active !== currentId && playlists[idx.active]) {
+    files.push({ path: `playlists/${idx.active}.json`, content: JSON.stringify(playlists[idx.active], null, 2) });
+  }
+  files.push({ path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) });
+  files.push({ path: 'config.js', content: buildConfig(playlists[idx.active]) });
+  return files;
+}
