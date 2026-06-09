@@ -386,7 +386,7 @@ function setFocused(i) {
 }
 
 document.addEventListener("keydown", e => {
-  if (isOffline) return;
+  if (document.body.classList.contains('is-offline')) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const n = TAPE.tracks.length;
   if (e.key === " ") {
