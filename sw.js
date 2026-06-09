@@ -1,22 +1,22 @@
 const CACHE = 'muxtape-37b52c6e';
 
 // Resources to pre-cache on install (the HTML shell + bundled assets)
-const PRECACHE = ['/'];
+const PRECACHE = ["/","/assets/admin-BvE0ni-8.css","/assets/main-B7eDKgZL.css","/assets/admin-DCnirl6f.js","/assets/main-BIrEw95r.js","/assets/utils-C5CCzE21.js","/embed.html","/admin.html"];
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
+    caches.open(CACHE)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', event => {
