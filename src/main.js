@@ -1,6 +1,7 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
+import { createOfflineUI } from './offline-ui.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -28,97 +29,6 @@ const bg = (!TAPE.color || TAPE.color === "random" || isPride)
 document.documentElement.style.setProperty("--bg", bg);
 document.documentElement.lang = lang;
 
-// ── Offline / online handling ──
-let isOffline = false;
-let offlineBg = null;       // --bg captured when going offline
-let offlineHadBar = false;  // whether bar was visible when going offline
-
-
-function goOffline() {
-  if (isOffline) return;
-  isOffline = true;
-
-  // Show banner
-  const offlineEl = document.getElementById('offline-indicator');
-  offlineEl.textContent = L.offline;
-  offlineEl.removeAttribute('hidden');
-  requestAnimationFrame(() => offlineEl.classList.add('banner-visible'));
-
-  releaseWakeLock();
-
-  // Dim background
-  offlineBg = document.documentElement.style.getPropertyValue('--bg').trim() || bg;
-  stopColorDrift();
-  const dimmed = dimColor(offlineBg);
-  document.documentElement.style.setProperty('--bg', dimmed);
-  themeColorMeta.setAttribute('content', dimmed);
-
-  // Disable tracks
-  document.body.classList.add('is-offline');
-  trackEls.forEach(el => el.setAttribute('tabindex', '-1'));
-
-  // Hide pi button if visible
-  const piEl = document.getElementById('pi-btn');
-  if (piEl && !piEl.hidden) {
-    piEl.dataset.wasVisible = '1';
-    piEl.hidden = true;
-  }
-
-  // Slide bar away if visible (playing or paused with active track)
-  offlineHadBar = barEl.classList.contains('bar-visible');
-  if (offlineHadBar) {
-    if (playing) {
-      player?.pauseVideo();
-      savePosition();
-    }
-    barEl.classList.remove('bar-visible');
-    document.documentElement.style.setProperty('--bar-h', '0px');
-  }
-}
-
-function goOnline() {
-  if (!isOffline) return;
-  isOffline = false;
-
-  // Slide banner out, then hide
-  const offlineEl = document.getElementById('offline-indicator');
-  offlineEl.classList.remove('banner-visible');
-  offlineEl.addEventListener('transitionend', () => { offlineEl.hidden = true; }, { once: true });
-
-  // Restore background
-  const restoredBg = offlineBg || bg;
-  document.documentElement.style.setProperty('--bg', restoredBg);
-  themeColorMeta.setAttribute('content', restoredBg);
-
-  // Re-enable tracks
-  document.body.classList.remove('is-offline');
-  trackEls.forEach(el => el.setAttribute('tabindex', '0'));
-
-  // Restore pi button if it was visible before
-  const piEl = document.getElementById('pi-btn');
-  if (piEl && piEl.dataset.wasVisible) {
-    piEl.hidden = false;
-    delete piEl.dataset.wasVisible;
-  }
-
-  // Restore playback bar if there was an active track
-  if (offlineHadBar && currentIndex >= 0) {
-    barEl.classList.add('bar-visible');
-    requestAnimationFrame(() => {
-      cachedBarH = barEl.offsetHeight;
-      document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
-    });
-    updateBtn();
-  }
-  offlineHadBar = false;
-}
-
-if (!isEmbed) {
-  window.addEventListener('online', goOnline);
-  window.addEventListener('offline', goOffline);
-  // Defer initial check so all module-level vars (trackEls, barEl, themeColorMeta) are ready
-  setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
-}
 
 // ── Wake Lock ──────────────────────────────────────────────────────────────
 let wakeLock = null;
@@ -685,6 +595,29 @@ const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 let geoRequested = false;
 let cachedBarH = 0;
+
+if (!isEmbed) {
+  const { goOffline, goOnline } = createOfflineUI({
+    offlineEl: document.getElementById('offline-indicator'),
+    barEl,
+    trackEls,
+    themeColorMeta,
+    bg,
+    dimColor,
+    offlineText: L.offline,
+    getPlaying: () => playing,
+    getPlayer: () => player,
+    getCurrentIndex: () => currentIndex,
+    releaseWakeLock,
+    stopColorDrift,
+    savePosition,
+    updateBtn,
+    setCachedBarH: h => { cachedBarH = h; },
+  });
+  window.addEventListener('online', goOnline);
+  window.addEventListener('offline', goOffline);
+  setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
+}
 
 window.addEventListener('resize', () => {
   if (barEl.classList.contains('bar-visible')) {

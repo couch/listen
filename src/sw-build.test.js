@@ -40,6 +40,11 @@ describe('buildPrecacheList', () => {
     expect(buildPrecacheList(bundle)).toContain('/');
   });
 
+  it('always includes /config.js', () => {
+    expect(buildPrecacheList(bundle)).toContain('/config.js');
+    expect(buildPrecacheList([])).toContain('/config.js');
+  });
+
   it('includes all assets/ entries with leading slash', () => {
     const list = buildPrecacheList(bundle);
     expect(list).toContain('/assets/main-abc.js');
@@ -65,8 +70,8 @@ describe('buildPrecacheList', () => {
     expect(buildPrecacheList(bundle)).not.toContain('/CNAME');
   });
 
-  it('returns at least the root when bundle is empty', () => {
-    expect(buildPrecacheList([])).toEqual(['/']);
+  it('returns root and config.js when bundle is empty', () => {
+    expect(buildPrecacheList([])).toEqual(['/', '/config.js']);
   });
 });
 

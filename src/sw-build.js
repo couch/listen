@@ -24,6 +24,7 @@ export function computeCacheVersion(bundleKeys) {
 export function buildPrecacheList(bundleKeys) {
   return [
     '/',
+    '/config.js',
     ...bundleKeys
       .filter(k =>
         k.startsWith('assets/') ||
