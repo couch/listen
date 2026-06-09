@@ -305,7 +305,7 @@ body.is-offline .track:hover { background: transparent; }
   #playlist-footer { padding: 32px 20px max(calc(var(--bar-h, 0px) + 36px), calc(env(safe-area-inset-bottom) + 24px)); }
 }
 
-#pi-btn {
+#pi-btn, #share-btn {
   background: none;
   border: none;
   color: rgba(255,255,255,0.3);
@@ -321,4 +321,9 @@ body.is-offline .track:hover { background: transparent; }
   flex-shrink: 0;
 }
 
-#pi-btn:hover { color: rgba(255,255,255,0.55); }
+#pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .track-progress { transition: none; }
+  #playlist-meta { transition: none; opacity: 1; }
+}

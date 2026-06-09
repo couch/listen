@@ -3,6 +3,7 @@ import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
 
 const isEmbed = window !== window.top;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 if (!isEmbed && location.protocol === 'file:') {
   document.getElementById('file-warning').style.display = 'block';
@@ -42,6 +43,8 @@ function goOffline() {
   offlineEl.textContent = L.offline;
   offlineEl.removeAttribute('hidden');
   requestAnimationFrame(() => offlineEl.classList.add('banner-visible'));
+
+  releaseWakeLock();
 
   // Dim background
   offlineBg = document.documentElement.style.getPropertyValue('--bg').trim() || bg;
@@ -116,6 +119,22 @@ if (!isEmbed) {
   // Defer initial check so all module-level vars (trackEls, barEl, themeColorMeta) are ready
   setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
 }
+
+// ── Wake Lock ──────────────────────────────────────────────────────────────
+let wakeLock = null;
+
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator) || isEmbed || document.hidden) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch {}
+}
+
+function releaseWakeLock() {
+  wakeLock?.release();
+  wakeLock = null;
+}
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 themeColorMeta.setAttribute('content', bg);
 document.title = TAPE.title;
@@ -126,6 +145,16 @@ document.getElementById("bar").setAttribute("aria-label", L.pc);
 document.getElementById("scrubber").setAttribute("aria-label", L.pp);
 document.getElementById("btn-play").setAttribute("aria-label", L.play);
 document.getElementById("pi-btn")?.setAttribute("aria-label", L.pi);
+
+// Share button — show only where native share is available
+if (!isEmbed && navigator.share) {
+  const shareBtnEl = document.getElementById('share-btn');
+  shareBtnEl.hidden = false;
+  shareBtnEl.addEventListener('click', async () => {
+    try { await navigator.share({ title: TAPE.title, url: location.href }); } catch {}
+  });
+}
+
 
 // Build track list
 const list = document.getElementById("track-list");
@@ -186,6 +215,8 @@ if (!isEmbed) {
   const metaEl = document.createElement('div');
   metaEl.id = 'playlist-meta';
   footer.appendChild(metaEl);
+  const shareEl = document.getElementById('share-btn');
+  if (shareEl) footer.appendChild(shareEl);
   const piEl = document.getElementById('pi-btn');
   if (piEl) footer.appendChild(piEl);
   list.after(footer);
@@ -223,7 +254,14 @@ function getSavedPosition() {
   return null;
 }
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) savePosition(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    savePosition();
+    wakeLock = null; // browser auto-releases it; clear our reference
+  } else if (playing) {
+    acquireWakeLock();
+  }
+});
 
 function loadYouTubeAPI() {
   if (ytApiLoading || ytApiReady) return;
@@ -255,7 +293,7 @@ window.onYouTubeIframeAPIReady = () => {
           load(idx);
         } else {
           const saved = getSavedPosition();
-          if (saved) load(saved.index, saved.time);
+          if (saved) load(saved.index, saved.time, true);
         }
       },
       onStateChange: onState,
@@ -270,6 +308,7 @@ function onState(e) {
     startTicker();
     updateMediaSession();
     startColorDrift();
+    acquireWakeLock();
   } else if (e.data === YT.PlayerState.PAUSED) {
     playing = false;
     updateBtn();
@@ -277,6 +316,7 @@ function onState(e) {
     savePosition();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
+    releaseWakeLock();
   } else if (e.data === YT.PlayerState.ENDED) {
     next();
   } else if (e.data === YT.PlayerState.CUED) {
@@ -294,6 +334,7 @@ function onState(e) {
       const scrub = document.getElementById("scrubber");
       scrub.setAttribute("aria-valuenow", Math.round(ratio * 100));
       scrub.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
+      navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
       const p = trackEls[currentIndex]?.querySelector(".track-progress");
       if (p) { p.style.transition = "none"; p.style.width = pct; }
       requestAnimationFrame(() => {
@@ -318,7 +359,8 @@ function onTrackClick(i) {
   }
 }
 
-function load(i, startSeconds) {
+function load(i, startSeconds, silent = false) {
+  if (!silent && !isEmbed) navigator.vibrate?.(30);
   clearActive();
   barEl.classList.add("bar-visible");
   requestAnimationFrame(() => {
@@ -369,6 +411,8 @@ function next() {
     updateBtn();
     stopTicker();
     stopColorDrift();
+    releaseWakeLock();
+    navigator.mediaSession?.setPositionState?.({});
     currentIndex = -1;
     barEl.classList.remove("bar-visible");
     document.documentElement.style.setProperty('--bar-h', '0px');
@@ -486,7 +530,11 @@ scrubEl.addEventListener("touchmove", e => {
 scrubEl.addEventListener("touchend", () => {
   if (pendingScrubPct === null) return;
   const dur = player?.getDuration();
-  if (dur) player.seekTo(pendingScrubPct * dur, true);
+  if (dur) {
+    const t = pendingScrubPct * dur;
+    player.seekTo(t, true);
+    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+  }
   pendingScrubPct = null;
 }, { passive: true });
 
@@ -508,7 +556,12 @@ function seek(e) {
   const r = scrubEl.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
   const dur = player.getDuration();
-  if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
+  if (dur) {
+    const t = pct * dur;
+    player.seekTo(t, true);
+    snapSeek(pct);
+    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+  }
 }
 
 function startTicker() {
@@ -539,6 +592,7 @@ function startTicker() {
       const s = document.getElementById("scrubber");
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
+      navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -566,7 +620,7 @@ let prideColorIdx = 0;
 
 
 function startColorDrift() {
-  if (driftFrame) return;
+  if (driftFrame || reducedMotion) return;
   const cur = document.documentElement.style.getPropertyValue("--bg").trim() || PALETTE[0];
   driftFrom = hexToRgb(cur);
   driftToHex = isPride
@@ -768,6 +822,7 @@ function updateMediaSession() {
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title,
     artist: t.artist,
+    artwork: [{ src: `https://i.ytimg.com/vi/${t.id}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }],
   });
   navigator.mediaSession.playbackState = "playing";
   navigator.mediaSession.setActionHandler("play", () => player.playVideo());
