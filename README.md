@@ -15,6 +15,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
 - Web Share: `↑` button in the playlist footer opens the native share sheet (where supported)
 - Service worker caches the shell; playlist data always fetched fresh
+- Tab title updates to "Track — Artist | tape name" while playing; reverts to the tape name when the playlist ends
 - Playback persistence: last track and seek position saved in `sessionStorage` per playlist; resumes on reload without autoplay
 - Offline indicator when the browser loses network — background dims, tracks disable, bar hides
 - Embeddable via `embed.html` — stripped-down player for iframe integration (e.g. Ghost CMS)
@@ -41,6 +42,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Locale-appropriate "by" connectors in track labels (*par*, *von*, *di*, *de*, …)
 - Scrubber `aria-valuetext` reads elapsed/total in the correct locale pattern
 - Hover states restricted to `@media (hover: hover)` — touch devices never retain a highlight
+- Responds to iOS Dynamic Type: all font sizes scale with the system text size setting
 
 **Mobile**
 - Quick wrist-flick left/right (>250°/s on `rotationRate.gamma`) skips tracks
@@ -53,6 +55,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Background color slowly drifts through a warm palette while music plays (skipped when `prefers-reduced-motion` is set)
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
+- Long track titles and artist names scroll horizontally (marquee) rather than truncating — in both the track list and the now-playing bar
 - Playlist footer: track count, created/edited dates, and listener distance shown below the track list; scroll to reveal
 - Playlist location: stores city and fuzzed coordinates (±1 mile — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown using the viewer's device GPS, not IP
 - π button: on iOS, tapping it requests DeviceMotion permission (required for wrist-flick); on Android, wrist-flick works without permission and π only appears when the playlist has a location set; in both cases, also prompts for device GPS to show listener distance; hidden until needed
