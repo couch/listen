@@ -20,6 +20,8 @@ let vizReducedMotion = false;
 let vizIsPride = false;
 let isOpen = false;
 let vizStartTime = null;
+let entryFadeId = null;   // the 450ms overlay fade-in timeout
+let entryFallbackId = null; // the 1000ms animationend fallback
 
 // Playback state — updated from outside each tick
 let vizCurrentTime = 0;
@@ -286,12 +288,15 @@ export function openVisualizer({ bgColor, title, artist }) {
   vizOverlay.style.transition = '';
 
   // Fade in visualizer as the wall-pass completes (~450ms in)
-  setTimeout(() => {
+  entryFadeId = setTimeout(() => {
+    entryFadeId = null;
     vizOverlay.style.transition = 'opacity 0.55s ease';
     vizOverlay.style.opacity = '1';
   }, 450);
 
   const onAnimEnd = () => {
+    entryFallbackId = null;
+    if (!isOpen) return; // closed before animation finished — do nothing
     document.body.classList.remove('viz-entering');
     document.body.classList.add('viz-open');
     if (tape) tape.style.visibility = 'hidden';
@@ -301,10 +306,9 @@ export function openVisualizer({ bgColor, title, artist }) {
 
   if (tape) {
     tape.addEventListener('animationend', onAnimEnd, { once: true });
-    // Fallback if animationend never fires (e.g., element not animating)
-    setTimeout(onAnimEnd, 1000);
+    entryFallbackId = setTimeout(onAnimEnd, 1000);
   } else {
-    setTimeout(onAnimEnd, 500);
+    entryFallbackId = setTimeout(onAnimEnd, 500);
   }
 }
 
@@ -313,6 +317,11 @@ export function closeVisualizer() {
   isOpen = false;
 
   if (vizFrame) { cancelAnimationFrame(vizFrame); vizFrame = null; }
+  if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
+  if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
+
+  // Clean up any in-progress entry state
+  document.body.classList.remove('viz-entering', 'viz-open');
 
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');
