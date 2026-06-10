@@ -245,55 +245,29 @@ export function openVisualizer({ bgColor, title, artist }) {
 
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');
+  const FADE = vizReducedMotion ? 0 : 400;
 
-  if (vizReducedMotion) {
-    vizOverlay.style.transition = 'opacity 0.5s ease';
-    vizOverlay.style.opacity = '1';
-    vizOverlay.classList.add('viz-open');
-    if (tape) tape.style.visibility = 'hidden';
-    return;
+  // Fade tape out, then hide it and reveal the visualizer overlay
+  if (tape) {
+    tape.style.transition = FADE ? `opacity ${FADE}ms ease` : '';
+    tape.style.opacity = '0';
   }
-
   if (bar) bar.style.pointerEvents = 'none';
-  document.body.classList.add('viz-entering');
-  vizOverlay.style.opacity = '0';
-  vizOverlay.style.transition = '';
 
+  // Fade viz in roughly halfway through the tape fade
   entryFadeId = setTimeout(() => {
     entryFadeId = null;
-    vizOverlay.style.transition = 'opacity 0.55s ease';
+    vizOverlay.style.transition = `opacity ${FADE ? FADE + 100 : 0}ms ease`;
     vizOverlay.style.opacity = '1';
-  }, 450);
+  }, FADE ? 200 : 0);
 
-  const doEntryCleanup = () => {
+  entryFallbackId = setTimeout(() => {
+    entryFallbackId = null;
     if (!isOpen) return;
-    document.body.classList.remove('viz-entering');
-    document.body.classList.add('viz-open');
-    if (tape) tape.style.visibility = 'hidden';
+    if (tape) { tape.style.visibility = 'hidden'; tape.style.opacity = ''; tape.style.transition = ''; }
     vizOverlay.classList.add('viz-open');
     if (bar) bar.style.pointerEvents = '';
-  };
-
-  if (tape) {
-    // Must check animationName — child marquee animations bubble animationend to #tape
-    let fallback = null;
-    const onAnimEnd = (e) => {
-      if (e?.animationName !== 'viz-enter-tape') return;
-      tape.removeEventListener('animationend', onAnimEnd);
-      clearTimeout(fallback);
-      clearTimeout(entryFallbackId);
-      entryFallbackId = null;
-      doEntryCleanup();
-    };
-    tape.addEventListener('animationend', onAnimEnd);
-    fallback = setTimeout(() => {
-      tape.removeEventListener('animationend', onAnimEnd);
-      doEntryCleanup();
-    }, 1000);
-    entryFallbackId = fallback;
-  } else {
-    entryFallbackId = setTimeout(doEntryCleanup, 500);
-  }
+  }, FADE + 120);
 }
 
 export function closeVisualizer() {
@@ -304,52 +278,35 @@ export function closeVisualizer() {
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
 
-  document.body.classList.remove('viz-entering', 'viz-open');
-
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');
-
-  if (vizReducedMotion) {
-    vizOverlay.style.transition = 'opacity 0.4s ease';
-    vizOverlay.style.opacity = '0';
-    vizOverlay.classList.remove('viz-open');
-    vizOverlay.setAttribute('aria-hidden', 'true');
-    if (tape) tape.style.visibility = '';
-    if (btnViz && !btnViz.hidden) btnViz.focus({ preventScroll: true });
-    return;
-  }
+  const FADE = vizReducedMotion ? 0 : 400;
 
   vizOverlay.classList.remove('viz-open');
-  vizOverlay.style.transition = 'opacity 0.4s ease';
+  vizOverlay.style.transition = `opacity ${FADE ? FADE : 0}ms ease`;
   vizOverlay.style.opacity = '0';
 
-  if (tape) tape.style.visibility = '';
-  if (bar) bar.style.pointerEvents = 'none';
-  document.body.classList.add('viz-exiting');
+  // Restore tape: make visible at opacity 0, then fade in
+  if (tape) {
+    tape.style.visibility = '';
+    tape.style.opacity = '0';
+    tape.style.transition = '';
+  }
 
-  const doExitCleanup = () => {
-    document.body.classList.remove('viz-exiting');
+  // Start tape fade-in shortly after viz begins fading out
+  setTimeout(() => {
+    if (tape) {
+      tape.style.transition = FADE ? `opacity ${FADE}ms ease` : '';
+      tape.style.opacity = '1';
+    }
+  }, FADE ? 150 : 0);
+
+  setTimeout(() => {
+    if (tape) { tape.style.opacity = ''; tape.style.transition = ''; }
     if (bar) bar.style.pointerEvents = '';
     vizOverlay.setAttribute('aria-hidden', 'true');
     if (btnViz && !btnViz.hidden) btnViz.focus({ preventScroll: true });
-  };
-
-  if (tape) {
-    let fallback = null;
-    const onAnimEnd = (e) => {
-      if (e?.animationName !== 'viz-exit-tape') return;
-      tape.removeEventListener('animationend', onAnimEnd);
-      clearTimeout(fallback);
-      doExitCleanup();
-    };
-    tape.addEventListener('animationend', onAnimEnd);
-    fallback = setTimeout(() => {
-      tape.removeEventListener('animationend', onAnimEnd);
-      doExitCleanup();
-    }, 1000);
-  } else {
-    setTimeout(doExitCleanup, 900);
-  }
+  }, FADE + 120);
 }
 
 export function isVisualizerOpen() {
