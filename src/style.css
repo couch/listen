@@ -506,15 +506,15 @@ body.is-offline .track:hover { background: transparent; }
 
 /* ── Through-wall entry/exit transition ──────────────────────────────────── */
 @keyframes viz-enter-tape {
-  0%   { transform: scale(1) translateZ(0);     opacity: 1;   filter: blur(0px); }
-  65%  { transform: scale(4) translateZ(200px);  opacity: 0.5; filter: blur(14px); }
-  100% { transform: scale(14) translateZ(700px); opacity: 0;   filter: blur(50px); }
+  0%   { transform: scale(1) translateZ(0);     opacity: 1; }
+  65%  { transform: scale(4) translateZ(200px);  opacity: 0.4; }
+  100% { transform: scale(14) translateZ(700px); opacity: 0; }
 }
 
 @keyframes viz-exit-tape {
-  0%   { transform: scale(14) translateZ(700px); opacity: 0;   filter: blur(50px); }
-  35%  { transform: scale(4) translateZ(200px);  opacity: 0.4; filter: blur(14px); }
-  100% { transform: scale(1) translateZ(0);      opacity: 1;   filter: blur(0px); }
+  0%   { transform: scale(14) translateZ(700px); opacity: 0; }
+  35%  { transform: scale(4) translateZ(200px);  opacity: 0.4; }
+  100% { transform: scale(1) translateZ(0);      opacity: 1; }
 }
 
 body.viz-entering {
