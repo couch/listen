@@ -34,8 +34,13 @@ document.documentElement.lang = lang;
 let wakeLock = null;
 let lastPositionSave = 0;
 let bufferingWatchdog = null;
+let bufferingEscalation = null;
+let bufferingBannerActive = false;
+let goOffline = () => {};
+let goOnline = () => {};
 function clearBufferingWatchdog() {
   if (bufferingWatchdog) { clearTimeout(bufferingWatchdog); bufferingWatchdog = null; }
+  if (bufferingEscalation) { clearTimeout(bufferingEscalation); bufferingEscalation = null; }
 }
 
 async function acquireWakeLock() {
@@ -227,9 +232,51 @@ window.onYouTubeIframeAPIReady = () => {
   });
 };
 
+function showBufferingBanner(withRetry = false) {
+  if (isEmbed || document.body.classList.contains('is-offline')) return;
+  bufferingBannerActive = true;
+  const el = document.getElementById('offline-indicator');
+  el.textContent = '';
+  const msg = document.createElement('span');
+  msg.textContent = L.buf;
+  el.appendChild(msg);
+  if (withRetry) {
+    const btn = document.createElement('button');
+    btn.className = 'banner-action';
+    btn.textContent = '↺';
+    btn.setAttribute('aria-label', 'retry');
+    btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); load(currentIndex); });
+    el.appendChild(btn);
+  } else if (currentIndex + 1 < TAPE.tracks.length) {
+    const btn = document.createElement('button');
+    btn.className = 'banner-action';
+    btn.textContent = '→';
+    btn.setAttribute('aria-label', 'skip');
+    btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); next(); });
+    el.appendChild(btn);
+  }
+  el.removeAttribute('hidden');
+  void el.offsetHeight;
+  el.classList.add('banner-visible');
+  updateBtn();
+}
+
+function hideBufferingBanner() {
+  if (!bufferingBannerActive) return;
+  bufferingBannerActive = false;
+  const el = document.getElementById('offline-indicator');
+  el.classList.remove('banner-visible');
+  el.addEventListener('transitionend', () => {
+    if (!el.classList.contains('banner-visible')) el.hidden = true;
+  }, { once: true });
+  updateBtn();
+}
+
 function onState(e) {
   if (e.data === YT.PlayerState.PLAYING) {
     clearBufferingWatchdog();
+    hideBufferingBanner();
+    if (document.body.classList.contains('is-offline')) goOnline();
     playing = true;
     updateBtn();
     startTicker();
@@ -240,6 +287,7 @@ function onState(e) {
     trackEls[currentIndex]?.classList.add('playing');
   } else if (e.data === YT.PlayerState.PAUSED) {
     clearBufferingWatchdog();
+    hideBufferingBanner();
     playing = false;
     updateBtn();
     stopTicker();
@@ -252,8 +300,15 @@ function onState(e) {
   } else if (e.data === YT.PlayerState.BUFFERING) {
     clearBufferingWatchdog();
     bufferingWatchdog = setTimeout(() => {
-      if (player?.getPlayerState() === YT.PlayerState.BUFFERING) next();
-    }, 15000);
+      if (player?.getPlayerState() === YT.PlayerState.BUFFERING) {
+        showBufferingBanner(false);
+        bufferingEscalation = setTimeout(() => {
+          if (player?.getPlayerState() === YT.PlayerState.BUFFERING) {
+            showBufferingBanner(true);
+          }
+        }, 70000);
+      }
+    }, 20000);
   } else if (e.data === YT.PlayerState.ENDED) {
     clearBufferingWatchdog();
     next();
@@ -408,7 +463,7 @@ function setFocused(i) {
 }
 
 document.addEventListener("keydown", e => {
-  if (isOffline) return;
+  if (document.body.classList.contains('is-offline')) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const n = TAPE.tracks.length;
   if (e.key === " ") {
@@ -445,6 +500,13 @@ document.addEventListener("keydown", e => {
 
 function updateBtn() {
   const btn = document.getElementById("btn-play");
+  if (bufferingBannerActive) {
+    btn.textContent = "↻";
+    btn.setAttribute("aria-label", L.buf);
+    btn.classList.add("buffering");
+    return;
+  }
+  btn.classList.remove("buffering");
   btn.textContent = playing ? "⏸︎" : "▶︎";
   btn.setAttribute("aria-label", playing ? L.pause : L.play);
 }
@@ -619,7 +681,7 @@ let geoRequested = false;
 let cachedBarH = 0;
 
 if (!isEmbed) {
-  const { goOffline, goOnline } = createOfflineUI({
+  ({ goOffline, goOnline } = createOfflineUI({
     offlineEl: document.getElementById('offline-indicator'),
     barEl,
     trackEls,
@@ -635,9 +697,9 @@ if (!isEmbed) {
     savePosition,
     updateBtn,
     setCachedBarH: h => { cachedBarH = h; },
-  });
+  }));
   window.addEventListener('online', goOnline);
-  window.addEventListener('offline', goOffline);
+  window.addEventListener('offline', () => { clearBufferingWatchdog(); hideBufferingBanner(); goOffline(); });
   setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
 }
 
