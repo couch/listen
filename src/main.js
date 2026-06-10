@@ -252,7 +252,7 @@ function showBufferingBanner(withRetry = false) {
   } else if (currentIndex + 1 < TAPE.tracks.length) {
     const btn = document.createElement('button');
     btn.className = 'banner-action';
-    btn.textContent = '→';
+    btn.textContent = '⏭︎';
     btn.setAttribute('aria-label', 'skip');
     btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); next(); });
     el.appendChild(btn);
@@ -317,7 +317,7 @@ function onState(e) {
           }
         }, 70000);
       }
-    }, 20000);
+    }, 4000);
   } else if (e.data === YT.PlayerState.ENDED) {
     clearBufferingWatchdog();
     next();
@@ -473,6 +473,21 @@ function setFocused(i) {
 document.addEventListener("keydown", e => {
   if (document.body.classList.contains('is-offline')) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (isVisualizerOpen()) {
+    // Visualizer mode: space toggles playback, arrows skip tracks.
+    // The list-focus logic below targets the hidden playlist — skip it.
+    if (e.key === " ") {
+      e.preventDefault();
+      if (player) playing ? player.pauseVideo() : player.playVideo();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      next();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (currentIndex > 0) load(currentIndex - 1);
+    }
+    return;
+  }
   const n = TAPE.tracks.length;
   if (e.key === " ") {
     // Let viz-open / viz-exit buttons handle their own Space/click natively
