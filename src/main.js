@@ -2,6 +2,7 @@ import './style.css';
 import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
 import { createOfflineUI } from './offline-ui.js';
+import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -282,6 +283,7 @@ function onState(e) {
     startTicker();
     updateMediaSession();
     startColorDrift();
+    startAmbient();
     acquireWakeLock();
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
@@ -294,6 +296,7 @@ function onState(e) {
     savePosition();
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
+    stopAmbient();
     releaseWakeLock();
     trackEls[currentIndex]?.classList.remove('playing');
     trackEls[currentIndex]?.classList.add('paused');
@@ -677,6 +680,7 @@ function stopColorDrift() {
 
 const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+initAmbient(isMobile, reducedMotion);
 let geoRequested = false;
 let cachedBarH = 0;
 
