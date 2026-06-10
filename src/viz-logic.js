@@ -65,6 +65,11 @@ export function resetBlooms(state) {
   state.cursor = 0;
 }
 
+// Clamped playback ratio for the metadata progress ring.
+export function progressRatio(currentTime, duration) {
+  return duration > 0 ? Math.min(currentTime / duration, 1) : 0;
+}
+
 // Idle self-play: a generative bloom is due when nothing has bloomed lately.
 export function autoBloomDue(lastBloomTime, nowSec, intervalSec) {
   return nowSec - lastBloomTime >= intervalSec;

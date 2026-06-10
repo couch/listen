@@ -3,8 +3,8 @@
 //
 // The shader is the whole effect: a domain-warped FBM color field mixed in
 // linear RGB (Turrell ganzfeld), additive expanding bloom rings (Eno Bloom),
-// a faint progress arc, and interleaved-gradient-noise dithering after the
-// sRGB encode — linear mixing + dithering is what eliminates banding.
+// and interleaved-gradient-noise dithering after the sRGB encode — linear
+// mixing + dithering is what eliminates banding.
 
 import { VIZ_PALETTE_SLOTS, VIZ_BLOOM_SLOTS } from './viz-logic.js';
 
@@ -33,7 +33,6 @@ uniform float u_time;
 uniform float u_seed;
 uniform vec3 u_palette[PALETTE_SLOTS];
 uniform float u_paletteCount;
-uniform float u_progress;
 uniform vec4 u_blooms[BLOOM_SLOTS];
 varying vec2 v_uv;
 
@@ -118,17 +117,6 @@ void main() {
 
   vec3 outCol = toSrgb(col);
 
-  // Progress arc: crisp white sweep from 12 o'clock, drawn in gamma space
-  if (u_progress > 0.001) {
-    vec2 cpx = gl_FragCoord.xy - 0.5 * u_resolution;
-    float arcR = 0.34 * min(u_resolution.x, u_resolution.y);
-    float arc = smoothstep(1.5, 0.5, abs(length(cpx) - arcR));
-    float ang = atan(cpx.x, cpx.y);
-    if (ang < 0.0) ang += TAU;
-    float sweep = 1.0 - step(u_progress * TAU, ang);
-    outCol = mix(outCol, vec3(1.0), (0.10 + 0.06 * u_progress) * arc * sweep);
-  }
-
   // Interleaved gradient noise dither breaks up the last visible banding
   float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
   outCol += (ign - 0.5) / 255.0;
@@ -193,7 +181,6 @@ export function createVizGL(canvas) {
       seed: gl.getUniformLocation(program, 'u_seed'),
       palette: gl.getUniformLocation(program, 'u_palette'),
       paletteCount: gl.getUniformLocation(program, 'u_paletteCount'),
-      progress: gl.getUniformLocation(program, 'u_progress'),
       blooms: gl.getUniformLocation(program, 'u_blooms'),
     };
 
@@ -235,11 +222,10 @@ export function createVizGL(canvas) {
       gl.uniform3fv(loc.palette, data);
       gl.uniform1f(loc.paletteCount, count);
     },
-    render({ time, seed, progress, blooms }) {
+    render({ time, seed, blooms }) {
       if (lost) return;
       gl.uniform1f(loc.time, time);
       gl.uniform1f(loc.seed, seed);
-      gl.uniform1f(loc.progress, progress);
       gl.uniform4fv(loc.blooms, blooms);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },

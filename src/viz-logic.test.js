@@ -3,7 +3,7 @@ import {
   PRIDE_COLORS_VIZ, VIZ_PALETTE_SLOTS, VIZ_BLOOM_SLOTS,
   buildVizPalette, hexToLinearRgb, paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
-  computeCanvasSize, tapGesture,
+  computeCanvasSize, tapGesture, progressRatio,
 } from './viz-logic.js';
 import { hexToHsl } from './utils.js';
 
@@ -99,6 +99,13 @@ describe('bloom ring buffer', () => {
     expect(s.cursor).toBe(0);
     for (let i = 0; i < s.capacity; i++) expect(s.data[i * 4 + 2]).toBe(-1);
   });
+});
+
+describe('progressRatio', () => {
+  it('returns the playback fraction', () => expect(progressRatio(45, 180)).toBeCloseTo(0.25, 5));
+  it('clamps to 1 past the end', () => expect(progressRatio(200, 180)).toBe(1));
+  it('returns 0 for zero duration', () => expect(progressRatio(10, 0)).toBe(0));
+  it('returns 0 for unknown duration', () => expect(progressRatio(0, undefined)).toBe(0));
 });
 
 describe('autoBloomDue', () => {

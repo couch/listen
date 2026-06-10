@@ -56,7 +56,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 
 **Visual and behavioral details**
 - Background color slowly drifts through a warm palette while music plays (skipped when `prefers-reduced-motion` is set)
-- Visualizer: ⊙ button (visible while playing) opens a fullscreen WebGL color field — a slowly drifting noise-driven light wash derived from the playlist color (Pride palette in pride mode) with a faint progress arc; tap or click spawns expanding color blooms, and it blooms on its own when idle; keeps running (taps included) while playback buffers; close with ×, Escape, or swipe down — pausing or playlist end also closes it; `prefers-reduced-motion` shows a still field; requires WebGL (the button doesn't appear without it)
+- Visualizer: ⊙ button (visible while playing) opens a fullscreen WebGL color field — a slowly drifting noise-driven light wash derived from the playlist color (Pride palette in pride mode); minimal track metadata with a small progress ring sits in the lower-left corner; tap or click spawns expanding color blooms, and it blooms on its own when idle; keeps running (taps included) while playback buffers; space toggles playback and arrows skip tracks; close with ×, Escape, or swipe down — pausing or playlist end also closes it; `prefers-reduced-motion` shows a still field; requires WebGL (the button doesn't appear without it)
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
 - Long track titles and artist names scroll horizontally (marquee) rather than truncating — in both the track list and the now-playing bar
@@ -210,5 +210,6 @@ npm run build     # production build → dist/
 | `←` / `→` | Aliases for up/down |
 | `Enter` / `Space` | Play focused track |
 | `Space` (no focus) | Play/pause current track |
+| `←` / `→` (visualizer open) | Previous / next track |
 | `Esc` | Close the visualizer |
 | `Tab` | Standard focus navigation |

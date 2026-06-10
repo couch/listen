@@ -473,6 +473,21 @@ function setFocused(i) {
 document.addEventListener("keydown", e => {
   if (document.body.classList.contains('is-offline')) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (isVisualizerOpen()) {
+    // Visualizer mode: space toggles playback, arrows skip tracks.
+    // The list-focus logic below targets the hidden playlist — skip it.
+    if (e.key === " ") {
+      e.preventDefault();
+      if (player) playing ? player.pauseVideo() : player.playVideo();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      next();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (currentIndex > 0) load(currentIndex - 1);
+    }
+    return;
+  }
   const n = TAPE.tracks.length;
   if (e.key === " ") {
     // Let viz-open / viz-exit buttons handle their own Space/click natively

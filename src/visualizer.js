@@ -7,8 +7,12 @@ import { createVizGL } from './viz-gl.js';
 import {
   PRIDE_COLORS_VIZ, buildVizPalette, paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
-  computeCanvasSize, tapGesture,
+  computeCanvasSize, tapGesture, progressRatio,
 } from './viz-logic.js';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const RING_R = 6.5;
+const RING_C = 2 * Math.PI * RING_R;
 
 let vizOverlay = null;
 let vizCanvas = null;
@@ -16,6 +20,7 @@ let vizGL = null;
 let vizTextEl = null;
 let vizTitleEl = null;
 let vizArtistEl = null;
+let vizRingEl = null;
 let btnViz = null;
 let vizFrame = null;
 let vizReducedMotion = false;
@@ -71,8 +76,7 @@ function drawVizFrame(now) {
   if (!vizReducedMotion && autoBloomDue(lastBloomAt, t, autoBloomInterval)) {
     spawnBloom(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
   }
-  const progress = vizDuration > 0 ? Math.min(vizCurrentTime / vizDuration, 1) : 0;
-  vizGL.render({ time: t, seed: vizSeed, progress, blooms: bloomState.data });
+  vizGL.render({ time: t, seed: vizSeed, blooms: bloomState.data });
 }
 
 function vizTick(now) {
@@ -107,13 +111,38 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizOverlay.id = 'viz-overlay';
   vizOverlay.setAttribute('aria-hidden', 'true');
 
+  // Minimal metadata in the lower-left: small progress ring + title/artist
   vizTextEl = document.createElement('div');
   vizTextEl.id = 'viz-text';
+
+  const ringSvg = document.createElementNS(SVG_NS, 'svg');
+  ringSvg.id = 'viz-progress';
+  ringSvg.setAttribute('viewBox', '0 0 16 16');
+  ringSvg.setAttribute('aria-hidden', 'true');
+  const ringBg = document.createElementNS(SVG_NS, 'circle');
+  const ringFg = document.createElementNS(SVG_NS, 'circle');
+  for (const c of [ringBg, ringFg]) {
+    c.setAttribute('cx', '8');
+    c.setAttribute('cy', '8');
+    c.setAttribute('r', String(RING_R));
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke-width', '1.5');
+  }
+  ringBg.setAttribute('stroke', 'rgba(255,255,255,0.15)');
+  ringFg.setAttribute('stroke', 'rgba(255,255,255,0.6)');
+  ringFg.setAttribute('stroke-linecap', 'round');
+  ringFg.setAttribute('stroke-dasharray', `0 ${RING_C}`);
+  ringSvg.append(ringBg, ringFg);
+  vizRingEl = ringFg;
+
+  const meta = document.createElement('div');
+  meta.id = 'viz-meta';
   vizTitleEl = document.createElement('div');
   vizTitleEl.id = 'viz-title';
   vizArtistEl = document.createElement('div');
   vizArtistEl.id = 'viz-artist';
-  vizTextEl.append(vizTitleEl, vizArtistEl);
+  meta.append(vizTitleEl, vizArtistEl);
+  vizTextEl.append(ringSvg, meta);
 
   const vizExitBtn = document.createElement('button');
   vizExitBtn.id = 'viz-exit';
@@ -191,7 +220,11 @@ export function openVisualizer({ bgColor, title, artist }) {
 
   if (vizTitleEl) vizTitleEl.textContent = title || '';
   if (vizArtistEl) vizArtistEl.textContent = artist || '';
+  if (vizRingEl) {
+    vizRingEl.setAttribute('stroke-dasharray', `${progressRatio(vizCurrentTime, vizDuration) * RING_C} ${RING_C}`);
+  }
   vizOverlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('viz-active'); // suppress the playlist scrollbar behind the overlay
 
   // Refresh canvas size in case layout changed since init
   sizeCanvas();
@@ -251,6 +284,7 @@ export function closeVisualizer() {
   isOpen = false;
 
   stopFrame();
+  document.body.classList.remove('viz-active');
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
 
@@ -292,6 +326,9 @@ export function isVisualizerOpen() {
 export function updateVisualizer(currentTime, duration, title, artist) {
   vizCurrentTime = currentTime;
   vizDuration = duration;
+  if (vizRingEl) {
+    vizRingEl.setAttribute('stroke-dasharray', `${progressRatio(currentTime, duration) * RING_C} ${RING_C}`);
+  }
   if (vizTitleEl && vizTitleEl.textContent !== (title || '')) {
     vizTitleEl.textContent = title || '';
   }
