@@ -252,7 +252,7 @@ function showBufferingBanner(withRetry = false) {
   } else if (currentIndex + 1 < TAPE.tracks.length) {
     const btn = document.createElement('button');
     btn.className = 'banner-action';
-    btn.textContent = '→';
+    btn.textContent = '⏭︎';
     btn.setAttribute('aria-label', 'skip');
     btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); next(); });
     el.appendChild(btn);
@@ -317,7 +317,7 @@ function onState(e) {
           }
         }, 70000);
       }
-    }, 20000);
+    }, 4000);
   } else if (e.data === YT.PlayerState.ENDED) {
     clearBufferingWatchdog();
     next();

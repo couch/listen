@@ -19,6 +19,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Tab title updates to "Track — Artist | tape name" while playing; reverts to the tape name when the playlist ends
 - Playback persistence: last track and seek position saved in `sessionStorage` per playlist; resumes on reload without autoplay
 - Offline indicator when the browser loses network — background dims, tracks disable, bar hides
+- Weak-connection handling: after 4 seconds of buffering a banner appears and the play button becomes a spinning buffering icon, with a ⏭︎ button to skip ahead; after 90 seconds total it offers retry instead
 - Embeddable via `embed.html` — stripped-down player for iframe integration (e.g. Ghost CMS)
 - Respects `prefers-reduced-motion`: background color drift skipped; decorative transitions removed
 
@@ -55,6 +56,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 
 **Visual and behavioral details**
 - Background color slowly drifts through a warm palette while music plays (skipped when `prefers-reduced-motion` is set)
+- Visualizer: ⊙ button (visible while playing) opens a fullscreen WebGL color field — a slowly drifting noise-driven light wash derived from the playlist color (Pride palette in pride mode) with a faint progress arc; tap or click spawns expanding color blooms, and it blooms on its own when idle; keeps running (taps included) while playback buffers; close with ×, Escape, or swipe down — pausing or playlist end also closes it; `prefers-reduced-motion` shows a still field; requires WebGL (the button doesn't appear without it)
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
 - Long track titles and artist names scroll horizontally (marquee) rather than truncating — in both the track list and the now-playing bar
@@ -72,6 +74,7 @@ config.js               # Active playlist — loaded by the player at parse time
 server.py               # Local dev server (handles admin file writes)
 src/
   main.js               # Player logic (shared by index.html and embed.html)
+  visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js shaders, viz-logic.js pure logic)
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
   utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
@@ -207,4 +210,5 @@ npm run build     # production build → dist/
 | `←` / `→` | Aliases for up/down |
 | `Enter` / `Space` | Play focused track |
 | `Space` (no focus) | Play/pause current track |
+| `Esc` | Close the visualizer |
 | `Tab` | Standard focus navigation |

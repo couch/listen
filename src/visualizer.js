@@ -1,16 +1,18 @@
 // Fullscreen James Turrell / Brian Eno Bloom style visualizer.
-// Slow drifting light fields, meditative color shifts derived from the playlist color.
-// Entry: CSS 3D perspective "camera through text wall" transition.
-// Exit: reverse pull-back, or swipe down on mobile.
+// WebGL fragment shader (viz-gl.js): a domain-warped noise color field that
+// drifts over minutes, plus tap-spawned bloom rings — works as a fidget toy,
+// including while playback is buffering. Pure logic lives in viz-logic.js.
 
-import { hexToRgb, hexToHsl, hslToHex } from './utils.js';
-
-const SUPPORTS_CTX_FILTER = typeof CanvasRenderingContext2D !== 'undefined' &&
-  'filter' in CanvasRenderingContext2D.prototype;
+import { createVizGL } from './viz-gl.js';
+import {
+  PRIDE_COLORS_VIZ, buildVizPalette, paletteToUniform,
+  createBloomState, addBloom, resetBlooms, autoBloomDue,
+  computeCanvasSize, tapGesture,
+} from './viz-logic.js';
 
 let vizOverlay = null;
 let vizCanvas = null;
-let vizCtx = null;
+let vizGL = null;
 let vizTextEl = null;
 let vizTitleEl = null;
 let vizArtistEl = null;
@@ -27,127 +29,59 @@ let entryFallbackId = null;
 let vizCurrentTime = 0;
 let vizDuration = 0;
 
-let layers = [];
-
-// ── Palette builders ──────────────────────────────────────────────────────────
-
-const PRIDE_COLORS_VIZ = [
-  "#b33030","#c25a10","#9a7a10","#2a7a30",
-  "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
-];
-
-// Same oscillation physics as pride-canvas.js BLOBS; larger radii for immersive fill
-function derivePridePalette() {
-  return PRIDE_COLORS_VIZ.map((hex, i) => ({
-    hex,
-    xPeriod: 41 + i * 7,
-    yPeriod: 37 + i * 11,
-    xPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
-    yPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2 + Math.PI / 5,
-    xAmp: 0.28 + (i % 3) * 0.04,
-    yAmp: 0.25 + (i % 4) * 0.04,
-    radiusFactor: 0.80 + (i % 3) * 0.15,
-    opacityPeriod: 19 + i * 5,
-    opacityPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
-    opacityMin: 0.22,
-    opacityMax: 0.52,
-  }));
-}
-
-function derivePalette(bgHex) {
-  const [h, s, l] = hexToHsl(bgHex);
-  const offsets = [-25, -15, -5, 0, 10, 20, 30];
-  return offsets.map((offset, i) => ({
-    hex: hslToHex(h + offset, Math.min(s * 1.15, 85), Math.max(30, Math.min(l + (i % 3 - 1) * 10, 65))),
-    xPeriod: 67 + i * 13,
-    yPeriod: 71 + i * 17,
-    xPhase: (i / 7) * Math.PI * 2,
-    yPhase: (i / 7) * Math.PI * 2 + Math.PI / 4,
-    xAmp: 0.22 + (i % 3) * 0.10,
-    yAmp: 0.20 + (i % 4) * 0.09,
-    radiusFactor: 0.68 + (i % 3) * 0.18,
-    opacityPeriod: 19 + i * 6,
-    opacityPhase: (i / 7) * Math.PI * 2,
-    opacityMin: 0.18,
-    opacityMax: 0.48,
-  }));
-}
+// Shader state
+let vizSeed = 0;
+let vizPaletteCount = 1;
+const bloomState = createBloomState();
+let lastBloomAt = 0;
+let autoBloomInterval = 12;
 
 // ── Canvas sizing ─────────────────────────────────────────────────────────────
 
 function sizeCanvas() {
   if (!vizCanvas) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  vizCanvas.width = Math.round(window.innerWidth * dpr);
-  vizCanvas.height = Math.round(window.innerHeight * dpr);
-  // Draw in physical pixels — no setTransform, avoids blur/transform interaction artifacts
+  const { w, h } = computeCanvasSize(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1);
+  if (vizGL) {
+    vizGL.resize(w, h);
+    if (isOpen && vizReducedMotion) drawVizFrame(performance.now());
+  } else {
+    vizCanvas.width = w;
+    vizCanvas.height = h;
+  }
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
+// Shader time in seconds, wrapped hourly to keep float precision
+function vizTime(now) {
+  return ((now - vizStartTime) / 1000) % 3600;
+}
+
+function spawnBloom(x, y, t) {
+  addBloom(bloomState, x, y, t, Math.floor(Math.random() * vizPaletteCount));
+  lastBloomAt = t;
+  autoBloomInterval = 10 + Math.random() * 5;
+}
+
 function drawVizFrame(now) {
-  if (!vizCtx || !vizCanvas) return;
-
-  const pw = vizCanvas.width;
-  const ph = vizCanvas.height;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const t = (now - vizStartTime) / 1000;
-  const tau = 2 * Math.PI;
-  const minDim = Math.min(pw, ph);
-
-  // Slightly darken each frame — older light fades slowly, creating pooling/accumulation
-  vizCtx.globalCompositeOperation = 'source-over';
-  vizCtx.globalAlpha = 1;
-  vizCtx.fillStyle = 'rgba(0,0,0,0.035)';
-  vizCtx.fillRect(0, 0, pw, ph);
-
-  const blurPx = SUPPORTS_CTX_FILTER ? Math.round(minDim * 0.11) : 0;
-
-  layers.forEach(layer => {
-    const cx = pw * (0.5 + layer.xAmp * Math.sin(tau * t / layer.xPeriod + layer.xPhase));
-    const cy = ph * (0.5 + layer.yAmp * Math.sin(tau * t / layer.yPeriod + layer.yPhase));
-    const r = minDim * layer.radiusFactor;
-    const opacity = layer.opacityMin + (layer.opacityMax - layer.opacityMin) *
-      (0.5 + 0.5 * Math.sin(tau * t / layer.opacityPeriod + layer.opacityPhase));
-
-    const [red, green, blue] = hexToRgb(layer.hex);
-
-    if (SUPPORTS_CTX_FILTER) vizCtx.filter = `blur(${blurPx}px)`;
-    vizCtx.globalAlpha = opacity;
-    vizCtx.globalCompositeOperation = 'source-over';
-
-    const grad = vizCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    grad.addColorStop(0,   `rgba(${red},${green},${blue},1)`);
-    grad.addColorStop(0.45,`rgba(${red},${green},${blue},0.55)`);
-    grad.addColorStop(1,   `rgba(${red},${green},${blue},0)`);
-
-    vizCtx.fillStyle = grad;
-    // Oversized rect prevents blur from sampling outside canvas boundary (edge artifacts)
-    vizCtx.fillRect(-blurPx, -blurPx, pw + blurPx * 2, ph + blurPx * 2);
-  });
-
-  // Progress arc — crisp, no blur, drawn over light field
-  if (SUPPORTS_CTX_FILTER) vizCtx.filter = 'none';
-  vizCtx.globalCompositeOperation = 'source-over';
-  vizCtx.globalAlpha = 1;
-
-  const progress = vizDuration > 0 ? Math.min(vizCurrentTime / vizDuration, 1) : 0;
-  if (progress > 0.001) {
-    const arcR = minDim * 0.34;
-    vizCtx.beginPath();
-    vizCtx.arc(pw / 2, ph / 2, arcR, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
-    vizCtx.strokeStyle = 'rgba(255,255,255,0.85)';
-    vizCtx.lineWidth = dpr;
-    vizCtx.globalAlpha = 0.10 + progress * 0.06;
-    vizCtx.stroke();
+  if (!vizGL) return;
+  const t = vizTime(now);
+  if (t < lastBloomAt) lastBloomAt = 0; // hourly clock wrap
+  // Generative self-play: an occasional bloom when nothing has bloomed lately
+  if (!vizReducedMotion && autoBloomDue(lastBloomAt, t, autoBloomInterval)) {
+    spawnBloom(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
   }
-
-  vizCtx.globalAlpha = 1;
+  const progress = vizDuration > 0 ? Math.min(vizCurrentTime / vizDuration, 1) : 0;
+  vizGL.render({ time: t, seed: vizSeed, progress, blooms: bloomState.data });
 }
 
 function vizTick(now) {
   drawVizFrame(now);
   if (isOpen) vizFrame = requestAnimationFrame(vizTick);
+}
+
+function stopFrame() {
+  if (vizFrame) { cancelAnimationFrame(vizFrame); vizFrame = null; }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -156,14 +90,22 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizReducedMotion = reducedMotion;
   vizIsPride = isPride;
 
+  vizCanvas = document.createElement('canvas');
+  vizCanvas.id = 'viz-canvas';
+  sizeCanvas();
+  vizGL = createVizGL(vizCanvas);
+  if (!vizGL) return; // no WebGL: no overlay, no ⊙ button — feature absent
+
+  vizGL.onLost(stopFrame);
+  vizGL.onRestored(() => {
+    if (!isOpen) return;
+    if (vizReducedMotion) drawVizFrame(performance.now());
+    else if (!document.hidden && !vizFrame) vizFrame = requestAnimationFrame(vizTick);
+  });
+
   vizOverlay = document.createElement('div');
   vizOverlay.id = 'viz-overlay';
   vizOverlay.setAttribute('aria-hidden', 'true');
-
-  vizCanvas = document.createElement('canvas');
-  vizCanvas.id = 'viz-canvas';
-  vizCtx = vizCanvas.getContext('2d');
-  sizeCanvas();
 
   vizTextEl = document.createElement('div');
   vizTextEl.id = 'viz-text';
@@ -179,19 +121,44 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizExitBtn.textContent = '×';
   vizExitBtn.addEventListener('click', closeVisualizer);
 
-  let touchStartY = 0;
-  vizOverlay.addEventListener('touchstart', e => {
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-  vizOverlay.addEventListener('touchend', e => {
-    if (e.changedTouches[0].clientY - touchStartY > 80) closeVisualizer();
-  }, { passive: true });
+  // Swipe down (touch) closes; a quick tap blooms — the fidget interaction
+  let ptrDown = null;
+  vizOverlay.addEventListener('pointerdown', e => {
+    if (e.target.closest('#viz-exit')) return;
+    ptrDown = { x: e.clientX, y: e.clientY, at: performance.now() };
+  });
+  vizOverlay.addEventListener('pointerup', e => {
+    if (!ptrDown || e.target.closest('#viz-exit')) { ptrDown = null; return; }
+    const gesture = tapGesture(ptrDown.x, ptrDown.y, e.clientX, e.clientY, performance.now() - ptrDown.at);
+    ptrDown = null;
+    if (!isOpen) return;
+    if (gesture === 'close' && e.pointerType === 'touch') {
+      closeVisualizer();
+    } else if (gesture === 'bloom') {
+      const now = performance.now();
+      const x = e.clientX / window.innerWidth;
+      const y = 1 - e.clientY / window.innerHeight; // GL origin is bottom-left
+      if (vizReducedMotion) {
+        // Static mode: place the bloom mid-life so the single frame shows it
+        addBloom(bloomState, x, y, Math.max(0, vizTime(now) - 2), Math.floor(Math.random() * vizPaletteCount));
+        drawVizFrame(now);
+      } else {
+        spawnBloom(x, y, vizTime(now));
+      }
+    }
+  });
 
   vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn);
   document.body.appendChild(vizOverlay);
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isOpen) closeVisualizer();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!isOpen || vizReducedMotion) return;
+    if (document.hidden) stopFrame();
+    else if (!vizFrame) vizFrame = requestAnimationFrame(vizTick);
   });
 
   const ro = new ResizeObserver(() => {
@@ -219,7 +186,7 @@ export function initVisualizer(reducedMotion, isPride = false) {
 }
 
 export function openVisualizer({ bgColor, title, artist }) {
-  if (isOpen) return;
+  if (isOpen || !vizGL) return;
   isOpen = true;
 
   if (vizTitleEl) vizTitleEl.textContent = title || '';
@@ -229,13 +196,22 @@ export function openVisualizer({ bgColor, title, artist }) {
   // Refresh canvas size in case layout changed since init
   sizeCanvas();
 
-  layers = vizIsPride ? derivePridePalette() : derivePalette(bgColor || '#c1440e');
-  vizStartTime = performance.now();
+  const palette = vizIsPride ? PRIDE_COLORS_VIZ : buildVizPalette(bgColor || '#c1440e');
+  const { data, count } = paletteToUniform(palette);
+  vizGL.setPalette(data, count);
+  vizPaletteCount = count;
+  vizSeed = Math.random() * 100;
+  resetBlooms(bloomState);
+  lastBloomAt = 0;
+  autoBloomInterval = 10 + Math.random() * 5;
 
   if (!vizReducedMotion) {
+    vizStartTime = performance.now();
     vizFrame = requestAnimationFrame(vizTick);
   } else {
-    drawVizFrame(vizStartTime);
+    // Static frame at t=30s — the field has texture without animating
+    vizStartTime = performance.now() - 30000;
+    drawVizFrame(performance.now());
   }
 
   // Move focus away from the trigger button so Space/arrows control playback
@@ -274,7 +250,7 @@ export function closeVisualizer() {
   if (!isOpen) return;
   isOpen = false;
 
-  if (vizFrame) { cancelAnimationFrame(vizFrame); vizFrame = null; }
+  stopFrame();
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
 
