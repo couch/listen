@@ -7,7 +7,12 @@ html {
 body {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   min-height: 100vh;
-  background: var(--bg, #c1440e);
+  background-color: var(--bg, #c1440e);
+  background-image:
+    radial-gradient(ellipse 70% 55% at var(--orb1x, 50%) var(--orb1y, 50%),
+      rgba(255,255,255,var(--orb-bright, 0)) 0%, transparent 100%),
+    radial-gradient(ellipse 55% 70% at var(--orb2x, 50%) var(--orb2y, 50%),
+      rgba(0,0,0,var(--orb-dark, 0)) 0%, transparent 100%);
   color: rgba(255,255,255,0.9);
   -webkit-tap-highlight-color: transparent;
 }
