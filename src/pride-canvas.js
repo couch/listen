@@ -3,6 +3,8 @@
 // that drift on incommensurate sine paths — colors stay distinct via
 // source-over compositing (alpha tapers to transparent at edges).
 
+import { hexToRgb } from './utils.js';
+
 const PRIDE_COLORS = [
   "#b33030","#c25a10","#9a7a10","#2a7a30",
   "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
@@ -31,14 +33,6 @@ const BLOBS = PRIDE_COLORS.map((color, i) => ({
   xAmp: 0.28 + (i % 3) * 0.04,
   yAmp: 0.25 + (i % 4) * 0.04,
 }));
-
-function hexToRgb(hex) {
-  return [
-    parseInt(hex.slice(1,3), 16),
-    parseInt(hex.slice(3,5), 16),
-    parseInt(hex.slice(5,7), 16),
-  ];
-}
 
 function sizeCanvas() {
   if (!canvas) return;
