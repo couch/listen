@@ -1,5 +1,5 @@
 // Slowly-drifting radial gradient orbs on a fixed viewport overlay.
-// Active only on mobile (touch) devices during playback; respects prefers-reduced-motion.
+// Active during playback; respects prefers-reduced-motion.
 // Drives --orb1x/y, --orb2x/y, --orb-bright, --orb-dark on documentElement.
 // The #ambient-bg element uses mix-blend-mode: overlay so the effect is perceptible
 // on all palette colors without washing out to white.
@@ -20,8 +20,8 @@ const MAX_BRIGHT = 0.35; // white highlight peak opacity (amplified by overlay b
 const MAX_DARK   = 0.22; // shadow peak opacity
 const FADE_RATE  = 1 / 90; // ~1.5s fade at 60fps
 
-export function initAmbient(isMobile, reducedMotion) {
-  enabled = isMobile && !reducedMotion;
+export function initAmbient(reducedMotion) {
+  enabled = !reducedMotion;
   if (!enabled) return;
   el = document.createElement('div');
   el.id = 'ambient-bg';
