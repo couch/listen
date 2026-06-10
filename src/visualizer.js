@@ -20,57 +20,56 @@ let vizReducedMotion = false;
 let vizIsPride = false;
 let isOpen = false;
 let vizStartTime = null;
-let entryFadeId = null;   // the 450ms overlay fade-in timeout
-let entryFallbackId = null; // the 1000ms animationend fallback
+let entryFadeId = null;
+let entryFallbackId = null;
 
-// Playback state — updated from outside each tick
+// Playback state — updated from main ticker
 let vizCurrentTime = 0;
 let vizDuration = 0;
 
-// 7 light layers with independent motion
 let layers = [];
 
-// Pride palette: same oscillation physics as pride-canvas.js BLOBS,
-// but larger radii and higher opacities — the visualizer is the ambient mode on steroids.
+// ── Palette builders ──────────────────────────────────────────────────────────
+
 const PRIDE_COLORS_VIZ = [
   "#b33030","#c25a10","#9a7a10","#2a7a30",
   "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
 ];
 
+// Same oscillation physics as pride-canvas.js BLOBS; larger radii for immersive fill
 function derivePridePalette() {
   return PRIDE_COLORS_VIZ.map((hex, i) => ({
     hex,
-    xPeriod: 41 + i * 7,    // same periods as pride-canvas.js BLOBS
+    xPeriod: 41 + i * 7,
     yPeriod: 37 + i * 11,
     xPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
     yPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2 + Math.PI / 5,
     xAmp: 0.28 + (i % 3) * 0.04,
     yAmp: 0.25 + (i % 4) * 0.04,
-    radiusFactor: 0.72 + (i % 3) * 0.14,  // larger than ambient (0.55)
+    radiusFactor: 0.80 + (i % 3) * 0.15,
     opacityPeriod: 19 + i * 5,
     opacityPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
-    opacityMin: 0.20,   // higher than ambient's fixed 0.72 alpha (relative to additive blend)
-    opacityMax: 0.55,
+    opacityMin: 0.22,
+    opacityMax: 0.52,
   }));
 }
 
 function derivePalette(bgHex) {
   const [h, s, l] = hexToHsl(bgHex);
-  // 7 hue offsets spanning ±30° around base; varied lightness for depth
   const offsets = [-25, -15, -5, 0, 10, 20, 30];
   return offsets.map((offset, i) => ({
-    hex: hslToHex(h + offset, Math.min(s * 1.15, 85), Math.max(28, Math.min(l + (i % 3 - 1) * 9, 68))),
+    hex: hslToHex(h + offset, Math.min(s * 1.15, 85), Math.max(30, Math.min(l + (i % 3 - 1) * 10, 65))),
     xPeriod: 67 + i * 13,
     yPeriod: 71 + i * 17,
     xPhase: (i / 7) * Math.PI * 2,
     yPhase: (i / 7) * Math.PI * 2 + Math.PI / 4,
-    xAmp: 0.18 + (i % 3) * 0.09,
-    yAmp: 0.16 + (i % 4) * 0.08,
-    radiusFactor: 0.52 + (i % 3) * 0.14,
+    xAmp: 0.22 + (i % 3) * 0.10,
+    yAmp: 0.20 + (i % 4) * 0.09,
+    radiusFactor: 0.68 + (i % 3) * 0.18,
     opacityPeriod: 19 + i * 6,
     opacityPhase: (i / 7) * Math.PI * 2,
-    opacityMin: 0.10,
-    opacityMax: 0.38,
+    opacityMin: 0.18,
+    opacityMax: 0.48,
   }));
 }
 
@@ -81,63 +80,65 @@ function sizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   vizCanvas.width = Math.round(window.innerWidth * dpr);
   vizCanvas.height = Math.round(window.innerHeight * dpr);
-  vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Draw in physical pixels — no setTransform, avoids blur/transform interaction artifacts
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
 function drawVizFrame(now) {
-  if (!vizCtx) return;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  if (!vizCtx || !vizCanvas) return;
+
+  const pw = vizCanvas.width;
+  const ph = vizCanvas.height;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const t = (now - vizStartTime) / 1000;
   const tau = 2 * Math.PI;
-  const minDim = Math.min(w, h);
+  const minDim = Math.min(pw, ph);
 
-  // Partial fill darkens each frame — creates slow fade/ghosting of previous light
+  // Slightly darken each frame — older light fades slowly, creating pooling/accumulation
   vizCtx.globalCompositeOperation = 'source-over';
   vizCtx.globalAlpha = 1;
-  vizCtx.fillStyle = 'rgba(0,0,0,0.04)';
-  vizCtx.fillRect(0, 0, w, h);
+  vizCtx.fillStyle = 'rgba(0,0,0,0.035)';
+  vizCtx.fillRect(0, 0, pw, ph);
 
-  // Draw light layers
+  const blurPx = SUPPORTS_CTX_FILTER ? Math.round(minDim * 0.11) : 0;
+
   layers.forEach(layer => {
-    const cx = w * (0.5 + layer.xAmp * Math.sin(tau * t / layer.xPeriod + layer.xPhase));
-    const cy = h * (0.5 + layer.yAmp * Math.sin(tau * t / layer.yPeriod + layer.yPhase));
-    const r = minDim * layer.radiusFactor * (SUPPORTS_CTX_FILTER ? 1 : 1.8);
+    const cx = pw * (0.5 + layer.xAmp * Math.sin(tau * t / layer.xPeriod + layer.xPhase));
+    const cy = ph * (0.5 + layer.yAmp * Math.sin(tau * t / layer.yPeriod + layer.yPhase));
+    const r = minDim * layer.radiusFactor;
     const opacity = layer.opacityMin + (layer.opacityMax - layer.opacityMin) *
       (0.5 + 0.5 * Math.sin(tau * t / layer.opacityPeriod + layer.opacityPhase));
 
     const [red, green, blue] = hexToRgb(layer.hex);
 
-    if (SUPPORTS_CTX_FILTER) {
-      vizCtx.filter = `blur(${Math.round(minDim * 0.09)}px)`;
-    }
+    if (SUPPORTS_CTX_FILTER) vizCtx.filter = `blur(${blurPx}px)`;
     vizCtx.globalAlpha = opacity;
-    vizCtx.globalCompositeOperation = 'lighter'; // additive: light sources add together
+    vizCtx.globalCompositeOperation = 'source-over';
 
     const grad = vizCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
     grad.addColorStop(0,   `rgba(${red},${green},${blue},1)`);
-    grad.addColorStop(0.4, `rgba(${red},${green},${blue},0.5)`);
+    grad.addColorStop(0.45,`rgba(${red},${green},${blue},0.55)`);
     grad.addColorStop(1,   `rgba(${red},${green},${blue},0)`);
 
     vizCtx.fillStyle = grad;
-    vizCtx.fillRect(0, 0, w, h);
+    // Oversized rect prevents blur from sampling outside canvas boundary (edge artifacts)
+    vizCtx.fillRect(-blurPx, -blurPx, pw + blurPx * 2, ph + blurPx * 2);
   });
 
-  // Progress arc — drawn crisp over the light field
+  // Progress arc — crisp, no blur, drawn over light field
   if (SUPPORTS_CTX_FILTER) vizCtx.filter = 'none';
   vizCtx.globalCompositeOperation = 'source-over';
   vizCtx.globalAlpha = 1;
 
   const progress = vizDuration > 0 ? Math.min(vizCurrentTime / vizDuration, 1) : 0;
   if (progress > 0.001) {
-    const arcR = Math.min(w, h) * 0.36;
+    const arcR = minDim * 0.34;
     vizCtx.beginPath();
-    vizCtx.arc(w / 2, h / 2, arcR, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
+    vizCtx.arc(pw / 2, ph / 2, arcR, -Math.PI / 2, -Math.PI / 2 + progress * 2 * Math.PI);
     vizCtx.strokeStyle = 'rgba(255,255,255,0.85)';
-    vizCtx.lineWidth = 1;
-    vizCtx.globalAlpha = 0.10 + progress * 0.06; // subtle brightening as track nears end
+    vizCtx.lineWidth = dpr;
+    vizCtx.globalAlpha = 0.10 + progress * 0.06;
     vizCtx.stroke();
   }
 
@@ -155,7 +156,6 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizReducedMotion = reducedMotion;
   vizIsPride = isPride;
 
-  // Build overlay DOM
   vizOverlay = document.createElement('div');
   vizOverlay.id = 'viz-overlay';
   vizOverlay.setAttribute('aria-hidden', 'true');
@@ -179,7 +179,6 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizExitBtn.textContent = '×';
   vizExitBtn.addEventListener('click', closeVisualizer);
 
-  // Swipe down to close on touch devices
   let touchStartY = 0;
   vizOverlay.addEventListener('touchstart', e => {
     touchStartY = e.touches[0].clientY;
@@ -191,19 +190,16 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn);
   document.body.appendChild(vizOverlay);
 
-  // Escape key to close
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isOpen) closeVisualizer();
   });
 
-  // Canvas resize
   const ro = new ResizeObserver(() => {
     clearTimeout(ro._debounce);
     ro._debounce = setTimeout(sizeCanvas, 200);
   });
   ro.observe(document.body);
 
-  // Inject ⊙ button into #controls before #time
   const controls = document.getElementById('controls');
   const timeEl = document.getElementById('time');
   if (controls && timeEl) {
@@ -230,7 +226,9 @@ export function openVisualizer({ bgColor, title, artist }) {
   if (vizArtistEl) vizArtistEl.textContent = artist || '';
   vizOverlay.setAttribute('aria-hidden', 'false');
 
-  // Pride: same blob physics as ambient canvas, more intense; else HSL-derived hues
+  // Refresh canvas size in case layout changed since init
+  sizeCanvas();
+
   layers = vizIsPride ? derivePridePalette() : derivePalette(bgColor || '#c1440e');
   vizStartTime = performance.now();
 
@@ -238,6 +236,11 @@ export function openVisualizer({ bgColor, title, artist }) {
     vizFrame = requestAnimationFrame(vizTick);
   } else {
     drawVizFrame(vizStartTime);
+  }
+
+  // Move focus away from the trigger button so Space/arrows control playback
+  if (document.activeElement && document.activeElement !== document.body) {
+    document.activeElement.blur();
   }
 
   const tape = document.getElementById('tape');
@@ -256,16 +259,14 @@ export function openVisualizer({ bgColor, title, artist }) {
   vizOverlay.style.opacity = '0';
   vizOverlay.style.transition = '';
 
-  // Fade in visualizer as the wall-pass completes (~450ms in)
   entryFadeId = setTimeout(() => {
     entryFadeId = null;
     vizOverlay.style.transition = 'opacity 0.55s ease';
     vizOverlay.style.opacity = '1';
   }, 450);
 
-  const onAnimEnd = () => {
-    entryFallbackId = null;
-    if (!isOpen) return; // closed before animation finished — do nothing
+  const doEntryCleanup = () => {
+    if (!isOpen) return;
     document.body.classList.remove('viz-entering');
     document.body.classList.add('viz-open');
     if (tape) tape.style.visibility = 'hidden';
@@ -274,10 +275,24 @@ export function openVisualizer({ bgColor, title, artist }) {
   };
 
   if (tape) {
-    tape.addEventListener('animationend', onAnimEnd, { once: true });
-    entryFallbackId = setTimeout(onAnimEnd, 1000);
+    // Must check animationName — child marquee animations bubble animationend to #tape
+    let fallback = null;
+    const onAnimEnd = (e) => {
+      if (e?.animationName !== 'viz-enter-tape') return;
+      tape.removeEventListener('animationend', onAnimEnd);
+      clearTimeout(fallback);
+      clearTimeout(entryFallbackId);
+      entryFallbackId = null;
+      doEntryCleanup();
+    };
+    tape.addEventListener('animationend', onAnimEnd);
+    fallback = setTimeout(() => {
+      tape.removeEventListener('animationend', onAnimEnd);
+      doEntryCleanup();
+    }, 1000);
+    entryFallbackId = fallback;
   } else {
-    entryFallbackId = setTimeout(onAnimEnd, 500);
+    entryFallbackId = setTimeout(doEntryCleanup, 500);
   }
 }
 
@@ -289,7 +304,6 @@ export function closeVisualizer() {
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
 
-  // Clean up any in-progress entry state
   document.body.classList.remove('viz-entering', 'viz-open');
 
   const tape = document.getElementById('tape');
@@ -301,10 +315,10 @@ export function closeVisualizer() {
     vizOverlay.classList.remove('viz-open');
     vizOverlay.setAttribute('aria-hidden', 'true');
     if (tape) tape.style.visibility = '';
+    if (btnViz && !btnViz.hidden) btnViz.focus({ preventScroll: true });
     return;
   }
 
-  document.body.classList.remove('viz-open');
   vizOverlay.classList.remove('viz-open');
   vizOverlay.style.transition = 'opacity 0.4s ease';
   vizOverlay.style.opacity = '0';
@@ -313,17 +327,28 @@ export function closeVisualizer() {
   if (bar) bar.style.pointerEvents = 'none';
   document.body.classList.add('viz-exiting');
 
-  const onAnimEnd = () => {
+  const doExitCleanup = () => {
     document.body.classList.remove('viz-exiting');
     if (bar) bar.style.pointerEvents = '';
     vizOverlay.setAttribute('aria-hidden', 'true');
+    if (btnViz && !btnViz.hidden) btnViz.focus({ preventScroll: true });
   };
 
   if (tape) {
-    tape.addEventListener('animationend', onAnimEnd, { once: true });
-    setTimeout(onAnimEnd, 1000);
+    let fallback = null;
+    const onAnimEnd = (e) => {
+      if (e?.animationName !== 'viz-exit-tape') return;
+      tape.removeEventListener('animationend', onAnimEnd);
+      clearTimeout(fallback);
+      doExitCleanup();
+    };
+    tape.addEventListener('animationend', onAnimEnd);
+    fallback = setTimeout(() => {
+      tape.removeEventListener('animationend', onAnimEnd);
+      doExitCleanup();
+    }, 1000);
   } else {
-    setTimeout(onAnimEnd, 900);
+    setTimeout(doExitCleanup, 900);
   }
 }
 
