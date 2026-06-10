@@ -504,39 +504,6 @@ body.is-offline .track:hover { background: transparent; }
 
 #btn-viz:hover { color: rgba(255,255,255,0.65); }
 
-/* ── Through-wall entry/exit transition ──────────────────────────────────── */
-@keyframes viz-enter-tape {
-  0%   { transform: scale(1) translateZ(0);     opacity: 1; }
-  65%  { transform: scale(4) translateZ(200px);  opacity: 0.4; }
-  100% { transform: scale(14) translateZ(700px); opacity: 0; }
-}
-
-@keyframes viz-exit-tape {
-  0%   { transform: scale(14) translateZ(700px); opacity: 0; }
-  35%  { transform: scale(4) translateZ(200px);  opacity: 0.4; }
-  100% { transform: scale(1) translateZ(0);      opacity: 1; }
-}
-
-body.viz-entering {
-  perspective: 700px;
-}
-
-body.viz-entering #tape {
-  animation: viz-enter-tape 0.9s cubic-bezier(0.4,0,1,1) forwards;
-  transform-origin: center center;
-  will-change: transform;
-}
-
-body.viz-exiting {
-  perspective: 700px;
-}
-
-body.viz-exiting #tape {
-  animation: viz-exit-tape 0.85s cubic-bezier(0,0,0.6,1) forwards;
-  transform-origin: center center;
-  will-change: transform;
-}
-
 @media (prefers-reduced-motion: reduce) {
   body.viz-entering #tape,
   body.viz-exiting #tape { animation: none; opacity: 0; }
