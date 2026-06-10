@@ -3,7 +3,8 @@ import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
 import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
-import { initPrideCanvas, startPrideCanvas, stopPrideCanvas } from './pride-canvas.js';
+// pride-canvas is loaded lazily — only when the playlist uses pride mode
+let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
 import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack } from './visualizer.js';
 
 const isEmbed = window !== window.top;
@@ -688,7 +689,12 @@ function stopColorDrift() {
 const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 initAmbient(reducedMotion);
-if (isPride && !isEmbed) initPrideCanvas(reducedMotion);
+if (isPride && !isEmbed) {
+  import('./pride-canvas.js').then(m => {
+    ({ initPrideCanvas, startPrideCanvas, stopPrideCanvas } = m);
+    initPrideCanvas(reducedMotion);
+  });
+}
 if (!isEmbed) initVisualizer(reducedMotion, isPride);
 let geoRequested = false;
 let cachedBarH = 0;
