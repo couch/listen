@@ -315,6 +315,7 @@ function load(i, startSeconds, silent = false) {
   scrub.setAttribute("aria-valuetext", "0:00");
   document.getElementById("time").textContent = "";
   currentIndex = i;
+  updateMediaSession("paused");
   if (isPride) {
     prideColorIdx = (prideStartIdx + i) % PRIDE_COLORS.length;
     stopColorDrift();
@@ -837,7 +838,7 @@ function startMarquee(el) {
 }
 
 // MediaSession API — lock screen controls on mobile
-function updateMediaSession() {
+function updateMediaSession(state = "playing") {
   if (!("mediaSession" in navigator)) return;
   const t = TAPE.tracks[currentIndex];
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -845,7 +846,7 @@ function updateMediaSession() {
     artist: t.artist,
     artwork: [{ src: `https://i.ytimg.com/vi/${t.id}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }],
   });
-  navigator.mediaSession.playbackState = "playing";
+  navigator.mediaSession.playbackState = state;
   navigator.mediaSession.setActionHandler("play", () => player.playVideo());
   navigator.mediaSession.setActionHandler("pause", () => player.pauseVideo());
   navigator.mediaSession.setActionHandler("nexttrack",
@@ -854,6 +855,24 @@ function updateMediaSession() {
   navigator.mediaSession.setActionHandler("previoustrack",
     currentIndex > 0 ? () => load(currentIndex - 1) : null
   );
+  navigator.mediaSession.setActionHandler("seekforward", ({ seekOffset } = {}) => {
+    const off = seekOffset || 10;
+    const cur = player?.getCurrentTime?.() || 0;
+    const dur = player?.getDuration?.() || 0;
+    if (!dur) return;
+    const t = Math.min(cur + off, dur);
+    player.seekTo(t, true);
+    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+  });
+  navigator.mediaSession.setActionHandler("seekbackward", ({ seekOffset } = {}) => {
+    const off = seekOffset || 10;
+    const cur = player?.getCurrentTime?.() || 0;
+    const dur = player?.getDuration?.() || 0;
+    if (!dur) return;
+    const t = Math.max(cur - off, 0);
+    player.seekTo(t, true);
+    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+  });
 }
 
 // Register service worker
