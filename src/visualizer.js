@@ -17,6 +17,7 @@ let vizArtistEl = null;
 let btnViz = null;
 let vizFrame = null;
 let vizReducedMotion = false;
+let vizIsPride = false;
 let isOpen = false;
 let vizStartTime = null;
 
@@ -56,6 +57,30 @@ function hslToHex(h, s, l) {
       .toString(16).padStart(2, '0');
   };
   return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+// Pride palette: same oscillation physics as pride-canvas.js BLOBS,
+// but larger radii and higher opacities — the visualizer is the ambient mode on steroids.
+const PRIDE_COLORS_VIZ = [
+  "#b33030","#c25a10","#9a7a10","#2a7a30",
+  "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
+];
+
+function derivePridePalette() {
+  return PRIDE_COLORS_VIZ.map((hex, i) => ({
+    hex,
+    xPeriod: 41 + i * 7,    // same periods as pride-canvas.js BLOBS
+    yPeriod: 37 + i * 11,
+    xPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
+    yPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2 + Math.PI / 5,
+    xAmp: 0.28 + (i % 3) * 0.04,
+    yAmp: 0.25 + (i % 4) * 0.04,
+    radiusFactor: 0.72 + (i % 3) * 0.14,  // larger than ambient (0.55)
+    opacityPeriod: 19 + i * 5,
+    opacityPhase: (i / PRIDE_COLORS_VIZ.length) * Math.PI * 2,
+    opacityMin: 0.20,   // higher than ambient's fixed 0.72 alpha (relative to additive blend)
+    opacityMax: 0.55,
+  }));
 }
 
 function derivePalette(bgHex) {
@@ -155,8 +180,9 @@ function vizTick(now) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function initVisualizer(reducedMotion) {
+export function initVisualizer(reducedMotion, isPride = false) {
   vizReducedMotion = reducedMotion;
+  vizIsPride = isPride;
 
   // Build overlay DOM
   vizOverlay = document.createElement('div');
@@ -217,22 +243,24 @@ export function initVisualizer(reducedMotion) {
     btnViz.textContent = '⊙';
     btnViz.addEventListener('click', () => {
       const bgHex = document.documentElement.style.getPropertyValue('--bg').trim() || '#c1440e';
-      openVisualizer({ bgColor: bgHex });
+      const title = document.getElementById('np-title')?.querySelector('span')?.textContent || '';
+      const artist = document.getElementById('np-artist')?.querySelector('span')?.textContent || '';
+      openVisualizer({ bgColor: bgHex, title, artist });
     });
     controls.insertBefore(btnViz, timeEl);
   }
 }
 
-export function openVisualizer({ bgColor }) {
+export function openVisualizer({ bgColor, title, artist }) {
   if (isOpen) return;
   isOpen = true;
 
-  // Update title/artist text
-  vizTitleEl.textContent = vizTitleEl.dataset.pending || vizTitleEl.textContent;
+  if (vizTitleEl) vizTitleEl.textContent = title || '';
+  if (vizArtistEl) vizArtistEl.textContent = artist || '';
   vizOverlay.setAttribute('aria-hidden', 'false');
 
-  // Build light palette from current background color
-  layers = derivePalette(bgColor || '#c1440e');
+  // Pride: same blob physics as ambient canvas, more intense; else HSL-derived hues
+  layers = vizIsPride ? derivePridePalette() : derivePalette(bgColor || '#c1440e');
   vizStartTime = performance.now();
 
   if (!vizReducedMotion) {

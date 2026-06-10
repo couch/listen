@@ -465,7 +465,7 @@ function setFocused(i) {
   if (el) {
     el.classList.add("kb-focused");
     el.focus({ preventScroll: true }); // moves real browser focus so Tab stays in sync
-    scrollTrackIntoView(el);
+    if (!isVisualizerOpen()) scrollTrackIntoView(el);
   }
 }
 
@@ -474,6 +474,8 @@ document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const n = TAPE.tracks.length;
   if (e.key === " ") {
+    // Let viz-open / viz-exit buttons handle their own Space/click natively
+    if (e.target.tagName === "BUTTON" && e.target.id !== "btn-play") return;
     e.preventDefault();
     if (!ytApiReady) {
       if (focusedIndex >= 0) {
@@ -687,7 +689,7 @@ const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 initAmbient(reducedMotion);
 if (isPride && !isEmbed) initPrideCanvas(reducedMotion);
-if (!isEmbed) initVisualizer(reducedMotion);
+if (!isEmbed) initVisualizer(reducedMotion, isPride);
 let geoRequested = false;
 let cachedBarH = 0;
 
