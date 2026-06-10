@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles } from './utils.js';
+import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -135,6 +135,100 @@ describe('rgbToHex', () => {
   it('clamps above 255', () => expect(rgbToHex([256, 0, 0])).toBe('#ff0000'));
   it('round-trips with hexToRgb', () => {
     PALETTE.forEach(c => expect(rgbToHex(hexToRgb(c))).toBe(c));
+  });
+});
+
+describe('hexToHsl', () => {
+  it('returns [0, 0, 100] for white', () => {
+    const [h, s, l] = hexToHsl('#ffffff');
+    expect(s).toBeCloseTo(0);
+    expect(l).toBeCloseTo(100);
+  });
+  it('returns [0, 0, 0] for black', () => {
+    const [h, s, l] = hexToHsl('#000000');
+    expect(s).toBeCloseTo(0);
+    expect(l).toBeCloseTo(0);
+  });
+  it('returns hue ~0 for pure red', () => {
+    const [h, s, l] = hexToHsl('#ff0000');
+    expect(h).toBeCloseTo(0);
+    expect(s).toBeCloseTo(100);
+    expect(l).toBeCloseTo(50);
+  });
+  it('returns hue ~120 for pure green', () => {
+    const [h] = hexToHsl('#00ff00');
+    expect(h).toBeCloseTo(120);
+  });
+  it('returns hue ~240 for pure blue', () => {
+    const [h] = hexToHsl('#0000ff');
+    expect(h).toBeCloseTo(240);
+  });
+  it('returns h in [0, 360)', () => {
+    PALETTE.forEach(c => {
+      const [h] = hexToHsl(c);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    });
+  });
+  it('returns s in [0, 100]', () => {
+    PALETTE.forEach(c => {
+      const [, s] = hexToHsl(c);
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(100);
+    });
+  });
+  it('returns l in [0, 100]', () => {
+    PALETTE.forEach(c => {
+      const [,, l] = hexToHsl(c);
+      expect(l).toBeGreaterThanOrEqual(0);
+      expect(l).toBeLessThanOrEqual(100);
+    });
+  });
+});
+
+describe('hslToHex', () => {
+  it('returns #ffffff for white (any hue, s=0, l=100)', () => {
+    expect(hslToHex(0, 0, 100)).toBe('#ffffff');
+  });
+  it('returns #000000 for black (any hue, s=0, l=0)', () => {
+    expect(hslToHex(0, 0, 0)).toBe('#000000');
+  });
+  it('returns #ff0000 for pure red (h=0, s=100, l=50)', () => {
+    expect(hslToHex(0, 100, 50)).toBe('#ff0000');
+  });
+  it('returns #00ff00 for pure green (h=120, s=100, l=50)', () => {
+    expect(hslToHex(120, 100, 50)).toBe('#00ff00');
+  });
+  it('returns #0000ff for pure blue (h=240, s=100, l=50)', () => {
+    expect(hslToHex(240, 100, 50)).toBe('#0000ff');
+  });
+  it('wraps hue — 360 equals 0', () => {
+    expect(hslToHex(360, 100, 50)).toBe(hslToHex(0, 100, 50));
+  });
+  it('wraps negative hue — -60 equals 300', () => {
+    expect(hslToHex(-60, 100, 50)).toBe(hslToHex(300, 100, 50));
+  });
+  it('returns a valid 7-char hex string', () => {
+    expect(hslToHex(200, 50, 40)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe('hexToHsl / hslToHex round-trip', () => {
+  it('round-trips all PALETTE colors within 1 unit', () => {
+    PALETTE.forEach(c => {
+      const [h, s, l] = hexToHsl(c);
+      const result = hslToHex(h, s, l);
+      const orig = hexToRgb(c);
+      const back = hexToRgb(result);
+      orig.forEach((v, i) => expect(back[i]).toBeCloseTo(v, 0));
+    });
+  });
+  it('shifting hue by 30° and back returns the original', () => {
+    PALETTE.forEach(c => {
+      const [h, s, l] = hexToHsl(c);
+      const shifted = hexToHsl(hslToHex(h + 30, s, l));
+      expect(shifted[0]).toBeCloseTo((h + 30) % 360, 0);
+    });
   });
 });
 

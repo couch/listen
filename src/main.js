@@ -3,6 +3,9 @@ import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
 import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
+// pride-canvas is loaded lazily — only when the playlist uses pride mode
+let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
+import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack } from './visualizer.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -122,10 +125,6 @@ TAPE.tracks.forEach((track, i) => {
 
   const progress = document.createElement("div");
   progress.className = "track-progress";
-  if (isPride) {
-    li.style.backgroundColor = trackPrideColors[i];
-    li.dataset.prideColor = trackPrideColors[i];
-  }
 
   info.append(title, artist);
   li.append(progress, num, info);
@@ -192,6 +191,8 @@ window.addEventListener('pagehide', () => {
   savePosition();
   stopTicker();
   stopColorDrift();
+  if (isPride) stopPrideCanvas();
+  closeVisualizer();
   releaseWakeLock();
 });
 
@@ -284,6 +285,8 @@ function onState(e) {
     updateMediaSession();
     startColorDrift();
     startAmbient();
+    if (isPride) startPrideCanvas();
+    document.getElementById('btn-viz')?.removeAttribute('hidden');
     acquireWakeLock();
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
@@ -297,6 +300,9 @@ function onState(e) {
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
     stopColorDrift();
     stopAmbient();
+    if (isPride) stopPrideCanvas();
+    document.getElementById('btn-viz')?.setAttribute('hidden', '');
+    if (isVisualizerOpen()) closeVisualizer();
     releaseWakeLock();
     trackEls[currentIndex]?.classList.remove('playing');
     trackEls[currentIndex]?.classList.add('paused');
@@ -395,11 +401,9 @@ function load(i, startSeconds, silent = false) {
   attr.style.display = "block";
   const el = trackEls[i];
   el.classList.add("active");
-  if (el.dataset.prideColor) {
-    el.style.backgroundImage = 'linear-gradient(rgba(0,0,0,0.18),rgba(0,0,0,0.18))';
-  }
   el.setAttribute("aria-pressed", "true");
   announce(L.np(t.title, t.artist));
+  if (isVisualizerOpen()) updateVisualizerTrack(t.title, t.artist);
   scrollTrackIntoView(el);
   startMarquee(npTitle);
   startMarquee(npArtist);
@@ -416,6 +420,8 @@ function next() {
     updateBtn();
     stopTicker();
     stopColorDrift();
+    if (isPride) stopPrideCanvas();
+    if (isVisualizerOpen()) closeVisualizer();
     releaseWakeLock();
     navigator.mediaSession?.setPositionState?.({});
     document.title = TAPE.title;
@@ -444,7 +450,6 @@ function clearActive() {
   trackEls.forEach(el => {
     el.classList.remove("active", "playing", "paused");
     el.setAttribute("aria-pressed", "false");
-    if (el.dataset.prideColor) el.style.backgroundImage = '';
     stopMarquee(el.querySelector(".track-title"));
     stopMarquee(el.querySelector(".track-artist"));
     const p = el.querySelector(".track-progress");
@@ -461,7 +466,7 @@ function setFocused(i) {
   if (el) {
     el.classList.add("kb-focused");
     el.focus({ preventScroll: true }); // moves real browser focus so Tab stays in sync
-    scrollTrackIntoView(el);
+    if (!isVisualizerOpen()) scrollTrackIntoView(el);
   }
 }
 
@@ -470,6 +475,8 @@ document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   const n = TAPE.tracks.length;
   if (e.key === " ") {
+    // Let viz-open / viz-exit buttons handle their own Space/click natively
+    if (e.target.tagName === "BUTTON" && e.target.id !== "btn-play") return;
     e.preventDefault();
     if (!ytApiReady) {
       if (focusedIndex >= 0) {
@@ -613,6 +620,7 @@ function startTicker() {
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
       if (now - lastPositionSave >= 30000) { lastPositionSave = now; savePosition(); }
+      if (isVisualizerOpen()) updateVisualizer(cur, dur, TAPE.tracks[currentIndex]?.title, TAPE.tracks[currentIndex]?.artist);
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -680,7 +688,14 @@ function stopColorDrift() {
 
 const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-initAmbient(isMobile, reducedMotion);
+initAmbient(reducedMotion);
+if (isPride && !isEmbed) {
+  import('./pride-canvas.js').then(m => {
+    ({ initPrideCanvas, startPrideCanvas, stopPrideCanvas } = m);
+    initPrideCanvas(reducedMotion);
+  });
+}
+if (!isEmbed) initVisualizer(reducedMotion, isPride);
 let geoRequested = false;
 let cachedBarH = 0;
 
