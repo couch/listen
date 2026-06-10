@@ -8,13 +8,21 @@ body {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   min-height: 100vh;
   background-color: var(--bg, #c1440e);
-  background-image:
-    radial-gradient(ellipse 70% 55% at var(--orb1x, 50%) var(--orb1y, 50%),
-      rgba(255,255,255,var(--orb-bright, 0)) 0%, transparent 100%),
-    radial-gradient(ellipse 55% 70% at var(--orb2x, 50%) var(--orb2y, 50%),
-      rgba(0,0,0,var(--orb-dark, 0)) 0%, transparent 100%);
   color: rgba(255,255,255,0.9);
   -webkit-tap-highlight-color: transparent;
+}
+
+#ambient-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: overlay;
+  background-image:
+    radial-gradient(ellipse 80% 65% at var(--orb1x, 50%) var(--orb1y, 50%),
+      rgba(255,255,255,var(--orb-bright, 0)) 0%, transparent 100%),
+    radial-gradient(ellipse 65% 80% at var(--orb2x, 50%) var(--orb2y, 50%),
+      rgba(0,0,0,var(--orb-dark, 0)) 0%, transparent 100%);
 }
 
 #file-warning {
@@ -83,6 +91,8 @@ body.is-offline .track {
 body.is-offline .track:hover { background: transparent; }
 
 #tape {
+  position: relative;
+  z-index: 1;
   padding: 56px 0 0;
 }
 

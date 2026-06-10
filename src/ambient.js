@@ -1,8 +1,11 @@
-// Slowly-drifting radial gradient orbs rendered as CSS background-image layers.
+// Slowly-drifting radial gradient orbs on a fixed viewport overlay.
 // Active only on mobile (touch) devices during playback; respects prefers-reduced-motion.
 // Drives --orb1x/y, --orb2x/y, --orb-bright, --orb-dark on documentElement.
+// The #ambient-bg element uses mix-blend-mode: overlay so the effect is perceptible
+// on all palette colors without washing out to white.
 
 let enabled = false;
+let el = null;
 let ambientFrame = null;
 let targetOpacity = 0;
 let currentOpacity = 0;
@@ -13,12 +16,17 @@ let lastTick = 0;
 const ORB1 = { xPeriod: 37, yPeriod: 29, xPhase: 0,        yPhase: Math.PI / 3,   xAmp: 0.35, yAmp: 0.30 };
 const ORB2 = { xPeriod: 53, yPeriod: 43, xPhase: Math.PI,  yPhase: Math.PI * 1.5, xAmp: 0.28, yAmp: 0.33 };
 
-const MAX_BRIGHT = 0.13; // white highlight peak opacity
-const MAX_DARK   = 0.09; // shadow peak opacity
+const MAX_BRIGHT = 0.35; // white highlight peak opacity (amplified by overlay blend)
+const MAX_DARK   = 0.22; // shadow peak opacity
 const FADE_RATE  = 1 / 90; // ~1.5s fade at 60fps
 
 export function initAmbient(isMobile, reducedMotion) {
   enabled = isMobile && !reducedMotion;
+  if (!enabled) return;
+  el = document.createElement('div');
+  el.id = 'ambient-bg';
+  el.setAttribute('aria-hidden', 'true');
+  document.body.prepend(el);
 }
 
 export function startAmbient() {
