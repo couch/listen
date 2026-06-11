@@ -1,15 +1,18 @@
 // Fullscreen James Turrell / Brian Eno Bloom style visualizer.
-// WebGL fragment shader (viz-gl.js): a domain-warped noise color field that
-// drifts over minutes, plus tap-spawned bloom rings — works as a fidget toy,
-// including while playback is buffering. Pure logic lives in viz-logic.js.
+// DOM/lifecycle owner for the visualization registry (src/viz/): overlay,
+// entry button, rAF loop, gestures, crossfade between visualizations —
+// works as a fidget toy, including while playback is buffering.
+// Shared pure logic lives in viz-logic.js; per-visualization logic in src/viz/.
 
 import { createVizGL } from './viz-gl.js';
 import {
-  PRIDE_COLORS_VIZ, VIZ_PALETTE_SLOTS, buildVizPalette, paletteToUniform,
+  paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
   computeCanvasSize, tapGesture, progressRatio,
-  computeSites, createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  crossfadeAlpha,
 } from './viz-logic.js';
+import { getDefaultViz } from './viz/registry.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const RING_R = 6.5;
@@ -35,13 +38,22 @@ let entryFallbackId = null;
 let vizCurrentTime = 0;
 let vizDuration = 0;
 
-// Shader state
+// Active visualization (registry entry) + per-open state and packed palette.
+// During a crossfade the outgoing viz stays in active* while pending* fades in.
+let activeViz = null;
+let activeState = null;
+let activePal = { data: new Float32Array(27), count: 1 };
+let pendingViz = null;
+let pendingState = null;
+let pendingPal = null;
+let transitionStart = 0;
+const registered = new Set();
+
+// Shared event state (every visualization reinterprets the bloom buffer)
 let vizSeed = 0;
-let vizPaletteCount = 1;
 const bloomState = createBloomState();
 let lastBloomAt = 0;
 let autoBloomInterval = 12;
-const sitesBuf = new Float32Array(VIZ_PALETTE_SLOTS * 3);
 
 // Live background color (the drifting --bg) — palette slot 0 tracks it so
 // the field is color-continuous with the page on entry and exit
@@ -74,24 +86,50 @@ function vizTime(now) {
   return ((now - vizStartTime) / 1000) % 3600;
 }
 
-function spawnBloom(x, y, t) {
-  addBloom(bloomState, x, y, t, Math.floor(Math.random() * vizPaletteCount));
+// A shared event always writes the bloom buffer (each visualization renders
+// it in its own vocabulary); the per-viz hooks add visualization state —
+// tap() for pointer events, trackEvent() on track changes.
+function spawnEvent(x, y, t, isTrackChange = false) {
+  addBloom(bloomState, x, y, t, Math.floor(Math.random() * activePal.count));
+  if (isTrackChange && activeViz.trackEvent) activeViz.trackEvent(activeState, t);
+  else activeViz.tap?.(activeState, x, y, t);
   lastBloomAt = t;
   autoBloomInterval = 10 + Math.random() * 5;
 }
 
-// Rebuild the palette from a bg hex and upload it. Pride keeps its fixed
-// spectrum but slot 0 still tracks the live bg for entry/exit continuity.
+function paletteFor(viz, bgHex) {
+  return paletteToUniform(viz.buildPalette(bgHex, vizIsPride));
+}
+
+// Rebuild palettes from a bg hex. Each visualization derives its own; slot 0
+// always tracks the live bg for entry/exit continuity (pride included).
 function applyPalette(bgHex) {
-  const palette = vizIsPride ? [bgHex, ...PRIDE_COLORS_VIZ.slice(1)] : buildVizPalette(bgHex);
-  const { data, count } = paletteToUniform(palette);
-  vizGL.setPalette(data, count);
-  vizPaletteCount = count;
+  activePal = paletteFor(activeViz, bgHex);
+  if (pendingViz) pendingPal = paletteFor(pendingViz, bgHex);
   lastAppliedBgHex = bgHex;
 }
 
+function frameContext(t, dt, pal) {
+  return {
+    t, dt,
+    aspect: window.innerWidth / window.innerHeight,
+    tiltX: tiltState.x, tiltY: tiltState.y,
+    blooms: bloomState.data,
+    paletteData: pal.data, paletteCount: pal.count,
+  };
+}
+
+function promotePending() {
+  activeViz = pendingViz;
+  activeState = pendingState;
+  activePal = pendingPal;
+  pendingViz = null;
+  pendingState = null;
+  pendingPal = null;
+}
+
 function drawVizFrame(now) {
-  if (!vizGL) return;
+  if (!vizGL || !activeViz) return;
   const t = vizTime(now);
   const dt = lastFrameNow === null ? 1 / 60 : (now - lastFrameNow) / 1000;
   lastFrameNow = now;
@@ -103,13 +141,17 @@ function drawVizFrame(now) {
     lastPaletteAt = now;
   }
   if (t < lastBloomAt) lastBloomAt = 0; // hourly clock wrap
-  // Generative self-play: an occasional bloom when nothing has bloomed lately
+  // Generative self-play: an occasional event when nothing has happened lately
   if (!vizReducedMotion && autoBloomDue(lastBloomAt, t, autoBloomInterval)) {
-    spawnBloom(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
+    spawnEvent(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
   }
-  const aspect = window.innerWidth / window.innerHeight;
-  const sites = computeSites(t, vizSeed, vizPaletteCount, aspect, tiltState.x, tiltState.y, sitesBuf);
-  vizGL.render({ time: t, seed: vizSeed, blooms: bloomState.data, sites });
+  vizGL.render(activeViz.id, activeViz.frame(activeState, frameContext(t, dt, activePal)), 1, false);
+  if (pendingViz) {
+    // Crossfade: incoming visualization alpha-blends over the outgoing one
+    const k = crossfadeAlpha(now - transitionStart);
+    vizGL.render(pendingViz.id, pendingViz.frame(pendingState, frameContext(t, dt, pendingPal)), k, true);
+    if (k >= 1) promotePending();
+  }
 }
 
 function vizTick(now) {
@@ -119,6 +161,13 @@ function vizTick(now) {
 
 function stopFrame() {
   if (vizFrame) { cancelAnimationFrame(vizFrame); vizFrame = null; }
+}
+
+function ensureRegistered(viz) {
+  if (!registered.has(viz.id)) {
+    vizGL.registerProgram(viz.id, viz.frag, viz.uniformSpec);
+    registered.add(viz.id);
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -132,6 +181,11 @@ export function initVisualizer(reducedMotion, isPride = false) {
   sizeCanvas();
   vizGL = createVizGL(vizCanvas);
   if (!vizGL) return; // no WebGL: no overlay, no ⊙ button — feature absent
+
+  // The default visualization must compile, or the feature is absent —
+  // same contract as having no WebGL at all.
+  ensureRegistered(getDefaultViz());
+  if (!vizGL.use(getDefaultViz().id)) { vizGL = null; return; }
 
   vizGL.onLost(stopFrame);
   vizGL.onRestored(() => {
@@ -200,11 +254,11 @@ export function initVisualizer(reducedMotion, isPride = false) {
       const x = e.clientX / window.innerWidth;
       const y = 1 - e.clientY / window.innerHeight; // GL origin is bottom-left
       if (vizReducedMotion) {
-        // Static mode: place the bloom mid-life so the single frame shows it
-        addBloom(bloomState, x, y, Math.max(0, vizTime(now) - 2), Math.floor(Math.random() * vizPaletteCount));
+        // Static mode: place the event mid-life so the single frame shows it
+        spawnEvent(x, y, Math.max(0, vizTime(now) - 2));
         drawVizFrame(now);
       } else {
-        spawnBloom(x, y, vizTime(now));
+        spawnEvent(x, y, vizTime(now));
       }
     }
   });
@@ -264,8 +318,13 @@ export function openVisualizer({ bgColor, title, artist }) {
   // While open, the theme-color meta needs no extra writes: the bg drift in
   // main.js keeps writing it, and that drift color is always palette slot 0.
   vizBgHex = bgColor || '#c1440e';
-  applyPalette(vizBgHex);
   vizSeed = Math.random() * 100;
+  activeViz = getDefaultViz();
+  activeState = activeViz.initState(vizSeed);
+  pendingViz = null;
+  pendingState = null;
+  pendingPal = null;
+  applyPalette(vizBgHex);
   resetBlooms(bloomState);
   lastBloomAt = 0;
   autoBloomInterval = 10 + Math.random() * 5;
@@ -382,7 +441,7 @@ export function updateVisualizerTrack(title, artist) {
   }, 300);
   // A new track is the one real musical event we can see — mark it
   if (isOpen && !vizReducedMotion) {
-    spawnBloom(0.3 + Math.random() * 0.4, 0.35 + Math.random() * 0.3, vizTime(performance.now()));
+    spawnEvent(0.3 + Math.random() * 0.4, 0.35 + Math.random() * 0.3, vizTime(performance.now()), true);
   }
 }
 
