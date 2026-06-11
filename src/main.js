@@ -5,7 +5,7 @@ import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
 let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
-import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack } from './visualizer.js';
+import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation } from './visualizer.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -680,6 +680,7 @@ function tickDrift(now) {
   const hex = rgbToHex(rgb);
   document.documentElement.style.setProperty("--bg", hex);
   themeColorMeta.setAttribute('content', hex);
+  setVizBgColor(hex); // visualizer palette slot 0 tracks the drift
   if (t < 1) {
     driftFrame = requestAnimationFrame(tickDrift);
   } else {
@@ -812,6 +813,8 @@ function enableMotionListeners() {
   if (motionListenersEnabled) return;
   motionListenersEnabled = true;
   window.addEventListener('devicemotion', handleMotion);
+  // Tilt feeds the visualizer's liquid-gel color motion (no-op while closed)
+  window.addEventListener('deviceorientation', e => setVizOrientation(e.beta, e.gamma));
 }
 
 if (!isEmbed) {
