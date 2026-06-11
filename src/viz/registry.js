@@ -8,7 +8,9 @@ import mesh from './mesh.js';
 import { VIZ_IDS, DEFAULT_VIZ_ID } from './ids.js';
 
 // One loader per non-default visualization; Vite code-splits each import().
-const LOADERS = {};
+const LOADERS = {
+  lava: () => import('./lava.js'),
+};
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);
 

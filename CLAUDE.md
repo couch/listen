@@ -95,6 +95,17 @@ iOS-wallpaper-style soft color field. No hard edges by construction.
 - **Tilt** (`createTiltState`/`stepTilt`/`normalizeTilt` in `viz-logic.js` — shared): under-damped spring (stiffness 14, damping 6 ≈ 0.8× critical — gel overshoot) chasing the deviation from a slow-adapting baseline (τ = 3.5 s = the resting pose). Output ±1 → site offset × `TILT_GAIN` 0.18 × per-site parallax depth (0.6–1.1), applied inside `computeSites` (JS-side, no `u_tilt`). Holding still → deviation decays → autonomous drift resumes automatically; tilt is purely additive, no mode switch. `normalizeTilt` remaps beta/gamma per `screen.orientation.angle`, ±45° → ±1.
 - **Tuning knobs** (exported constants in `mesh.js`): `FALLOFF_*` (region size — too low and the normalized blend averages to a flat wash), `AMP_PRIMARY`/`AMP_EPI` (travel), `SITE_PERIODS`/`EPI_PERIODS` (speed), `TILT_GAIN`. Tune from headless screenshots (see Visual verification).
 
+#### 2. Lava lamp (`src/viz/lava.js`)
+
+Metaball wax in live-bg liquid. Playful, physical.
+
+- **Rendering**: `u_blobs[7]` vec4 (x, y aspect-space, radius, palette slot) — 5 primary + 2 satellite slots (r = 0 inactive). Metaball field `f = Σ r²/(d²+1e-4)`; wax color = field-weighted blend of per-blob `paletteAt(slot)` colors so merging blobs smear hues; body `smoothstep(1.0, 1.18, f)` with inner-depth brightening (`mix(0.8, 1.3, smoothstep(1.0, 2.6, f))`); rim light band `smoothstep(1.0,1.06,f) − smoothstep(1.06,1.3,f)` in `mix(waxCol, white, 0.55)` × 0.45. Liquid = slot 0 verbatim × vertical shade (0.85→1.05). Heat-shimmer fbm warp (amp 0.015, t·0.08). Blooms = mesh-style rings at 0.4 gain (heat ripples). House breathing/vignette/dither.
+- **Palette**: `[bg, hsl(h, s·0.9, 10) shade, hsl(h+25, ≤90, 38) wax deep, hsl(h+40, 90, 60) wax bright]`; blob slots alternate 2/3. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, blob slots cycle 1–8 (chosen in `computeLavaBlobs` by `paletteCount ≥ 9`).
+- **Motion** (`computeLavaBlobs(t, seed, aspect, tiltX, tiltY, paletteCount, state, out)`): rise/fall `y = 0.5 + 0.42·sin(TAU·t/RISE_i)`, RISE = [120, 90, 144, 180, 72]; sway amp 0.08, XP = [60, 80, 48, 90, 72]; radius breathe ±0.04 around `LAVA_R_BASE` 0.15, RP = [30, 36, 40, 45, 60]; squash ×(1−0.2·|y−0.5|·2) near extremes.
+- **Tilt**: gravity slosh — `x += tiltX·LAVA_TILT_GAIN(0.25)·depth`, `y += tiltY·0.12·depth`, depth 0.7–1.2 seeded per blob.
+- **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
+- **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
+
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[] }`
