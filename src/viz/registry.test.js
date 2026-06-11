@@ -63,7 +63,7 @@ describe('entry contract', () => {
         // u_resolution and u_fade are owned by viz-gl, never in the spec
         expect(entry.uniformSpec.u_resolution).toBeUndefined();
         expect(entry.uniformSpec.u_fade).toBeUndefined();
-        Object.values(entry.uniformSpec).forEach(t => expect(['1f', '2f', '3fv', '4fv']).toContain(t));
+        Object.values(entry.uniformSpec).forEach(t => expect(['1f', '2f', '2fv', '3fv', '4fv']).toContain(t));
       });
       it('buildPalette keeps slot 0 verbatim — normal and pride (invariant 1)', () => {
         expect(entry.buildPalette('#1a4a8a', false)[0]).toBe('#1a4a8a');

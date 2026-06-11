@@ -14,6 +14,7 @@ const LOADERS = {
   aurora: () => import('./aurora.js'),
   ink: () => import('./ink.js'),
   incense: () => import('./incense.js'),
+  scope: () => import('./scope.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);

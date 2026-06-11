@@ -126,6 +126,7 @@ export function createVizGL(canvas) {
         if (loc === null || v === undefined) continue;
         if (type === '1f') gl.uniform1f(loc, v);
         else if (type === '2f') gl.uniform2f(loc, v[0], v[1]);
+        else if (type === '2fv') gl.uniform2fv(loc, v);
         else if (type === '3fv') gl.uniform3fv(loc, v);
         else if (type === '4fv') gl.uniform4fv(loc, v);
       }
