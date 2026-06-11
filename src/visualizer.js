@@ -386,12 +386,13 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   });
 
   // Hover-capable pointers: reveal the picker while the mouse is in the
-  // bottom quarter of the screen, hide it shortly after leaving
+  // bottom quarter of the screen — or anywhere over the picker itself,
+  // since the open menu extends above the zone
   if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
     let pickerHideTimer = null;
     vizOverlay.addEventListener('pointermove', e => {
       if (!isOpen) return;
-      if (pickerRevealZone(e.clientY, window.innerHeight)) {
+      if (pickerRevealZone(e.clientY, window.innerHeight) || picker.root.contains(e.target)) {
         warmAll();
         if (pickerHideTimer) { clearTimeout(pickerHideTimer); pickerHideTimer = null; }
         picker.root.classList.add('picker-reveal');
@@ -584,6 +585,10 @@ export function closeVisualizer() {
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
   if (ctxLossTimer) { clearTimeout(ctxLossTimer); ctxLossTimer = null; }
+  // The picker's open/reveal classes make its menu hit-testable — they must
+  // not survive into the closed (invisible) overlay
+  picker?.setOpen(false);
+  picker?.root.classList.remove('picker-reveal');
 
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');

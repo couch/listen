@@ -6,7 +6,7 @@
 export const VIZ_IDS = ['mesh', 'lava', 'rain', 'aurora', 'ink', 'incense', 'scope', 'stars', 'topo', 'caustics', 'kaleido'];
 
 export const VIZ_NAMES = {
-  mesh: 'Mesh',
+  mesh: 'Bloom',
   lava: 'Lava',
   rain: 'Rain',
   aurora: 'Aurora',
