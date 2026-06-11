@@ -10,10 +10,12 @@ import {
   createBloomState, addBloom, resetBlooms, autoBloomDue,
   computeCanvasSize, tapGesture, skipGesture, progressRatio,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
-  crossfadeAlpha, resolveVizSelection,
+  crossfadeAlpha, resolveVizSelection, pickerRevealZone,
 } from './viz-logic.js';
 import { getDefaultViz, getViz } from './viz/registry.js';
-import { VIZ_IDS } from './viz/ids.js';
+import { VIZ_IDS, VIZ_NAMES } from './viz/ids.js';
+import { createVizPicker } from './viz-picker.js';
+import { L } from './strings.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const RING_R = 6.5;
@@ -56,6 +58,8 @@ const loadedEntries = new Map([[getDefaultViz().id, getDefaultViz()]]);
 const VIZ_PREF_KEY = 'muxtape-viz';
 let vizTapeKey = '_';
 let vizSelection = getDefaultViz().id;
+let picker = null;
+let allWarmed = false;
 
 function readVizPref(tapeKey) {
   try {
@@ -203,12 +207,40 @@ function ensureLoaded(id) {
   });
 }
 
+// Warm every visualization chunk — fired on first picker reveal, so the
+// menu selects instantly.
+function warmAll() {
+  if (allWarmed) return;
+  allWarmed = true;
+  VIZ_IDS.forEach(id => ensureLoaded(id).catch(() => {}));
+}
+
+// User picked a visualization: persist it, load its chunk if needed, and
+// crossfade. If its shader won't compile on this GPU, revert to what runs.
+function selectVisualization(id) {
+  vizSelection = id;
+  writeVizPref(vizTapeKey, id);
+  picker?.setActive(id);
+  if (!isOpen || id === activeViz?.id) return;
+  ensureLoaded(id).then(entry => {
+    if (!isOpen || vizSelection !== id || entry.id === activeViz.id) return;
+    if (!beginTransition(entry)) revertSelection();
+  }).catch(revertSelection);
+}
+
+function revertSelection() {
+  vizSelection = activeViz?.id || getDefaultViz().id;
+  writeVizPref(vizTapeKey, vizSelection);
+  picker?.setActive(vizSelection);
+}
+
 // Crossfade to another visualization. Returns false if its shader doesn't
 // compile on this GPU — the current one keeps running.
 function beginTransition(entry) {
   if (!vizGL || !isOpen || entry.id === activeViz.id) return false;
   ensureRegistered(entry);
   if (!vizGL.use(entry.id)) return false;
+  if (pendingViz) promotePending(); // a switch mid-fade lands the old fade first
   pendingViz = entry;
   pendingState = entry.initState(Math.random() * 100);
   pendingPal = paletteFor(entry, vizBgHex);
@@ -306,12 +338,40 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   vizExitBtn.textContent = '×';
   vizExitBtn.addEventListener('click', closeVisualizer);
 
+  picker = createVizPicker({
+    entries: VIZ_IDS.map(id => ({ id, name: VIZ_NAMES[id] })),
+    activeId: vizSelection,
+    onSelect: selectVisualization,
+    onReveal: warmAll,
+    groupLabel: L.vz,
+  });
+
+  // Hover-capable pointers: reveal the picker while the mouse is in the
+  // bottom quarter of the screen, hide it shortly after leaving
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    let pickerHideTimer = null;
+    vizOverlay.addEventListener('pointermove', e => {
+      if (!isOpen) return;
+      if (pickerRevealZone(e.clientY, window.innerHeight)) {
+        warmAll();
+        if (pickerHideTimer) { clearTimeout(pickerHideTimer); pickerHideTimer = null; }
+        picker.root.classList.add('picker-reveal');
+      } else if (picker.root.classList.contains('picker-reveal') && !pickerHideTimer) {
+        pickerHideTimer = setTimeout(() => {
+          pickerHideTimer = null;
+          picker.root.classList.remove('picker-reveal');
+        }, 400);
+      }
+    });
+  }
+
   // A quick tap blooms — the fidget interaction. Swipes are deliberately
   // inert: no fullscreen navigation gestures over the field.
   let ptrDown = null;
-  const inControl = e => e.target.closest('#viz-exit') || e.target.closest('#viz-text');
+  const inControl = e => e.target.closest('#viz-exit') || e.target.closest('#viz-text') || e.target.closest('#viz-picker');
   vizOverlay.addEventListener('pointerdown', e => {
     if (inControl(e)) return;
+    if (picker.isShown()) picker.setOpen(false); // outside tap closes the menu
     ptrDown = { x: e.clientX, y: e.clientY, at: performance.now() };
   });
   vizOverlay.addEventListener('pointerup', e => {
@@ -333,7 +393,7 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
     }
   });
 
-  vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn);
+  vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn, picker.root);
   document.body.appendChild(vizOverlay);
 
   document.addEventListener('keydown', e => {

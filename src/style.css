@@ -506,6 +506,78 @@ body.viz-active { overflow: hidden; }
 
 #viz-exit:hover { color: rgba(255,255,255,0.7); }
 
+#viz-picker {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  z-index: 2;
+}
+
+#viz-picker-toggle {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.28);
+  font-size: 1.125rem;
+  line-height: 1;
+  padding: 10px;
+  cursor: pointer;
+  transition: color 0.15s, opacity 0.3s;
+}
+
+#viz-picker-toggle:hover { color: rgba(255,255,255,0.65); }
+
+#viz-picker-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#viz-picker.picker-open #viz-picker-menu,
+#viz-picker.picker-reveal #viz-picker-menu,
+#viz-picker:focus-within #viz-picker-menu {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#viz-picker-menu button {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  font-family: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+#viz-picker-menu button:hover { color: rgba(255,255,255,0.75); }
+#viz-picker-menu button.active { color: rgba(255,255,255,0.85); }
+#viz-picker-menu button.active::before {
+  content: '● ';
+  font-size: 0.5rem;
+  vertical-align: 2px;
+}
+
+/* Hover-capable pointers: everything hides until the mouse enters the
+   bottom-quarter reveal zone (or the control holds keyboard focus) */
+@media (hover: hover) and (pointer: fine) {
+  #viz-picker-toggle { opacity: 0; pointer-events: none; }
+  #viz-picker.picker-reveal #viz-picker-toggle,
+  #viz-picker:focus-within #viz-picker-toggle {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 #btn-viz {
   background: none;
   border: none;

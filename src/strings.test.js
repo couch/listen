@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { STRINGS, lang, L, fmtDate } from './strings.js';
 
 const ALL_LANGS = ['en', 'es', 'it', 'de', 'fr', 'zh', 'ko', 'ja', 'ru', 'hi', 'mr'];
-const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline'];
+const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline', 'vz'];
 
 describe('STRINGS', () => {
   it('contains all 11 supported languages', () => {
