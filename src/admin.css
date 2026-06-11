@@ -126,6 +126,27 @@ body {
   width: 100%; height: 100%;
 }
 
+/* ── Visualization picker ── */
+#viz-label { margin: 20px 0 10px; }
+
+#viz-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.viz-chip {
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: inherit;
+  background: rgba(255,255,255,0.08);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.viz-chip:hover { background: rgba(255,255,255,0.16); }
+.viz-chip.active { border-color: rgba(255,255,255,0.85); }
+
 /* ── Section labels ── */
 .section-label {
   font-size: 0.6875rem;

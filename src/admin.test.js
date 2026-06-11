@@ -244,6 +244,12 @@ describe('validatePlaylist', () => {
   it('rejects non-string created', () => {
     expect(() => validatePlaylist({ ...VALID_PLAYLIST, created: 20260101 })).toThrow(/created/);
   });
+  it('accepts optional viz as string (unknown ids are a runtime fallback)', () => {
+    expect(() => validatePlaylist({ ...VALID_PLAYLIST, viz: 'lava' })).not.toThrow();
+  });
+  it('rejects non-string viz', () => {
+    expect(() => validatePlaylist({ ...VALID_PLAYLIST, viz: 3 })).toThrow(/viz/);
+  });
   it('accepts optional location with lat/lng numbers', () => {
     expect(() => validatePlaylist({ ...VALID_PLAYLIST, location: { lat: 45.5, lng: -122.6 } })).not.toThrow();
   });

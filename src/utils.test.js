@@ -102,6 +102,10 @@ describe('buildConfig', () => {
     const result = buildConfig(playlist);
     expect(result).not.toContain('created');
     expect(result).not.toContain('location');
+    expect(result).not.toContain('viz');
+  });
+  it('includes the viz field when set', () => {
+    expect(buildConfig({ ...playlist, viz: 'rain' })).toContain('viz: "rain"');
   });
   it('returns empty string for null/undefined', () => {
     expect(buildConfig(null)).toBe('');

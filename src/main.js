@@ -5,7 +5,7 @@ import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
 let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
-import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation } from './visualizer.js';
+import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation, preloadVizSelection } from './visualizer.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -287,6 +287,7 @@ function onState(e) {
     startAmbient();
     if (isPride) startPrideCanvas();
     document.getElementById('btn-viz')?.removeAttribute('hidden');
+    preloadVizSelection();
     acquireWakeLock();
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
@@ -712,6 +713,8 @@ if (isPride && !isEmbed) {
   });
 }
 if (!isEmbed) initVisualizer(reducedMotion, isPride, {
+  tapeId: TAPE.id,
+  defaultViz: TAPE.viz,
   // Horizontal swipe over the visualizer's metadata block — same moves as
   // the viz-open arrow keys
   onTrackSkip(dir) {

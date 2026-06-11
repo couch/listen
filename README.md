@@ -58,6 +58,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Background color slowly drifts through a warm palette while music plays (skipped when `prefers-reduced-motion` is set)
 - Visualizer: ⊙ button (visible while playing) opens a fullscreen WebGL mesh gradient — large soft color regions (deep shadow to near-white glow) derived from the playlist color, drifting organically with no hard edges (Pride palette in pride mode); one region always tracks the live background drift color, so entering/exiting stays color-continuous and the iOS status-bar color keeps matching; on mobile with motion access granted (π button on iOS), tilting the device pours the colors like thick gel — hold still and they resume their own drift; minimal track metadata with a small progress ring sits in the lower-left corner — on touch screens, swiping left/right across it skips to the next/previous track; tap or click spawns expanding color blooms, it blooms on its own when idle, and each track change blooms once; keeps running (taps included) while playback buffers; space toggles playback and arrows skip tracks; close with × or Escape — pausing or playlist end also closes it (swipes over the field itself are deliberately inert); `prefers-reduced-motion` shows a still field; requires WebGL (the button doesn't appear without it)
 - Per-playlist color themes — fixed hex, random on each load, or Pride rainbow
+- Per-playlist default visualization, chosen in the admin's "visualization" chip row
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
 - Long track titles and artist names scroll horizontally (marquee) rather than truncating — in both the track list and the now-playing bar
 - Playlist footer: track count, created/edited dates, and listener distance shown below the track list; scroll to reveal
@@ -74,7 +75,8 @@ config.js               # Active playlist — loaded by the player at parse time
 server.py               # Local dev server (handles admin file writes)
 src/
   main.js               # Player logic (shared by index.html and embed.html)
-  visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js shaders, viz-logic.js pure logic)
+  visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js GL plumbing, viz-logic.js pure logic)
+  viz/                  # Visualization registry: ids.js, registry.js, prelude.js, one module per visualization
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
   utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
@@ -109,7 +111,7 @@ public/
 }
 ```
 
-`color` is `"random"`, a hex string like `"#c1440e"`, or `"pride"`. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist. `location` is optional.
+`color` is `"random"`, a hex string like `"#c1440e"`, or `"pride"`. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist. `location` is optional. `viz` (optional) sets the playlist's default visualization by id; it's omitted when set to the default (`"mesh"`), and listeners can override it per playlist from the visualizer (stored in their browser's localStorage as `muxtape-viz`).
 
 **`playlists/index.json`**
 ```json

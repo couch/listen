@@ -10,9 +10,10 @@ import {
   createBloomState, addBloom, resetBlooms, autoBloomDue,
   computeCanvasSize, tapGesture, skipGesture, progressRatio,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
-  crossfadeAlpha,
+  crossfadeAlpha, resolveVizSelection,
 } from './viz-logic.js';
-import { getDefaultViz } from './viz/registry.js';
+import { getDefaultViz, getViz } from './viz/registry.js';
+import { VIZ_IDS } from './viz/ids.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const RING_R = 6.5;
@@ -49,6 +50,29 @@ let pendingState = null;
 let pendingPal = null;
 let transitionStart = 0;
 const registered = new Set();
+const loadedEntries = new Map([[getDefaultViz().id, getDefaultViz()]]);
+
+// Selection: listener override (localStorage, per playlist) > TAPE.viz > mesh
+const VIZ_PREF_KEY = 'muxtape-viz';
+let vizTapeKey = '_';
+let vizSelection = getDefaultViz().id;
+
+function readVizPref(tapeKey) {
+  try {
+    const map = JSON.parse(localStorage.getItem(VIZ_PREF_KEY) || '{}');
+    return map && typeof map === 'object' ? map[tapeKey] : undefined;
+  } catch { return undefined; }
+}
+
+function writeVizPref(tapeKey, id) {
+  try {
+    let map;
+    try { map = JSON.parse(localStorage.getItem(VIZ_PREF_KEY) || '{}'); } catch { map = null; }
+    if (!map || typeof map !== 'object') map = {};
+    map[tapeKey] = id;
+    localStorage.setItem(VIZ_PREF_KEY, JSON.stringify(map));
+  } catch {}
+}
 
 // Shared event state (every visualization reinterprets the bloom buffer)
 let vizSeed = 0;
@@ -171,12 +195,41 @@ function ensureRegistered(viz) {
   }
 }
 
+// Load a visualization's chunk and remember the entry for sync access
+function ensureLoaded(id) {
+  return getViz(id).then(entry => {
+    loadedEntries.set(entry.id, entry);
+    return entry;
+  });
+}
+
+// Crossfade to another visualization. Returns false if its shader doesn't
+// compile on this GPU — the current one keeps running.
+function beginTransition(entry) {
+  if (!vizGL || !isOpen || entry.id === activeViz.id) return false;
+  ensureRegistered(entry);
+  if (!vizGL.use(entry.id)) return false;
+  pendingViz = entry;
+  pendingState = entry.initState(Math.random() * 100);
+  pendingPal = paletteFor(entry, vizBgHex);
+  resetBlooms(bloomState);
+  lastBloomAt = vizTime(performance.now());
+  transitionStart = performance.now();
+  if (vizReducedMotion) {
+    promotePending();
+    drawVizFrame(performance.now());
+  }
+  return true;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   vizReducedMotion = reducedMotion;
   vizIsPride = isPride;
   vizOpts = opts;
+  vizTapeKey = opts.tapeId || '_';
+  vizSelection = resolveVizSelection(readVizPref(vizTapeKey), opts.defaultViz, VIZ_IDS, getDefaultViz().id);
 
   vizCanvas = document.createElement('canvas');
   vizCanvas.id = 'viz-canvas';
@@ -336,12 +389,23 @@ export function openVisualizer({ bgColor, title, artist }) {
   // main.js keeps writing it, and that drift color is always palette slot 0.
   vizBgHex = bgColor || '#c1440e';
   vizSeed = Math.random() * 100;
-  activeViz = getDefaultViz();
+  // Open with the selected visualization if its chunk is warm and compiles;
+  // otherwise open with mesh and crossfade over when the selection arrives.
+  let entry = loadedEntries.get(vizSelection) || getDefaultViz();
+  ensureRegistered(entry);
+  if (entry !== getDefaultViz() && !vizGL.use(entry.id)) entry = getDefaultViz();
+  activeViz = entry;
   activeState = activeViz.initState(vizSeed);
   pendingViz = null;
   pendingState = null;
   pendingPal = null;
   applyPalette(vizBgHex);
+  if (activeViz.id !== vizSelection) {
+    const wanted = vizSelection;
+    ensureLoaded(wanted).then(e => {
+      if (isOpen && vizSelection === wanted) beginTransition(e);
+    }).catch(() => {});
+  }
   resetBlooms(bloomState);
   lastBloomAt = 0;
   autoBloomInterval = 10 + Math.random() * 5;
@@ -465,6 +529,14 @@ export function updateVisualizerTrack(title, artist) {
 // Live --bg drift color from main.js — palette slot 0 follows it (throttled)
 export function setVizBgColor(hex) {
   if (hex) vizBgHex = hex;
+}
+
+// Warm the saved selection's chunk once playback starts (intent is proven —
+// the ⊙ button just appeared), so opening the visualizer doesn't wait on it.
+export function preloadVizSelection() {
+  if (vizSelection !== getDefaultViz().id) {
+    ensureLoaded(vizSelection).catch(() => {});
+  }
 }
 
 // Device orientation → tilt spring input. The colors lean with the device

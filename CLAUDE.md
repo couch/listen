@@ -73,6 +73,7 @@ All entry functions are pure (no DOM/GL) and unit-tested alongside (`src/viz/<id
 - `src/visualizer.js` — DOM/lifecycle owner: overlay, ⊙ entry button, entry/exit fade (400 ms), gestures, rAF loop, track metadata corner, active/pending visualization state. Opens only during playback; closes on ×, Escape, pause, or playlist end. No fullscreen navigation gestures — swipes over the field are inert (taps bloom). The one navigation gesture is element-scoped: a horizontal touch swipe over the lower-left metadata block (`#viz-text`, enlarged hit area, `skipGesture`: ≥60 px travel, ≤40 px vertical drift, ≤600 ms) skips next (left) / previous (right) via the `onTrackSkip(dir)` callback `main.js` passes to `initVisualizer(reducedMotion, isPride, opts)` — same moves as the viz-open arrow keys. `frame(state, ctx)` receives `ctx = { t, dt, aspect, tiltX, tiltY, blooms, paletteData, paletteCount }` and returns the uniform values for its spec.
 - **Crossfade between visualizations**: 600 ms (`VIZ_FADE_MS`), eased by `crossfadeAlpha`; outgoing viz renders opaque, incoming alpha-blends on top; both states step and both palettes follow the bg drift during the fade; outside transitions exactly one program runs. The incoming viz gets a fresh `initState(seed)` and a reset bloom buffer. Reduced motion: instant swap.
 - **Shared event machinery** (visualizer.js, invariant 2 enforced centrally): `spawnEvent` always writes the `u_blooms[12]` ring buffer — each shader *reinterprets* those records in its own vocabulary — then calls the per-viz `tap()` hook (or `trackEvent()` on track change). `eventLife` = max bloom age the shader honors.
+- **Persistence**: selection priority is localStorage override > `TAPE.viz` (author default, set in the admin's chip picker) > `mesh` (`resolveVizSelection`; unknown ids fall through). The override lives in localStorage `muxtape-viz`, a JSON map `{ [playlistId]: vizId }` (key `'_'` when `TAPE.id` is absent), written on picker selection; all access is try/catch. `main.js` passes `tapeId`/`defaultViz` into `initVisualizer` and calls `preloadVizSelection()` when playback starts so a non-mesh selection's chunk is warm before the overlay opens; if it isn't (or its shader fails), the overlay opens with mesh and crossfades over when ready.
 - Wiring in `main.js`: `tickDrift` calls `setVizBgColor(hex)` each frame; `enableMotionListeners()` (behind the iOS π-button permission flow) feeds `deviceorientation` → `setVizOrientation(beta, gamma)`.
 - Performance: canvas renders at 0.6× of DPR-capped (≤2) CSS resolution (`computeCanvasSize`); `powerPreference: 'low-power'`; rAF paused when tab hidden.
 - Reduced motion: a single static frame at synthetic t=30 s; taps place a mid-life event and redraw once.
@@ -97,7 +98,7 @@ iOS-wallpaper-style soft color field. No hard edges by construction.
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[] }`
-- `playlists/{id}.json` — `{ title, color, tracks, created?, lastEdited?, location? }`
+- `playlists/{id}.json` — `{ title, color, tracks, created?, lastEdited?, viz?, location? }` (`viz` = visualization id; omitted when it's the default `mesh`)
 - `config.js` — generated from active playlist by `buildConfig()`; loaded at parse-time as `window.TAPE`
 
 ## Auth
