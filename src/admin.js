@@ -6,6 +6,7 @@ import { T } from './admin-strings.js';
 import { checkAuth, getGHConfig, IS_LOCAL } from './admin-auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
 import { validatePlaylist, validateIndex } from './schema.js';
+import { VIZ_IDS, VIZ_NAMES, DEFAULT_VIZ_ID } from './viz/ids.js';
 
 const YT_API_KEY_STORE = 'muxtape-yt-api-key';
 
@@ -45,7 +46,7 @@ let idx = { active: null, ids: [] };
 let playlists = {};
 let currentId = null;
 const state = {
-  title: "", color: "random", tracks: [], pendingId: null, location: null,
+  title: "", color: "random", viz: DEFAULT_VIZ_ID, tracks: [], pendingId: null, location: null,
   addTrack(t)       { this.tracks.push(t); },
   removeTrack(i)    { return this.tracks.splice(i, 1)[0]; },
   insertTrack(i, t) { this.tracks.splice(i, 0, t); },
@@ -100,6 +101,7 @@ async function init() {
   const initialId = playlists[idx.active] ? idx.active : idx.ids[0];
   currentId = null;
   buildColorPicker();
+  buildVizPicker();
   applyStrings();
   buildSortable();
   attachListeners();
@@ -151,9 +153,12 @@ function syncToPlaylists() {
     ...playlists[currentId],
     title: state.title,
     color: state.color,
+    viz: state.viz,
     tracks: state.tracks.map(t => ({ ...t })),
     location: state.location,
   };
+  // The default is implicit — existing playlist files stay byte-identical
+  if (playlists[currentId].viz === DEFAULT_VIZ_ID) delete playlists[currentId].viz;
 }
 
 function loadPlaylist(id) {
@@ -165,6 +170,7 @@ function loadPlaylist(id) {
 
   state.title = p.title;
   state.color = p.color;
+  state.viz = p.viz || DEFAULT_VIZ_ID;
   state.tracks = p.tracks.map(t => ({ ...t }));
   state.pendingId = null;
   state.location = p.location || null;
@@ -172,6 +178,7 @@ function loadPlaylist(id) {
   document.getElementById("tape-name").value = state.title;
   applyColor(state.color);
   updateColorSwatches(state.color);
+  updateVizChips(state.viz);
   renderTracks();
 
   document.getElementById("yt-input").value = "";
@@ -287,6 +294,32 @@ function buildColorPicker() {
 
   wrap.append(customSwatch, customInput);
   row.appendChild(wrap);
+}
+
+// ── Visualization picker ──
+let vizChips = [];
+
+function buildVizPicker() {
+  const row = document.getElementById("viz-row");
+  vizChips = VIZ_IDS.map(id => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "viz-chip";
+    chip.dataset.viz = id;
+    chip.textContent = VIZ_NAMES[id];
+    chip.addEventListener("click", () => setViz(id));
+    row.appendChild(chip);
+    return chip;
+  });
+}
+
+function setViz(id) {
+  state.viz = id;
+  updateVizChips(id);
+}
+
+function updateVizChips(id) {
+  vizChips.forEach(c => c.classList.toggle("active", c.dataset.viz === id));
 }
 
 function setColor(hex, fromCustom = false) {
@@ -530,6 +563,7 @@ function applyStrings() {
   document.getElementById('location-btn').textContent = T.setLocBtn;
   document.getElementById('import-btn').textContent = T.importBtn;
   document.getElementById('undo-btn').textContent = T.undoBtn;
+  document.getElementById('viz-label').textContent = T.vizLbl;
 }
 
 // ── Save ──

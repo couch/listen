@@ -1,15 +1,21 @@
 // Fullscreen James Turrell / Brian Eno Bloom style visualizer.
-// WebGL fragment shader (viz-gl.js): a domain-warped noise color field that
-// drifts over minutes, plus tap-spawned bloom rings — works as a fidget toy,
-// including while playback is buffering. Pure logic lives in viz-logic.js.
+// DOM/lifecycle owner for the visualization registry (src/viz/): overlay,
+// entry button, rAF loop, gestures, crossfade between visualizations —
+// works as a fidget toy, including while playback is buffering.
+// Shared pure logic lives in viz-logic.js; per-visualization logic in src/viz/.
 
 import { createVizGL } from './viz-gl.js';
 import {
-  PRIDE_COLORS_VIZ, VIZ_PALETTE_SLOTS, buildVizPalette, paletteToUniform,
+  paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
-  computeCanvasSize, tapGesture, progressRatio,
-  computeSites, createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  computeCanvasSize, tapGesture, skipGesture, progressRatio,
+  createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  crossfadeAlpha, resolveVizSelection, pickerRevealZone,
 } from './viz-logic.js';
+import { getDefaultViz, getViz } from './viz/registry.js';
+import { VIZ_IDS, VIZ_NAMES } from './viz/ids.js';
+import { createVizPicker } from './viz-picker.js';
+import { L } from './strings.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const RING_R = 6.5;
@@ -26,6 +32,7 @@ let btnViz = null;
 let vizFrame = null;
 let vizReducedMotion = false;
 let vizIsPride = false;
+let vizOpts = {};
 let isOpen = false;
 let vizStartTime = null;
 let entryFadeId = null;
@@ -35,13 +42,47 @@ let entryFallbackId = null;
 let vizCurrentTime = 0;
 let vizDuration = 0;
 
-// Shader state
+// Active visualization (registry entry) + per-open state and packed palette.
+// During a crossfade the outgoing viz stays in active* while pending* fades in.
+let activeViz = null;
+let activeState = null;
+let activePal = { data: new Float32Array(27), count: 1 };
+let pendingViz = null;
+let pendingState = null;
+let pendingPal = null;
+let transitionStart = 0;
+const registered = new Set();
+const loadedEntries = new Map([[getDefaultViz().id, getDefaultViz()]]);
+
+// Selection: listener override (localStorage, per playlist) > TAPE.viz > mesh
+const VIZ_PREF_KEY = 'muxtape-viz';
+let vizTapeKey = '_';
+let vizSelection = getDefaultViz().id;
+let picker = null;
+let allWarmed = false;
+
+function readVizPref(tapeKey) {
+  try {
+    const map = JSON.parse(localStorage.getItem(VIZ_PREF_KEY) || '{}');
+    return map && typeof map === 'object' ? map[tapeKey] : undefined;
+  } catch { return undefined; }
+}
+
+function writeVizPref(tapeKey, id) {
+  try {
+    let map;
+    try { map = JSON.parse(localStorage.getItem(VIZ_PREF_KEY) || '{}'); } catch { map = null; }
+    if (!map || typeof map !== 'object') map = {};
+    map[tapeKey] = id;
+    localStorage.setItem(VIZ_PREF_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+// Shared event state (every visualization reinterprets the bloom buffer)
 let vizSeed = 0;
-let vizPaletteCount = 1;
 const bloomState = createBloomState();
 let lastBloomAt = 0;
 let autoBloomInterval = 12;
-const sitesBuf = new Float32Array(VIZ_PALETTE_SLOTS * 3);
 
 // Live background color (the drifting --bg) — palette slot 0 tracks it so
 // the field is color-continuous with the page on entry and exit
@@ -74,24 +115,50 @@ function vizTime(now) {
   return ((now - vizStartTime) / 1000) % 3600;
 }
 
-function spawnBloom(x, y, t) {
-  addBloom(bloomState, x, y, t, Math.floor(Math.random() * vizPaletteCount));
+// A shared event always writes the bloom buffer (each visualization renders
+// it in its own vocabulary); the per-viz hooks add visualization state —
+// tap() for pointer events, trackEvent() on track changes.
+function spawnEvent(x, y, t, isTrackChange = false) {
+  addBloom(bloomState, x, y, t, Math.floor(Math.random() * activePal.count));
+  if (isTrackChange && activeViz.trackEvent) activeViz.trackEvent(activeState, t);
+  else activeViz.tap?.(activeState, x, y, t);
   lastBloomAt = t;
   autoBloomInterval = 10 + Math.random() * 5;
 }
 
-// Rebuild the palette from a bg hex and upload it. Pride keeps its fixed
-// spectrum but slot 0 still tracks the live bg for entry/exit continuity.
+function paletteFor(viz, bgHex) {
+  return paletteToUniform(viz.buildPalette(bgHex, vizIsPride));
+}
+
+// Rebuild palettes from a bg hex. Each visualization derives its own; slot 0
+// always tracks the live bg for entry/exit continuity (pride included).
 function applyPalette(bgHex) {
-  const palette = vizIsPride ? [bgHex, ...PRIDE_COLORS_VIZ.slice(1)] : buildVizPalette(bgHex);
-  const { data, count } = paletteToUniform(palette);
-  vizGL.setPalette(data, count);
-  vizPaletteCount = count;
+  activePal = paletteFor(activeViz, bgHex);
+  if (pendingViz) pendingPal = paletteFor(pendingViz, bgHex);
   lastAppliedBgHex = bgHex;
 }
 
+function frameContext(t, dt, pal) {
+  return {
+    t, dt,
+    aspect: window.innerWidth / window.innerHeight,
+    tiltX: tiltState.x, tiltY: tiltState.y,
+    blooms: bloomState.data,
+    paletteData: pal.data, paletteCount: pal.count,
+  };
+}
+
+function promotePending() {
+  activeViz = pendingViz;
+  activeState = pendingState;
+  activePal = pendingPal;
+  pendingViz = null;
+  pendingState = null;
+  pendingPal = null;
+}
+
 function drawVizFrame(now) {
-  if (!vizGL) return;
+  if (!vizGL || !activeViz) return;
   const t = vizTime(now);
   const dt = lastFrameNow === null ? 1 / 60 : (now - lastFrameNow) / 1000;
   lastFrameNow = now;
@@ -103,13 +170,17 @@ function drawVizFrame(now) {
     lastPaletteAt = now;
   }
   if (t < lastBloomAt) lastBloomAt = 0; // hourly clock wrap
-  // Generative self-play: an occasional bloom when nothing has bloomed lately
+  // Generative self-play: an occasional event when nothing has happened lately
   if (!vizReducedMotion && autoBloomDue(lastBloomAt, t, autoBloomInterval)) {
-    spawnBloom(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
+    spawnEvent(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
   }
-  const aspect = window.innerWidth / window.innerHeight;
-  const sites = computeSites(t, vizSeed, vizPaletteCount, aspect, tiltState.x, tiltState.y, sitesBuf);
-  vizGL.render({ time: t, seed: vizSeed, blooms: bloomState.data, sites });
+  vizGL.render(activeViz.id, activeViz.frame(activeState, frameContext(t, dt, activePal)), 1, false);
+  if (pendingViz) {
+    // Crossfade: incoming visualization alpha-blends over the outgoing one
+    const k = crossfadeAlpha(now - transitionStart);
+    vizGL.render(pendingViz.id, pendingViz.frame(pendingState, frameContext(t, dt, pendingPal)), k, true);
+    if (k >= 1) promotePending();
+  }
 }
 
 function vizTick(now) {
@@ -121,17 +192,87 @@ function stopFrame() {
   if (vizFrame) { cancelAnimationFrame(vizFrame); vizFrame = null; }
 }
 
+function ensureRegistered(viz) {
+  if (!registered.has(viz.id)) {
+    vizGL.registerProgram(viz.id, viz.frag, viz.uniformSpec, { feedback: !!viz.feedback });
+    registered.add(viz.id);
+  }
+}
+
+// Load a visualization's chunk and remember the entry for sync access
+function ensureLoaded(id) {
+  return getViz(id).then(entry => {
+    loadedEntries.set(entry.id, entry);
+    return entry;
+  });
+}
+
+// Warm every visualization chunk — fired on first picker reveal, so the
+// menu selects instantly.
+function warmAll() {
+  if (allWarmed) return;
+  allWarmed = true;
+  VIZ_IDS.forEach(id => ensureLoaded(id).catch(() => {}));
+}
+
+// User picked a visualization: persist it, load its chunk if needed, and
+// crossfade. If its shader won't compile on this GPU, revert to what runs.
+function selectVisualization(id) {
+  vizSelection = id;
+  writeVizPref(vizTapeKey, id);
+  picker?.setActive(id);
+  if (!isOpen || id === activeViz?.id) return;
+  ensureLoaded(id).then(entry => {
+    if (!isOpen || vizSelection !== id || entry.id === activeViz.id) return;
+    if (!beginTransition(entry)) revertSelection();
+  }).catch(revertSelection);
+}
+
+function revertSelection() {
+  vizSelection = activeViz?.id || getDefaultViz().id;
+  writeVizPref(vizTapeKey, vizSelection);
+  picker?.setActive(vizSelection);
+}
+
+// Crossfade to another visualization. Returns false if its shader doesn't
+// compile on this GPU — the current one keeps running.
+function beginTransition(entry) {
+  if (!vizGL || !isOpen || entry.id === activeViz.id) return false;
+  ensureRegistered(entry);
+  if (!vizGL.use(entry.id)) return false;
+  if (pendingViz) promotePending(); // a switch mid-fade lands the old fade first
+  pendingViz = entry;
+  pendingState = entry.initState(Math.random() * 100);
+  pendingPal = paletteFor(entry, vizBgHex);
+  resetBlooms(bloomState);
+  lastBloomAt = vizTime(performance.now());
+  transitionStart = performance.now();
+  if (vizReducedMotion) {
+    promotePending();
+    drawVizFrame(performance.now());
+  }
+  return true;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function initVisualizer(reducedMotion, isPride = false) {
+export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   vizReducedMotion = reducedMotion;
   vizIsPride = isPride;
+  vizOpts = opts;
+  vizTapeKey = opts.tapeId || '_';
+  vizSelection = resolveVizSelection(readVizPref(vizTapeKey), opts.defaultViz, VIZ_IDS, getDefaultViz().id);
 
   vizCanvas = document.createElement('canvas');
   vizCanvas.id = 'viz-canvas';
   sizeCanvas();
   vizGL = createVizGL(vizCanvas);
   if (!vizGL) return; // no WebGL: no overlay, no ⊙ button — feature absent
+
+  // The default visualization must compile, or the feature is absent —
+  // same contract as having no WebGL at all.
+  ensureRegistered(getDefaultViz());
+  if (!vizGL.use(getDefaultViz().id)) { vizGL = null; return; }
 
   vizGL.onLost(stopFrame);
   vizGL.onRestored(() => {
@@ -177,40 +318,82 @@ export function initVisualizer(reducedMotion, isPride = false) {
   meta.append(vizTitleEl, vizArtistEl);
   vizTextEl.append(ringSvg, meta);
 
+  // Horizontal swipe (touch) over the metadata block skips tracks — scoped
+  // to this element so the open field itself stays navigation-free.
+  let skipDown = null;
+  vizTextEl.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    skipDown = { x: e.clientX, y: e.clientY, at: performance.now() };
+  });
+  vizTextEl.addEventListener('pointerup', e => {
+    if (!skipDown || e.pointerType !== 'touch') { skipDown = null; return; }
+    const dir = skipGesture(skipDown.x, skipDown.y, e.clientX, e.clientY, performance.now() - skipDown.at);
+    skipDown = null;
+    if (dir && isOpen) vizOpts.onTrackSkip?.(dir === 'next' ? 1 : -1);
+  });
+
   const vizExitBtn = document.createElement('button');
   vizExitBtn.id = 'viz-exit';
   vizExitBtn.setAttribute('aria-label', 'Exit visualizer');
   vizExitBtn.textContent = '×';
   vizExitBtn.addEventListener('click', closeVisualizer);
 
-  // Swipe down (touch) closes; a quick tap blooms — the fidget interaction
+  picker = createVizPicker({
+    entries: VIZ_IDS.map(id => ({ id, name: VIZ_NAMES[id] })),
+    activeId: vizSelection,
+    onSelect: selectVisualization,
+    onReveal: warmAll,
+    groupLabel: L.vz,
+  });
+
+  // Hover-capable pointers: reveal the picker while the mouse is in the
+  // bottom quarter of the screen, hide it shortly after leaving
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    let pickerHideTimer = null;
+    vizOverlay.addEventListener('pointermove', e => {
+      if (!isOpen) return;
+      if (pickerRevealZone(e.clientY, window.innerHeight)) {
+        warmAll();
+        if (pickerHideTimer) { clearTimeout(pickerHideTimer); pickerHideTimer = null; }
+        picker.root.classList.add('picker-reveal');
+      } else if (picker.root.classList.contains('picker-reveal') && !pickerHideTimer) {
+        pickerHideTimer = setTimeout(() => {
+          pickerHideTimer = null;
+          picker.root.classList.remove('picker-reveal');
+        }, 400);
+      }
+    });
+  }
+
+  // A quick tap blooms — the fidget interaction. Swipes are deliberately
+  // inert: no fullscreen navigation gestures over the field.
   let ptrDown = null;
+  const inControl = e => e.target.closest('#viz-exit') || e.target.closest('#viz-text') || e.target.closest('#viz-picker');
   vizOverlay.addEventListener('pointerdown', e => {
-    if (e.target.closest('#viz-exit')) return;
+    if (inControl(e)) return;
+    if (picker.isShown()) picker.setOpen(false); // outside tap closes the menu
     ptrDown = { x: e.clientX, y: e.clientY, at: performance.now() };
   });
   vizOverlay.addEventListener('pointerup', e => {
-    if (!ptrDown || e.target.closest('#viz-exit')) { ptrDown = null; return; }
+    if (!ptrDown || inControl(e)) { ptrDown = null; return; }
     const gesture = tapGesture(ptrDown.x, ptrDown.y, e.clientX, e.clientY, performance.now() - ptrDown.at);
     ptrDown = null;
     if (!isOpen) return;
-    if (gesture === 'close' && e.pointerType === 'touch') {
-      closeVisualizer();
-    } else if (gesture === 'bloom') {
+    if (gesture === 'bloom') {
       const now = performance.now();
       const x = e.clientX / window.innerWidth;
       const y = 1 - e.clientY / window.innerHeight; // GL origin is bottom-left
       if (vizReducedMotion) {
-        // Static mode: place the bloom mid-life so the single frame shows it
-        addBloom(bloomState, x, y, Math.max(0, vizTime(now) - 2), Math.floor(Math.random() * vizPaletteCount));
+        // Static mode: place the event mid-life so the single frame shows it
+        spawnEvent(x, y, Math.max(0, vizTime(now) - 2));
         drawVizFrame(now);
       } else {
-        spawnBloom(x, y, vizTime(now));
+        spawnEvent(x, y, vizTime(now));
       }
     }
   });
 
-  vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn);
+  vizOverlay.append(vizCanvas, vizTextEl, vizExitBtn, picker.root);
   document.body.appendChild(vizOverlay);
 
   document.addEventListener('keydown', e => {
@@ -265,8 +448,24 @@ export function openVisualizer({ bgColor, title, artist }) {
   // While open, the theme-color meta needs no extra writes: the bg drift in
   // main.js keeps writing it, and that drift color is always palette slot 0.
   vizBgHex = bgColor || '#c1440e';
-  applyPalette(vizBgHex);
   vizSeed = Math.random() * 100;
+  // Open with the selected visualization if its chunk is warm and compiles;
+  // otherwise open with mesh and crossfade over when the selection arrives.
+  let entry = loadedEntries.get(vizSelection) || getDefaultViz();
+  ensureRegistered(entry);
+  if (entry !== getDefaultViz() && !vizGL.use(entry.id)) entry = getDefaultViz();
+  activeViz = entry;
+  activeState = activeViz.initState(vizSeed);
+  pendingViz = null;
+  pendingState = null;
+  pendingPal = null;
+  applyPalette(vizBgHex);
+  if (activeViz.id !== vizSelection) {
+    const wanted = vizSelection;
+    ensureLoaded(wanted).then(e => {
+      if (isOpen && vizSelection === wanted) beginTransition(e);
+    }).catch(() => {});
+  }
   resetBlooms(bloomState);
   lastBloomAt = 0;
   autoBloomInterval = 10 + Math.random() * 5;
@@ -383,13 +582,21 @@ export function updateVisualizerTrack(title, artist) {
   }, 300);
   // A new track is the one real musical event we can see — mark it
   if (isOpen && !vizReducedMotion) {
-    spawnBloom(0.3 + Math.random() * 0.4, 0.35 + Math.random() * 0.3, vizTime(performance.now()));
+    spawnEvent(0.3 + Math.random() * 0.4, 0.35 + Math.random() * 0.3, vizTime(performance.now()), true);
   }
 }
 
 // Live --bg drift color from main.js — palette slot 0 follows it (throttled)
 export function setVizBgColor(hex) {
   if (hex) vizBgHex = hex;
+}
+
+// Warm the saved selection's chunk once playback starts (intent is proven —
+// the ⊙ button just appeared), so opening the visualizer doesn't wait on it.
+export function preloadVizSelection() {
+  if (vizSelection !== getDefaultViz().id) {
+    ensureLoaded(vizSelection).catch(() => {});
+  }
 }
 
 // Device orientation → tilt spring input. The colors lean with the device

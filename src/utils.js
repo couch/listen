@@ -25,6 +25,7 @@ export function buildConfig(playlist) {
   if (playlist.id) extra += `\n  id: ${JSON.stringify(playlist.id)},`;
   if (playlist.created) extra += `\n  created: ${JSON.stringify(playlist.created)},`;
   if (playlist.lastEdited) extra += `\n  lastEdited: ${JSON.stringify(playlist.lastEdited)},`;
+  if (playlist.viz) extra += `\n  viz: ${JSON.stringify(playlist.viz)},`;
   if (playlist.location) extra += `\n  location: ${JSON.stringify(playlist.location)},`;
   const lines = playlist.tracks
     .map(t => `    { id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, artist: ${JSON.stringify(t.artist)} }`)

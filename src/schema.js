@@ -18,6 +18,8 @@ export function validatePlaylist(obj) {
   });
   if (obj.created !== undefined && typeof obj.created !== 'string') err('playlist.created must be a string');
   if (obj.lastEdited !== undefined && typeof obj.lastEdited !== 'string') err('playlist.lastEdited must be a string');
+  // Shape-only: unknown visualization ids fall back to the default at runtime
+  if (obj.viz !== undefined && typeof obj.viz !== 'string') err('playlist.viz must be a string');
   if (obj.location !== undefined) {
     const loc = obj.location;
     if (typeof loc !== 'object' || loc === null) err('playlist.location must be an object');

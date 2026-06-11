@@ -1,116 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
   PRIDE_COLORS_VIZ, VIZ_PALETTE_SLOTS, VIZ_BLOOM_SLOTS,
-  buildVizPalette, hexToLinearRgb, paletteToUniform,
+  hexToLinearRgb, paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
   computeCanvasSize, tapGesture, progressRatio,
-  computeSites, SITE_HIGHLIGHT, SITE_DARK,
-  FALLOFF_COLOR, FALLOFF_HIGHLIGHT, FALLOFF_DARK,
-  SITE_PERIODS, EPI_PERIODS, AMP_PRIMARY, AMP_EPI, TILT_GAIN,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  skipGesture, SKIP_MIN_DX, SKIP_MAX_DY, SKIP_MAX_MS,
+  crossfadeAlpha, VIZ_FADE_MS, resolveVizSelection, pickerRevealZone,
 } from './viz-logic.js';
-import { hexToHsl } from './utils.js';
 
 describe('PRIDE_COLORS_VIZ', () => {
   it('has 9 entries, all valid hex colors', () => {
     expect(PRIDE_COLORS_VIZ).toHaveLength(9);
     PRIDE_COLORS_VIZ.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
-  });
-});
-
-describe('buildVizPalette', () => {
-  it('returns 6 valid hex colors', () => {
-    const p = buildVizPalette('#c1440e');
-    expect(p).toHaveLength(6);
-    p.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
-  });
-  it('keeps the input hex verbatim in slot 0 (live-bg continuity)', () => {
-    expect(buildVizPalette('#1a4a8a')[0]).toBe('#1a4a8a');
-  });
-  it('spans a wide luminance range: a near-white and a deep dark', () => {
-    const ls = buildVizPalette('#c1440e').map(c => hexToHsl(c)[2]);
-    expect(Math.max(...ls)).toBeGreaterThanOrEqual(80);
-    expect(Math.min(...ls)).toBeLessThanOrEqual(20);
-  });
-  it('produces distinct colors for a saturated input', () => {
-    const p = buildVizPalette('#c1440e');
-    expect(new Set(p).size).toBeGreaterThan(4);
-  });
-  it('still yields valid colors for black and white inputs', () => {
-    for (const input of ['#000000', '#ffffff']) {
-      const p = buildVizPalette(input);
-      expect(p).toHaveLength(6);
-      p.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
-    }
-  });
-});
-
-describe('computeSites', () => {
-  const COUNT = 6, ASPECT = 0.5, SEED = 42.7;
-
-  it('fills vec3(x, y, falloff) per site and zero-pads unused slots', () => {
-    const s = computeSites(10, SEED, COUNT, ASPECT);
-    expect(s).toHaveLength(VIZ_PALETTE_SLOTS * 3);
-    for (let i = COUNT * 3; i < s.length; i++) expect(s[i]).toBe(0);
-  });
-  it('is deterministic for the same inputs', () => {
-    expect(computeSites(33, SEED, COUNT, ASPECT)).toEqual(computeSites(33, SEED, COUNT, ASPECT));
-  });
-  it('assigns role falloffs in a 6-color palette', () => {
-    const s = computeSites(0, SEED, COUNT, ASPECT);
-    expect(s[SITE_DARK * 3 + 2]).toBe(FALLOFF_DARK);
-    expect(s[SITE_HIGHLIGHT * 3 + 2]).toBe(FALLOFF_HIGHLIGHT);
-    expect(s[2]).toBe(FALLOFF_COLOR);
-  });
-  it('uses the uniform color falloff for a 9-color (pride) palette', () => {
-    const s = computeSites(0, SEED, 9, ASPECT);
-    for (let i = 0; i < 9; i++) expect(s[i * 3 + 2]).toBe(FALLOFF_COLOR);
-  });
-  it('keeps sites within the orbit envelope around the screen', () => {
-    const margin = AMP_PRIMARY + AMP_EPI + TILT_GAIN * 1.1 + 0.01;
-    for (const t of [0, 17, 1234]) {
-      const s = computeSites(t, SEED, COUNT, ASPECT, 1, -1);
-      for (let i = 0; i < COUNT; i++) {
-        expect(s[i * 3]).toBeGreaterThan(-margin);
-        expect(s[i * 3]).toBeLessThan(ASPECT + margin);
-        expect(s[i * 3 + 1]).toBeGreaterThan(-margin);
-        expect(s[i * 3 + 1]).toBeLessThan(1 + margin);
-      }
-    }
-  });
-  it('moves visibly but ambiently over 2 seconds', () => {
-    const a = computeSites(100, SEED, COUNT, ASPECT);
-    const b = computeSites(102, SEED, COUNT, ASPECT);
-    let total = 0;
-    for (let i = 0; i < COUNT; i++) {
-      const d = Math.hypot(b[i * 3] - a[i * 3], b[i * 3 + 1] - a[i * 3 + 1]);
-      expect(d).toBeLessThan(0.4); // ambient, not frantic
-      total += d;
-    }
-    expect(total).toBeGreaterThan(0.02); // but clearly in motion
-  });
-  it('is seamless across the hourly shader-clock wrap', () => {
-    expect(SITE_PERIODS.every(p => 3600 % p === 0)).toBe(true);
-    expect(EPI_PERIODS.every(p => 3600 % p === 0)).toBe(true);
-    const a = computeSites(3599.9, SEED, COUNT, ASPECT);
-    const b = computeSites(3599.9 - 3600, SEED, COUNT, ASPECT);
-    a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 4));
-  });
-  it('tilt shifts every site in the tilt direction with parallax depth', () => {
-    const flat = computeSites(50, SEED, COUNT, ASPECT);
-    const tilted = computeSites(50, SEED, COUNT, ASPECT, 1, 0);
-    const shifts = [];
-    for (let i = 0; i < COUNT; i++) {
-      const dx = tilted[i * 3] - flat[i * 3];
-      expect(dx).toBeGreaterThan(0);
-      expect(tilted[i * 3 + 1]).toBe(flat[i * 3 + 1]); // y untouched by x tilt
-      shifts.push(dx);
-    }
-    expect(new Set(shifts.map(s => s.toFixed(5))).size).toBeGreaterThan(1);
-  });
-  it('writes into a provided output buffer without allocating', () => {
-    const buf = new Float32Array(VIZ_PALETTE_SLOTS * 3);
-    expect(computeSites(5, SEED, COUNT, ASPECT, 0, 0, buf)).toBe(buf);
   });
 });
 
@@ -198,7 +100,7 @@ describe('hexToLinearRgb', () => {
 
 describe('paletteToUniform', () => {
   it('packs into 9 vec3 slots (27 floats)', () => {
-    const { data } = paletteToUniform(buildVizPalette('#c1440e'));
+    const { data } = paletteToUniform(['#c1440e', '#3a1505', '#2e7a6e', '#d4742e', '#e0c020', '#e8e2dc']);
     expect(data).toBeInstanceOf(Float32Array);
     expect(data).toHaveLength(VIZ_PALETTE_SLOTS * 3);
   });
@@ -270,11 +172,9 @@ describe('computeCanvasSize', () => {
 });
 
 describe('tapGesture', () => {
-  it('classifies a downward swipe >80px as close', () => {
-    expect(tapGesture(100, 100, 105, 200, 300)).toBe('close');
-  });
-  it('swipe-down wins even when fast', () => {
-    expect(tapGesture(100, 100, 100, 181, 100)).toBe('close');
+  it('ignores a large downward swipe (no fullscreen navigation gestures)', () => {
+    expect(tapGesture(100, 100, 105, 200, 300)).toBeNull();
+    expect(tapGesture(100, 100, 100, 181, 100)).toBeNull();
   });
   it('classifies a quick small-movement tap as bloom', () => {
     expect(tapGesture(100, 100, 104, 103, 120)).toBe('bloom');
@@ -290,5 +190,66 @@ describe('tapGesture', () => {
   });
   it('ignores an upward swipe', () => {
     expect(tapGesture(100, 200, 100, 80, 200)).toBeNull();
+  });
+});
+
+describe('skipGesture', () => {
+  it('classifies a swipe left as next (content follows the finger)', () => {
+    expect(skipGesture(200, 100, 100, 105, 300)).toBe('next');
+  });
+  it('classifies a swipe right as prev', () => {
+    expect(skipGesture(100, 100, 200, 95, 300)).toBe('prev');
+  });
+  it('ignores a swipe shorter than the minimum travel', () => {
+    expect(skipGesture(100, 100, 100 + SKIP_MIN_DX - 1, 100, 300)).toBeNull();
+    expect(skipGesture(100, 100, 100 + SKIP_MIN_DX, 100, 300)).toBe('prev');
+  });
+  it('ignores a diagonal swipe with too much vertical drift', () => {
+    expect(skipGesture(100, 100, 220, 100 + SKIP_MAX_DY + 1, 300)).toBeNull();
+    expect(skipGesture(100, 100, 220, 100 - SKIP_MAX_DY - 1, 300)).toBeNull();
+  });
+  it('ignores a slow drag', () => {
+    expect(skipGesture(200, 100, 100, 100, SKIP_MAX_MS + 1)).toBeNull();
+  });
+});
+
+describe('crossfadeAlpha', () => {
+  it('starts at 0 and ends at 1', () => {
+    expect(crossfadeAlpha(0)).toBe(0);
+    expect(crossfadeAlpha(VIZ_FADE_MS)).toBe(1);
+  });
+  it('clamps beyond the duration and below zero', () => {
+    expect(crossfadeAlpha(VIZ_FADE_MS * 3)).toBe(1);
+    expect(crossfadeAlpha(-50)).toBe(0);
+  });
+  it('eases: midpoint is 0.5 but quarter-point lags linear', () => {
+    expect(crossfadeAlpha(VIZ_FADE_MS / 2)).toBeCloseTo(0.5, 5);
+    expect(crossfadeAlpha(VIZ_FADE_MS / 4)).toBeLessThan(0.25);
+  });
+  it('treats a zero duration as instantly complete', () => {
+    expect(crossfadeAlpha(0, 0)).toBe(1);
+  });
+});
+
+describe('resolveVizSelection', () => {
+  const IDS = ['mesh', 'lava', 'rain', 'aurora'];
+  it('prefers the stored listener override', () => {
+    expect(resolveVizSelection('rain', 'lava', IDS)).toBe('rain');
+  });
+  it('falls back to the playlist default when the override is unknown', () => {
+    expect(resolveVizSelection('plasma', 'lava', IDS)).toBe('lava');
+    expect(resolveVizSelection(null, 'lava', IDS)).toBe('lava');
+  });
+  it('falls back to mesh when both are unknown or missing', () => {
+    expect(resolveVizSelection('plasma', 'wormhole', IDS)).toBe('mesh');
+    expect(resolveVizSelection(null, undefined, IDS)).toBe('mesh');
+  });
+});
+
+describe('pickerRevealZone', () => {
+  it('is true only in the bottom quarter of the screen', () => {
+    expect(pickerRevealZone(749, 1000)).toBe(false);
+    expect(pickerRevealZone(750, 1000)).toBe(true);
+    expect(pickerRevealZone(999, 1000)).toBe(true);
   });
 });
