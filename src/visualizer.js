@@ -11,6 +11,7 @@ import {
   computeCanvasSize, tapGesture, skipGesture, progressRatio,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
   crossfadeAlpha, resolveVizSelection, pickerRevealZone,
+  updateDue, reopenDue,
 } from './viz-logic.js';
 import { getDefaultViz, getViz } from './viz/registry.js';
 import { VIZ_IDS, VIZ_NAMES } from './viz/ids.js';
@@ -37,6 +38,13 @@ let isOpen = false;
 let vizStartTime = null;
 let entryFadeId = null;
 let entryFallbackId = null;
+// Auto-close when a lost WebGL context isn't restored in time
+const CTX_LOSS_CLOSE_MS = 3500;
+let ctxLossTimer = null;
+// Set when the GPU context dies while the overlay is open (an OS reclaim,
+// not a user choice) — eligibility for auto-reopen. Cleared when the
+// context recovers in place, on any open, and on explicit user exits.
+let sysClosedAt = null;
 
 // Playback state — updated from main ticker
 let vizCurrentTime = 0;
@@ -184,7 +192,19 @@ function drawVizFrame(now) {
 }
 
 function vizTick(now) {
-  drawVizFrame(now);
+  // Draw at 30fps regardless of display rAF rate — the fields move slowly,
+  // and halving (or quartering, on 120Hz) the GPU work keeps phones cool.
+  if (updateDue(lastFrameNow, now)) {
+    try {
+      drawVizFrame(now);
+    } catch (err) {
+      // A throwing frame() would strand the overlay over a dead canvas —
+      // close so the player UI comes back (no auto-reopen: our bug, not the OS).
+      console.warn('visualizer frame failed, closing:', err);
+      closeVisualizer();
+      return;
+    }
+  }
   if (isOpen) vizFrame = requestAnimationFrame(vizTick);
 }
 
@@ -274,11 +294,30 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   ensureRegistered(getDefaultViz());
   if (!vizGL.use(getDefaultViz().id)) { vizGL = null; return; }
 
-  vizGL.onLost(stopFrame);
+  vizGL.onLost(() => {
+    stopFrame();
+    if (isOpen) {
+      // An OS reclaim, not a user choice — remember it so the overlay can
+      // reinstate itself once the context and playback recover. The pause
+      // that follows a GPU-process kill closes the overlay through the
+      // ordinary pause path, so eligibility is recorded here, at the loss.
+      sysClosedAt = performance.now();
+      // If the GPU never gives the context back, close so the player UI
+      // isn't stranded behind a blank overlay.
+      if (!ctxLossTimer) {
+        ctxLossTimer = setTimeout(() => { ctxLossTimer = null; closeVisualizer(); }, CTX_LOSS_CLOSE_MS);
+      }
+    }
+  });
   vizGL.onRestored(() => {
-    if (!isOpen) return;
-    if (vizReducedMotion) drawVizFrame(performance.now());
-    else if (!document.hidden && !vizFrame) vizFrame = requestAnimationFrame(vizTick);
+    if (ctxLossTimer) { clearTimeout(ctxLossTimer); ctxLossTimer = null; }
+    if (isOpen) {
+      sysClosedAt = null; // recovered in place, nothing to reinstate
+      if (vizReducedMotion) drawVizFrame(performance.now());
+      else if (!document.hidden && !vizFrame) vizFrame = requestAnimationFrame(vizTick);
+    } else {
+      maybeReopenVisualizer();
+    }
   });
 
   vizOverlay = document.createElement('div');
@@ -336,7 +375,7 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   vizExitBtn.id = 'viz-exit';
   vizExitBtn.setAttribute('aria-label', 'Exit visualizer');
   vizExitBtn.textContent = '×';
-  vizExitBtn.addEventListener('click', closeVisualizer);
+  vizExitBtn.addEventListener('click', userClose);
 
   picker = createVizPicker({
     entries: VIZ_IDS.map(id => ({ id, name: VIZ_NAMES[id] })),
@@ -397,7 +436,7 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   document.body.appendChild(vizOverlay);
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && isOpen) closeVisualizer();
+    if (e.key === 'Escape' && isOpen) userClose();
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -420,19 +459,41 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
     btnViz.setAttribute('aria-label', 'Open visualizer');
     btnViz.setAttribute('hidden', '');
     btnViz.textContent = '⊙';
-    btnViz.addEventListener('click', () => {
-      const bgHex = document.documentElement.style.getPropertyValue('--bg').trim() || '#c1440e';
-      const title = document.getElementById('np-title')?.querySelector('span')?.textContent || '';
-      const artist = document.getElementById('np-artist')?.querySelector('span')?.textContent || '';
-      openVisualizer({ bgColor: bgHex, title, artist });
-    });
+    btnViz.addEventListener('click', openFromPlayer);
     controls.insertBefore(btnViz, timeEl);
   }
+}
+
+// Open with the player's current state (⊙ button and auto-reopen)
+function openFromPlayer() {
+  const bgHex = document.documentElement.style.getPropertyValue('--bg').trim() || '#c1440e';
+  const title = document.getElementById('np-title')?.querySelector('span')?.textContent || '';
+  const artist = document.getElementById('np-artist')?.querySelector('span')?.textContent || '';
+  openVisualizer({ bgColor: bgHex, title, artist });
+}
+
+// Explicit exit (×, Escape): never auto-reopen afterwards.
+function userClose() {
+  sysClosedAt = null;
+  closeVisualizer();
+}
+
+// Reinstate the overlay after a system-caused close (the OS reclaimed the
+// GPU context mid-playback) — called on context restore and when playback
+// (re)starts. A user's explicit exit never sets eligibility, so it never
+// reopens uninvited.
+export function maybeReopenVisualizer() {
+  if (isOpen || !vizGL || vizGL.isLost()) return;
+  if (!reopenDue(sysClosedAt, performance.now())) return;
+  if (!vizOpts.isPlaying?.()) return;
+  openFromPlayer();
 }
 
 export function openVisualizer({ bgColor, title, artist }) {
   if (isOpen || !vizGL) return;
   isOpen = true;
+  sysClosedAt = null; // any open consumes reopen eligibility
+  vizOpts.onOpenChange?.(true);
 
   if (vizTitleEl) vizTitleEl.textContent = title || '';
   if (vizArtistEl) vizArtistEl.textContent = artist || '';
@@ -516,11 +577,13 @@ export function openVisualizer({ bgColor, title, artist }) {
 export function closeVisualizer() {
   if (!isOpen) return;
   isOpen = false;
+  vizOpts.onOpenChange?.(false);
 
   stopFrame();
   document.body.classList.remove('viz-active');
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
+  if (ctxLossTimer) { clearTimeout(ctxLossTimer); ctxLossTimer = null; }
 
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');

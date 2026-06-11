@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles } from './utils.js';
+import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -286,6 +286,29 @@ describe('pickDriftTarget', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     expect(pickDriftTarget(PALETTE[0])).toBe(PALETTE[1]);
     vi.restoreAllMocks();
+  });
+});
+
+describe('isTransientPause', () => {
+  it('is false when no transition is in flight', () => {
+    expect(isTransientPause(null, 1000)).toBe(false);
+  });
+  it('is true immediately after a load', () => {
+    expect(isTransientPause(1000, 1001)).toBe(true);
+  });
+  it('is true just under the max age', () => {
+    expect(isTransientPause(0, TRANSIENT_PAUSE_MAX_MS - 1)).toBe(true);
+  });
+  it('is false at and beyond the max age', () => {
+    expect(isTransientPause(0, TRANSIENT_PAUSE_MAX_MS)).toBe(false);
+    expect(isTransientPause(0, 60000)).toBe(false);
+  });
+  it('honors a custom maxAgeMs', () => {
+    expect(isTransientPause(0, 150, 100)).toBe(false);
+    expect(isTransientPause(0, 50, 100)).toBe(true);
+  });
+  it('treats a load at t=0 as in flight', () => {
+    expect(isTransientPause(0, 1)).toBe(true);
   });
 });
 
