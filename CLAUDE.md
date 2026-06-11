@@ -118,6 +118,17 @@ Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro
 - **Interaction**: tap/auto/track = splat via the shared bloom buffer only (no per-viz hooks).
 - **Tuning knobs**: `RAIN_LAYER_SCALES`/`RAIN_SPEEDS` (density/speed), `RAIN_REFRACT` (lens strength), `RAIN_TRAIL`, `RAIN_GRAV_GAIN`/`RAIN_RATE_GAIN`, bokeh count/periods, dry-column threshold 0.22 and drop-size range in the shader.
 
+#### 4. Aurora (`src/viz/aurora.js`)
+
+Light curtains rippling over a dusk sky; the horizon glow is the live bg. Grand, ambient.
+
+- **Rendering**: dusk gradient `mix(slot0, slot1, smoothstep(0.12, 0.75, y))` — slot 0 dominates the lower ~40% (invariant 1). Stars: 1/90 hash grid, threshold 0.985, **round soft points at jittered cell positions** (`exp(−d²·6)` in cell units — flat cell fills look like square confetti), twinkle on a 4 s hash era, upper-sky fade-in. Three additive curtain layers: centerline `h = 0.42 + i·0.12 + 0.22·(fbm(xs·1.6) − 0.5) + u_lift`, where `xs = x·1.5 + phase_i + wind·depth_i`; asymmetric band `exp(−dy²·200)` below / `exp(−dy²·25)` above (crisp base, long upward glow); fold/gap mask `0.1 + 0.9·vnoise(xs·1.1)²` (squared for contrast — without it the layers fuse into a fog wall); fine ray striations `0.5 + 0.5·vnoise(xs·26, y·2)`; layer gains 0.5/0.375/0.25. Blooms = **shimmer pulses**: gaussian patch (σx 0.12, σy 0.18) whose center rises at `SHIMMER_RISE` 0.25/s, ×(1+2·pulse) on curtain intensity, life `SHIMMER_LIFE` 6 s. House breathing/vignette/dither.
+- **Palette**: `[bg horizon, hsl(h−30, ≤60, 9) dusk, hsl(h+90, 75, 55) curtain base, hsl(h+140, 65, 45) mid, hsl(h+60, 55, 70) fringe, hsl(h, 12, 92) stars]`; color climbs base→mid with height above the centerline + fringe ×0.5 higher. Pride (in-shader, `u_paletteCount > 8.5`): curtain hue cycles pride slots 1–8 along `xs·1.2 + t/45`, smooth-stepped between neighbors.
+- **Motion**: `auroraPhases` — per-layer flow `seed·k_i + t/FLOW_i`, `AURORA_FLOW` [120, 90, 144] (hourly seam accepted, mesh-precedent). Wind `computeAuroraWind` = `WIND_AMP` 0.3 · sin(TAU·t/`WIND_PERIOD` 60) + tilt.
+- **Tilt**: tiltX → wind sway (`AURORA_TILT_GAIN` 0.5, applied per layer ×depth 0.6/0.9/1.2); tiltY → `u_lift` = tiltY·`AURORA_LIFT_GAIN` 0.15 raises/lowers the curtains.
+- **Interaction**: tap/auto/track = shimmer pulse via the shared bloom buffer (no per-viz hooks).
+- **Tuning knobs**: `AURORA_FLOW` (ripple speed), band ks 200/25 (edge crispness/glow length), fold-mask floor 0.1 (gap depth), ray frequency 26, layer spacing 0.12, star grid/threshold, `WIND_*`/`AURORA_*` gains.
+
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[] }`
