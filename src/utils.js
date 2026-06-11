@@ -113,6 +113,16 @@ export function pickDriftTarget(avoidHex) {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
+// How long after load() a PAUSED player event may still be the transient
+// pause YouTube fires inside loadVideoById (mobile), not a real user pause.
+export const TRANSIENT_PAUSE_MAX_MS = 5000;
+
+// True when a PAUSED event arriving at `now` belongs to a track transition
+// started at `loadAt` (null = no transition in flight).
+export function isTransientPause(loadAt, now, maxAgeMs = TRANSIENT_PAUSE_MAX_MS) {
+  return loadAt !== null && now - loadAt < maxAgeMs;
+}
+
 // ── Save file list ──
 
 export function buildSaveFiles(currentId, playlists, idx) {

@@ -1,6 +1,6 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget } from './utils.js';
+import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
@@ -155,6 +155,12 @@ let currentIndex = -1;
 let playing = false;
 let ticker = null;
 let focusedIndex = -1;
+// Track transition in flight: performance.now() of the last load(). The
+// transient PAUSED that loadVideoById fires mid-transition (mobile) must not
+// count as a real pause; consumed by the first PAUSED, cleared on
+// PLAYING/CUED/error.
+let trackLoadAt = null;
+let lastLoadWasCue = false;
 
 // ── Playback persistence ──
 const POS_KEY = 'muxtape-pos';
@@ -230,9 +236,23 @@ window.onYouTubeIframeAPIReady = () => {
         }
       },
       onStateChange: onState,
+      onError: onPlayerError,
     }
   });
 };
+
+// YT error codes: 2 invalid id, 5 HTML5 player error, 100 removed/private,
+// 101/150 embed-restricted — all fatal for this video, so skip it.
+function onPlayerError(e) {
+  console.warn('YouTube player error', e?.data);
+  clearBufferingWatchdog();
+  hideBufferingBanner();
+  trackLoadAt = null; // next() → load() arms a fresh transition marker
+  // A dead cued track (saved-position restore) must not autoplay-skip on
+  // page load — the user's first play press recovers from there.
+  if (lastLoadWasCue) return;
+  next();
+}
 
 function showBufferingBanner(withRetry = false) {
   if (isEmbed || document.body.classList.contains('is-offline')) return;
@@ -276,6 +296,7 @@ function hideBufferingBanner() {
 
 function onState(e) {
   if (e.data === YT.PlayerState.PLAYING) {
+    trackLoadAt = null;
     clearBufferingWatchdog();
     hideBufferingBanner();
     if (document.body.classList.contains('is-offline')) goOnline();
@@ -292,6 +313,10 @@ function onState(e) {
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
   } else if (e.data === YT.PlayerState.PAUSED) {
+    // First PAUSED inside a track transition is loadVideoById's transient
+    // pause, not the user's — consume the marker so the next pause is real.
+    const transientPause = isTransientPause(trackLoadAt, performance.now());
+    trackLoadAt = null;
     clearBufferingWatchdog();
     hideBufferingBanner();
     playing = false;
@@ -303,7 +328,7 @@ function onState(e) {
     stopAmbient();
     if (isPride) stopPrideCanvas();
     document.getElementById('btn-viz')?.setAttribute('hidden', '');
-    if (isVisualizerOpen()) closeVisualizer();
+    if (!transientPause && isVisualizerOpen()) closeVisualizer();
     releaseWakeLock();
     trackEls[currentIndex]?.classList.remove('playing');
     trackEls[currentIndex]?.classList.add('paused');
@@ -323,6 +348,7 @@ function onState(e) {
     clearBufferingWatchdog();
     next();
   } else if (e.data === YT.PlayerState.CUED) {
+    trackLoadAt = null; // load() arms the marker on the cue path too
     clearBufferingWatchdog();
     playing = false;
     updateBtn();
@@ -380,6 +406,8 @@ function load(i, startSeconds, silent = false) {
   scrub.setAttribute("aria-valuetext", "0:00");
   document.getElementById("time").textContent = "";
   currentIndex = i;
+  trackLoadAt = performance.now();
+  lastLoadWasCue = startSeconds !== undefined;
   updateMediaSession("paused");
   if (isPride) {
     prideColorIdx = (prideStartIdx + i) % PRIDE_COLORS.length;
@@ -744,7 +772,14 @@ if (!isEmbed) {
     setCachedBarH: h => { cachedBarH = h; },
   }));
   window.addEventListener('online', goOnline);
-  window.addEventListener('offline', () => { clearBufferingWatchdog(); hideBufferingBanner(); goOffline(); });
+  window.addEventListener('offline', () => {
+    clearBufferingWatchdog();
+    hideBufferingBanner();
+    // Offline pauses playback; that pause may race the track-transition
+    // marker, so close the visualizer explicitly rather than via PAUSED.
+    if (isVisualizerOpen()) closeVisualizer();
+    goOffline();
+  });
   setTimeout(() => { if (!navigator.onLine) goOffline(); }, 0);
 }
 

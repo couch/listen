@@ -37,6 +37,9 @@ let isOpen = false;
 let vizStartTime = null;
 let entryFadeId = null;
 let entryFallbackId = null;
+// Auto-close when a lost WebGL context isn't restored in time
+const CTX_LOSS_CLOSE_MS = 3500;
+let ctxLossTimer = null;
 
 // Playback state — updated from main ticker
 let vizCurrentTime = 0;
@@ -184,7 +187,15 @@ function drawVizFrame(now) {
 }
 
 function vizTick(now) {
-  drawVizFrame(now);
+  try {
+    drawVizFrame(now);
+  } catch (err) {
+    // A throwing frame() would strand the overlay over a dead canvas —
+    // close so the player UI comes back.
+    console.warn('visualizer frame failed, closing:', err);
+    closeVisualizer();
+    return;
+  }
   if (isOpen) vizFrame = requestAnimationFrame(vizTick);
 }
 
@@ -274,8 +285,16 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   ensureRegistered(getDefaultViz());
   if (!vizGL.use(getDefaultViz().id)) { vizGL = null; return; }
 
-  vizGL.onLost(stopFrame);
+  vizGL.onLost(() => {
+    stopFrame();
+    // If the GPU never gives the context back (mobile memory pressure),
+    // close so the player UI isn't stranded behind a blank overlay.
+    if (isOpen && !ctxLossTimer) {
+      ctxLossTimer = setTimeout(() => { ctxLossTimer = null; closeVisualizer(); }, CTX_LOSS_CLOSE_MS);
+    }
+  });
   vizGL.onRestored(() => {
+    if (ctxLossTimer) { clearTimeout(ctxLossTimer); ctxLossTimer = null; }
     if (!isOpen) return;
     if (vizReducedMotion) drawVizFrame(performance.now());
     else if (!document.hidden && !vizFrame) vizFrame = requestAnimationFrame(vizTick);
@@ -521,6 +540,7 @@ export function closeVisualizer() {
   document.body.classList.remove('viz-active');
   if (entryFadeId) { clearTimeout(entryFadeId); entryFadeId = null; }
   if (entryFallbackId) { clearTimeout(entryFallbackId); entryFallbackId = null; }
+  if (ctxLossTimer) { clearTimeout(ctxLossTimer); ctxLossTimer = null; }
 
   const tape = document.getElementById('tape');
   const bar = document.getElementById('bar');
