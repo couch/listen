@@ -5,9 +5,10 @@
 
 import { createVizGL } from './viz-gl.js';
 import {
-  PRIDE_COLORS_VIZ, buildVizPalette, paletteToUniform,
+  PRIDE_COLORS_VIZ, VIZ_PALETTE_SLOTS, buildVizPalette, paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
   computeCanvasSize, tapGesture, progressRatio,
+  computeSites, createTiltState, setTiltInput, stepTilt, normalizeTilt,
 } from './viz-logic.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -40,6 +41,17 @@ let vizPaletteCount = 1;
 const bloomState = createBloomState();
 let lastBloomAt = 0;
 let autoBloomInterval = 12;
+const sitesBuf = new Float32Array(VIZ_PALETTE_SLOTS * 3);
+
+// Live background color (the drifting --bg) — palette slot 0 tracks it so
+// the field is color-continuous with the page on entry and exit
+let vizBgHex = '#c1440e';
+let lastAppliedBgHex = null;
+let lastPaletteAt = 0;
+
+// Device tilt: spring-damped "thick gel" offset added to the site orbits
+let tiltState = createTiltState();
+let lastFrameNow = null;
 
 // ── Canvas sizing ─────────────────────────────────────────────────────────────
 
@@ -68,15 +80,36 @@ function spawnBloom(x, y, t) {
   autoBloomInterval = 10 + Math.random() * 5;
 }
 
+// Rebuild the palette from a bg hex and upload it. Pride keeps its fixed
+// spectrum but slot 0 still tracks the live bg for entry/exit continuity.
+function applyPalette(bgHex) {
+  const palette = vizIsPride ? [bgHex, ...PRIDE_COLORS_VIZ.slice(1)] : buildVizPalette(bgHex);
+  const { data, count } = paletteToUniform(palette);
+  vizGL.setPalette(data, count);
+  vizPaletteCount = count;
+  lastAppliedBgHex = bgHex;
+}
+
 function drawVizFrame(now) {
   if (!vizGL) return;
   const t = vizTime(now);
+  const dt = lastFrameNow === null ? 1 / 60 : (now - lastFrameNow) / 1000;
+  lastFrameNow = now;
+  stepTilt(tiltState, dt);
+  // Follow the drifting --bg; throttled — a 250ms step on a 45s drift ramp
+  // is invisible
+  if (vizBgHex !== lastAppliedBgHex && now - lastPaletteAt > 250) {
+    applyPalette(vizBgHex);
+    lastPaletteAt = now;
+  }
   if (t < lastBloomAt) lastBloomAt = 0; // hourly clock wrap
   // Generative self-play: an occasional bloom when nothing has bloomed lately
   if (!vizReducedMotion && autoBloomDue(lastBloomAt, t, autoBloomInterval)) {
     spawnBloom(0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.6, t);
   }
-  vizGL.render({ time: t, seed: vizSeed, blooms: bloomState.data });
+  const aspect = window.innerWidth / window.innerHeight;
+  const sites = computeSites(t, vizSeed, vizPaletteCount, aspect, tiltState.x, tiltState.y, sitesBuf);
+  vizGL.render({ time: t, seed: vizSeed, blooms: bloomState.data, sites });
 }
 
 function vizTick(now) {
@@ -229,14 +262,16 @@ export function openVisualizer({ bgColor, title, artist }) {
   // Refresh canvas size in case layout changed since init
   sizeCanvas();
 
-  const palette = vizIsPride ? PRIDE_COLORS_VIZ : buildVizPalette(bgColor || '#c1440e');
-  const { data, count } = paletteToUniform(palette);
-  vizGL.setPalette(data, count);
-  vizPaletteCount = count;
+  // While open, the theme-color meta needs no extra writes: the bg drift in
+  // main.js keeps writing it, and that drift color is always palette slot 0.
+  vizBgHex = bgColor || '#c1440e';
+  applyPalette(vizBgHex);
   vizSeed = Math.random() * 100;
   resetBlooms(bloomState);
   lastBloomAt = 0;
   autoBloomInterval = 10 + Math.random() * 5;
+  tiltState = createTiltState();
+  lastFrameNow = null;
 
   if (!vizReducedMotion) {
     vizStartTime = performance.now();
@@ -346,4 +381,21 @@ export function updateVisualizerTrack(title, artist) {
     if (vizArtistEl) vizArtistEl.textContent = artist || '';
     vizTextEl.style.opacity = '1';
   }, 300);
+  // A new track is the one real musical event we can see — mark it
+  if (isOpen && !vizReducedMotion) {
+    spawnBloom(0.3 + Math.random() * 0.4, 0.35 + Math.random() * 0.3, vizTime(performance.now()));
+  }
+}
+
+// Live --bg drift color from main.js — palette slot 0 follows it (throttled)
+export function setVizBgColor(hex) {
+  if (hex) vizBgHex = hex;
+}
+
+// Device orientation → tilt spring input. The colors lean with the device
+// like thick liquid; when it stabilizes the autonomous drift takes back over.
+export function setVizOrientation(beta, gamma) {
+  if (!isOpen || vizReducedMotion) return;
+  const [nx, ny] = normalizeTilt(beta, gamma, screen.orientation?.angle ?? 0);
+  setTiltInput(tiltState, nx, ny);
 }

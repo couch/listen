@@ -1,10 +1,12 @@
 // WebGL plumbing for the visualizer: one fullscreen triangle, one fragment
 // shader. GLSL ES 1.00 so the same source runs on webgl2 and webgl1.
 //
-// The shader is the whole effect: a domain-warped FBM color field mixed in
-// linear RGB (Turrell ganzfeld), additive expanding bloom rings (Eno Bloom),
-// and interleaved-gradient-noise dithering after the sRGB encode — linear
-// mixing + dithering is what eliminates banding.
+// The shader is the whole effect: a mesh gradient — moving color sites
+// (positions animated in JS, see computeSites) blended with normalized
+// Gaussian weights over a domain-warped field, mixed in linear RGB — plus
+// additive expanding bloom rings (Eno Bloom) and interleaved-gradient-noise
+// dithering after the sRGB encode. Gaussian blending + linear mixing +
+// dithering is what keeps the field free of hard edges and banding.
 
 import { VIZ_PALETTE_SLOTS, VIZ_BLOOM_SLOTS } from './viz-logic.js';
 
@@ -34,6 +36,7 @@ uniform float u_seed;
 uniform vec3 u_palette[PALETTE_SLOTS];
 uniform float u_paletteCount;
 uniform vec4 u_blooms[BLOOM_SLOTS];
+uniform vec3 u_sites[PALETTE_SLOTS]; // xy = position (aspect-space), z = falloff
 varying vec2 v_uv;
 
 float hash(vec2 p) {
@@ -82,18 +85,27 @@ vec3 toSrgb(vec3 c) {
 void main() {
   float aspect = u_resolution.x / u_resolution.y;
   vec2 uv = v_uv;
-  vec2 p = vec2(uv.x * aspect, uv.y) * 1.6;
+  vec2 p = vec2(uv.x * aspect, uv.y);
 
-  // Domain-warped FBM; the drift slides the field over minutes — Turrell-slow
-  float t = u_time * 0.008;
-  vec2 q = vec2(fbm(p + u_seed), fbm(p + u_seed + 5.2));
-  float n = fbm(p + 1.8 * q + vec2(t, -t * 0.7));
+  // Mild domain warp keeps the color regions organic, not circular blobs
+  float t = u_time * 0.05;
+  vec2 q = vec2(fbm(p * 1.4 + u_seed + t * 0.31), fbm(p * 1.4 + u_seed + 7.3 - t * 0.27));
+  vec2 wp = p + 0.35 * (q - 0.5);
 
-  // Map noise to the palette, mixing adjacent colors in linear RGB
-  float idx = clamp(n, 0.0, 1.0) * (u_paletteCount - 1.0);
-  float i0 = floor(idx);
-  float i1 = min(i0 + 1.0, u_paletteCount - 1.0);
-  vec3 col = mix(paletteAt(i0), paletteAt(i1), fract(idx));
+  // Mesh gradient: normalized Gaussian blend over moving color sites, mixed
+  // in linear RGB. Smooth everywhere — no level-set contours, no hard edges.
+  // A tiny ambient weight on the anchor color keeps the far field on the
+  // live page background instead of underflowing to black.
+  vec3 acc = u_palette[0] * 1e-4;
+  float wsum = 1e-4;
+  for (int i = 0; i < PALETTE_SLOTS; i++) {
+    if (float(i) >= u_paletteCount) break;
+    vec2 d = wp - u_sites[i].xy;
+    float w = exp(-min(dot(d, d) * u_sites[i].z, 16.0));
+    acc += u_palette[i] * w;
+    wsum += w;
+  }
+  vec3 col = acc / wsum;
 
   // Bloom rings: expanding, decaying, additive
   vec2 asp = vec2(aspect, 1.0);
@@ -109,17 +121,17 @@ void main() {
     col += paletteAt(min(b.w, u_paletteCount - 1.0)) * (band + fill) * exp(-age * 0.45);
   }
 
-  // Breathing luminance + soft vignette — horizonless, edges melt to dark
+  // Breathing luminance + faint vignette — the field stays bright to the edges
   float breathe = 1.0 + 0.05 * sin(u_time * TAU / 47.0) + 0.03 * sin(u_time * TAU / 31.0);
   vec2 cuv = (uv - 0.5) * asp;
-  float vig = mix(1.0, smoothstep(1.4, 0.3, length(cuv)), 0.3);
+  float vig = mix(1.0, smoothstep(1.4, 0.3, length(cuv)), 0.15);
   col *= breathe * vig;
 
   vec3 outCol = toSrgb(col);
 
-  // Interleaved gradient noise dither breaks up the last visible banding
+  // Interleaved gradient noise: kills banding and adds the subtle film grain
   float ign = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
-  outCol += (ign - 0.5) / 255.0;
+  outCol += (ign - 0.5) * 1.5 / 255.0;
 
   gl_FragColor = vec4(outCol, 1.0);
 }
@@ -182,6 +194,7 @@ export function createVizGL(canvas) {
       palette: gl.getUniformLocation(program, 'u_palette'),
       paletteCount: gl.getUniformLocation(program, 'u_paletteCount'),
       blooms: gl.getUniformLocation(program, 'u_blooms'),
+      sites: gl.getUniformLocation(program, 'u_sites'),
     };
 
     gl.uniform3fv(loc.palette, paletteData);
@@ -222,11 +235,12 @@ export function createVizGL(canvas) {
       gl.uniform3fv(loc.palette, data);
       gl.uniform1f(loc.paletteCount, count);
     },
-    render({ time, seed, blooms }) {
+    render({ time, seed, blooms, sites }) {
       if (lost) return;
       gl.uniform1f(loc.time, time);
       gl.uniform1f(loc.seed, seed);
       gl.uniform4fv(loc.blooms, blooms);
+      gl.uniform3fv(loc.sites, sites);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
     onLost(cb) { lostCb = cb; },
