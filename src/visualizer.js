@@ -8,7 +8,7 @@ import { createVizGL } from './viz-gl.js';
 import {
   paletteToUniform,
   createBloomState, addBloom, resetBlooms, autoBloomDue,
-  computeCanvasSize, tapGesture, progressRatio,
+  computeCanvasSize, tapGesture, skipGesture, progressRatio,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
   crossfadeAlpha,
 } from './viz-logic.js';
@@ -29,6 +29,7 @@ let btnViz = null;
 let vizFrame = null;
 let vizReducedMotion = false;
 let vizIsPride = false;
+let vizOpts = {};
 let isOpen = false;
 let vizStartTime = null;
 let entryFadeId = null;
@@ -172,9 +173,10 @@ function ensureRegistered(viz) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export function initVisualizer(reducedMotion, isPride = false) {
+export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
   vizReducedMotion = reducedMotion;
   vizIsPride = isPride;
+  vizOpts = opts;
 
   vizCanvas = document.createElement('canvas');
   vizCanvas.id = 'viz-canvas';
@@ -231,6 +233,20 @@ export function initVisualizer(reducedMotion, isPride = false) {
   meta.append(vizTitleEl, vizArtistEl);
   vizTextEl.append(ringSvg, meta);
 
+  // Horizontal swipe (touch) over the metadata block skips tracks — scoped
+  // to this element so the open field itself stays navigation-free.
+  let skipDown = null;
+  vizTextEl.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    skipDown = { x: e.clientX, y: e.clientY, at: performance.now() };
+  });
+  vizTextEl.addEventListener('pointerup', e => {
+    if (!skipDown || e.pointerType !== 'touch') { skipDown = null; return; }
+    const dir = skipGesture(skipDown.x, skipDown.y, e.clientX, e.clientY, performance.now() - skipDown.at);
+    skipDown = null;
+    if (dir && isOpen) vizOpts.onTrackSkip?.(dir === 'next' ? 1 : -1);
+  });
+
   const vizExitBtn = document.createElement('button');
   vizExitBtn.id = 'viz-exit';
   vizExitBtn.setAttribute('aria-label', 'Exit visualizer');
@@ -240,12 +256,13 @@ export function initVisualizer(reducedMotion, isPride = false) {
   // A quick tap blooms — the fidget interaction. Swipes are deliberately
   // inert: no fullscreen navigation gestures over the field.
   let ptrDown = null;
+  const inControl = e => e.target.closest('#viz-exit') || e.target.closest('#viz-text');
   vizOverlay.addEventListener('pointerdown', e => {
-    if (e.target.closest('#viz-exit')) return;
+    if (inControl(e)) return;
     ptrDown = { x: e.clientX, y: e.clientY, at: performance.now() };
   });
   vizOverlay.addEventListener('pointerup', e => {
-    if (!ptrDown || e.target.closest('#viz-exit')) { ptrDown = null; return; }
+    if (!ptrDown || inControl(e)) { ptrDown = null; return; }
     const gesture = tapGesture(ptrDown.x, ptrDown.y, e.clientX, e.clientY, performance.now() - ptrDown.at);
     ptrDown = null;
     if (!isOpen) return;

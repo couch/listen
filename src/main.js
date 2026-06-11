@@ -711,7 +711,14 @@ if (isPride && !isEmbed) {
     initPrideCanvas(reducedMotion);
   });
 }
-if (!isEmbed) initVisualizer(reducedMotion, isPride);
+if (!isEmbed) initVisualizer(reducedMotion, isPride, {
+  // Horizontal swipe over the visualizer's metadata block — same moves as
+  // the viz-open arrow keys
+  onTrackSkip(dir) {
+    if (dir > 0) next();
+    else if (currentIndex > 0) load(currentIndex - 1);
+  },
+});
 let geoRequested = false;
 let cachedBarH = 0;
 

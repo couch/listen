@@ -463,7 +463,12 @@ body.viz-active { overflow: hidden; }
   align-items: center;
   gap: 10px;
   color: rgba(255,255,255,0.65);
-  pointer-events: none;
+  /* Interactive: horizontal swipe here skips tracks. Padding+negative margin
+     enlarge the touch target without moving the visual position. */
+  pointer-events: auto;
+  touch-action: none;
+  padding: 16px;
+  margin: -16px;
 }
 
 #viz-progress {
