@@ -13,6 +13,7 @@ const LOADERS = {
   rain: () => import('./rain.js'),
   aurora: () => import('./aurora.js'),
   ink: () => import('./ink.js'),
+  incense: () => import('./incense.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);
