@@ -10,6 +10,7 @@ import { VIZ_IDS, DEFAULT_VIZ_ID } from './ids.js';
 // One loader per non-default visualization; Vite code-splits each import().
 const LOADERS = {
   lava: () => import('./lava.js'),
+  rain: () => import('./rain.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);

@@ -107,6 +107,17 @@ Metaball wax in live-bg liquid. Playful, physical.
 - **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
 - **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
 
+#### 3. Rain on glass (`src/viz/rain.js`)
+
+Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro showcase.
+
+- **Rendering**: re-sampleable `bgcol(p)` = slot 0 → slot 1 vertical dusk + `u_lights[6]` vec4(x, y, r, slot) Gaussian discs ×0.55. Three drop layers (`RAIN_LAYER_SCALES` [6, 9, 14]) in **gravity-rotated space**: per column, one falling drop cycles down (`fract(hash·13.7 − phase)`) with a sine wobble; in-drop refraction `off = d·RAIN_REFRACT(−1.6)·inside` re-samples `bgcol` inverted; specular dot upper-left; a `RAIN_TRAIL`(0.35)-long trail of shrinking static beads above the mover; static micro-droplets (scale 16) respawn on a 20 s hash era. **Each layer evaluates its two neighbor columns too — drops wobble wider than their cell and get sliced by the column boundary otherwise.** Guard degenerate `smoothstep(0,0,x)` when trail radii hit zero (NaN rectangles on some GPUs). Blooms = splats: expanding refractive ring + near-white rim sparkle, life `SPLAT_LIFE` 3 s. Wet areas brighten ×1.3; specular stays near-white via `mix(vec3(1), slot5, 0.4)` (pride slot 5 is dark). House breathing/vignette/dither.
+- **Palette**: `[bg, hsl(h, s·0.8, 12) night, hsl(h+30, 80, 55), hsl(h−50, 70, 50), hsl(h+70, 85, 60) bokeh trio, hsl(h+10, 15, 85) specular]`; light slots 2–4. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, light slots cycle 1–8.
+- **Motion**: `computeBokehLights` — Lissajous drift, periods `BOKEH_PERIODS` [90, 72, 120, 144, 60, 180] (x uses i, y uses i+2), radius breathing 45/36 s. **Fall phases integrate in JS** (`stepRainPhases`, dt clamped to 0.1 s) rather than deriving from `u_time`, so a changing tilt rate accelerates smoothly instead of teleporting drops; `RAIN_SPEEDS` [1/20, 1/12, 1/8] (×3600 all integer — wrap-safe).
+- **Tilt**: `gravityFromTilt(tiltX)` → unit `u_gravity`, ±`RAIN_GRAV_GAIN` 0.6 rad off vertical — the whole drop field rotates so streaks run along gravity; `rainRate(tiltY)` = 1 + 0.5·|tiltY| multiplies fall speed (lean forward, rain runs faster).
+- **Interaction**: tap/auto/track = splat via the shared bloom buffer only (no per-viz hooks).
+- **Tuning knobs**: `RAIN_LAYER_SCALES`/`RAIN_SPEEDS` (density/speed), `RAIN_REFRACT` (lens strength), `RAIN_TRAIL`, `RAIN_GRAV_GAIN`/`RAIN_RATE_GAIN`, bokeh count/periods, dry-column threshold 0.22 and drop-size range in the shader.
+
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[] }`
