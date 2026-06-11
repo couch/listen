@@ -15,6 +15,7 @@ const LOADERS = {
   ink: () => import('./ink.js'),
   incense: () => import('./incense.js'),
   scope: () => import('./scope.js'),
+  stars: () => import('./stars.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);
