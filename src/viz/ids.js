@@ -3,7 +3,7 @@
 // chunk into the bundle. Names are stylistic titles and stay untranslated,
 // like track titles; only the picker's group label is localized.
 
-export const VIZ_IDS = ['mesh', 'lava', 'rain', 'aurora', 'ink', 'incense', 'scope', 'stars', 'topo', 'caustics'];
+export const VIZ_IDS = ['mesh', 'lava', 'rain', 'aurora', 'ink', 'incense', 'scope', 'stars', 'topo', 'caustics', 'kaleido'];
 
 export const VIZ_NAMES = {
   mesh: 'Mesh',
@@ -16,6 +16,7 @@ export const VIZ_NAMES = {
   stars: 'Stars',
   topo: 'Topo',
   caustics: 'Caustics',
+  kaleido: 'Kaleido',
 };
 
 export const DEFAULT_VIZ_ID = 'mesh';

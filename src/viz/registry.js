@@ -18,6 +18,7 @@ const LOADERS = {
   stars: () => import('./stars.js'),
   topo: () => import('./topo.js'),
   caustics: () => import('./caustics.js'),
+  kaleido: () => import('./kaleido.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);

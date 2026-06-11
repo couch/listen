@@ -194,7 +194,7 @@ function stopFrame() {
 
 function ensureRegistered(viz) {
   if (!registered.has(viz.id)) {
-    vizGL.registerProgram(viz.id, viz.frag, viz.uniformSpec);
+    vizGL.registerProgram(viz.id, viz.frag, viz.uniformSpec, { feedback: !!viz.feedback });
     registered.add(viz.id);
   }
 }

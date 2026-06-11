@@ -63,7 +63,7 @@ describe('entry contract', () => {
         // u_resolution and u_fade are owned by viz-gl, never in the spec
         expect(entry.uniformSpec.u_resolution).toBeUndefined();
         expect(entry.uniformSpec.u_fade).toBeUndefined();
-        Object.values(entry.uniformSpec).forEach(t => expect(['1f', '2f', '2fv', '3fv', '4fv']).toContain(t));
+        Object.values(entry.uniformSpec).forEach(t => expect(['1f', '2f', '2fv', '3fv', '4fv', 'tex']).toContain(t));
       });
       it('buildPalette keeps slot 0 verbatim — normal and pride (invariant 1)', () => {
         expect(entry.buildPalette('#1a4a8a', false)[0]).toBe('#1a4a8a');
@@ -73,14 +73,17 @@ describe('entry contract', () => {
         expect(entry.buildPalette('#c1440e', false).length).toBeLessThanOrEqual(9);
         expect(entry.buildPalette('#c1440e', true).length).toBeLessThanOrEqual(9);
       });
-      it('frame() returns exactly the uniformSpec keys', () => {
+      it('frame() returns exactly the uniformSpec keys (minus viz-gl-owned textures)', () => {
         const state = entry.initState(42.7);
         const ctx = {
           t: 30, dt: 1 / 60, aspect: 1.5, tiltX: 0.2, tiltY: -0.1,
           blooms: new Float32Array(48), paletteData: new Float32Array(27), paletteCount: 6,
         };
         const uniforms = entry.frame(state, ctx);
-        expect(Object.keys(uniforms).sort()).toEqual(Object.keys(entry.uniformSpec).sort());
+        const expected = Object.entries(entry.uniformSpec)
+          .filter(([, type]) => type !== 'tex')
+          .map(([name]) => name);
+        expect(Object.keys(uniforms).sort()).toEqual(expected.sort());
       });
     });
   }
