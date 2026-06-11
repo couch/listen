@@ -5,7 +5,8 @@ import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
 let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
-import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation, preloadVizSelection } from './visualizer.js';
+import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, maybeReopenVisualizer, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation, preloadVizSelection } from './visualizer.js';
+import { updateDue } from './viz-logic.js';
 
 const isEmbed = window !== window.top;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -305,8 +306,12 @@ function onState(e) {
     startTicker();
     updateMediaSession();
     startColorDrift();
-    startAmbient();
-    if (isPride) startPrideCanvas();
+    maybeReopenVisualizer(); // reinstate after an OS-caused close, never a user exit
+    // The opaque viz canvas hides the page — don't animate layers behind it
+    if (!isVisualizerOpen()) {
+      startAmbient();
+      if (isPride) startPrideCanvas();
+    }
     document.getElementById('btn-viz')?.removeAttribute('hidden');
     preloadVizSelection();
     acquireWakeLock();
@@ -687,12 +692,17 @@ function announce(msg) {
 // Interpolates slowly between palette colors while playing.
 // smootherstep keeps the first few seconds nearly imperceptible.
 const DRIFT_MS = 45000;
+// Style writes at 10Hz, not per rAF — a 100ms step on a 45s smootherstep
+// ramp is invisible, and it avoids invalidating page styles every frame
+const DRIFT_WRITE_MS = 100;
 let driftFrame = null, driftFrom, driftTo, driftToHex, driftStart;
+let lastDriftWrite = null;
 let prideColorIdx = 0;
 
 
 function startColorDrift() {
   if (driftFrame || reducedMotion) return;
+  lastDriftWrite = null;
   const cur = document.documentElement.style.getPropertyValue("--bg").trim() || PALETTE[0];
   driftFrom = hexToRgb(cur);
   driftToHex = isPride
@@ -705,11 +715,14 @@ function startColorDrift() {
 
 function tickDrift(now) {
   const t = Math.min((now - driftStart) / DRIFT_MS, 1);
-  const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
-  const hex = rgbToHex(rgb);
-  document.documentElement.style.setProperty("--bg", hex);
-  themeColorMeta.setAttribute('content', hex);
-  setVizBgColor(hex); // visualizer palette slot 0 tracks the drift
+  if (updateDue(lastDriftWrite, now, DRIFT_WRITE_MS) || t >= 1) {
+    lastDriftWrite = now;
+    const rgb = driftFrom.map((v,i) => v + (driftTo[i] - v) * smootherstep(t));
+    const hex = rgbToHex(rgb);
+    document.documentElement.style.setProperty("--bg", hex);
+    themeColorMeta.setAttribute('content', hex);
+    setVizBgColor(hex); // visualizer palette slot 0 tracks the drift
+  }
   if (t < 1) {
     driftFrame = requestAnimationFrame(tickDrift);
   } else {
@@ -748,6 +761,18 @@ if (!isEmbed) initVisualizer(reducedMotion, isPride, {
   onTrackSkip(dir) {
     if (dir > 0) next();
     else if (currentIndex > 0) load(currentIndex - 1);
+  },
+  isPlaying: () => playing,
+  // The opaque viz canvas hides the page — pause the decorative layers
+  // behind it while the overlay is open, resume them on close
+  onOpenChange(open) {
+    if (open) {
+      stopAmbient();
+      if (isPride) stopPrideCanvas();
+    } else if (playing) {
+      startAmbient();
+      if (isPride) startPrideCanvas();
+    }
   },
 });
 let geoRequested = false;

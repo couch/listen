@@ -254,6 +254,7 @@ export function createVizGL(canvas) {
       }
       return true;
     },
+    isLost() { return lost; },
     onLost(cb) { lostCb = cb; },
     onRestored(cb) { restoredCb = cb; },
   };

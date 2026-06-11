@@ -151,6 +151,27 @@ export function skipGesture(downX, downY, upX, upY, durationMs) {
   return dx < 0 ? 'next' : 'prev';
 }
 
+// ── Render cadence ────────────────────────────────────────────────────────
+// The fields change visibly over seconds, so the overlay draws at 30fps —
+// half the GPU work of a 60Hz rAF, a quarter on 120Hz displays. The 4ms
+// slack keeps a 60Hz rAF cadence from alternating 2/3-tick gaps.
+export const VIZ_FRAME_MS = 1000 / 30;
+
+export function updateDue(lastNow, now, minIntervalMs = VIZ_FRAME_MS) {
+  return lastNow === null || now - lastNow >= minIntervalMs - 4;
+}
+
+// ── System-close auto-reopen ──────────────────────────────────────────────
+// When the OS reclaims the GPU context mid-playback the overlay closes
+// itself (visualizer.js) but stays eligible to reinstate once the context
+// and playback come back; eligibility expires after this window. Explicit
+// user exits never set eligibility.
+export const VIZ_REOPEN_MAX_MS = 10 * 60 * 1000;
+
+export function reopenDue(sysClosedAt, now, maxAgeMs = VIZ_REOPEN_MAX_MS) {
+  return sysClosedAt !== null && now - sysClosedAt < maxAgeMs;
+}
+
 // ── Visualization switching ───────────────────────────────────────────────
 
 export const VIZ_FADE_MS = 600;

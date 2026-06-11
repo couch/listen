@@ -7,6 +7,7 @@ import {
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
   skipGesture, SKIP_MIN_DX, SKIP_MAX_DY, SKIP_MAX_MS,
   crossfadeAlpha, VIZ_FADE_MS, resolveVizSelection, pickerRevealZone,
+  updateDue, VIZ_FRAME_MS, reopenDue, VIZ_REOPEN_MAX_MS,
 } from './viz-logic.js';
 
 describe('PRIDE_COLORS_VIZ', () => {
@@ -251,5 +252,54 @@ describe('pickerRevealZone', () => {
     expect(pickerRevealZone(749, 1000)).toBe(false);
     expect(pickerRevealZone(750, 1000)).toBe(true);
     expect(pickerRevealZone(999, 1000)).toBe(true);
+  });
+});
+
+describe('updateDue', () => {
+  it('targets 30fps by default', () => {
+    expect(VIZ_FRAME_MS).toBeCloseTo(1000 / 30);
+  });
+  it('is due on the first call', () => {
+    expect(updateDue(null, 0)).toBe(true);
+  });
+  it('is not due before the interval', () => {
+    expect(updateDue(0, 10)).toBe(false);
+  });
+  it('is due at the interval', () => {
+    expect(updateDue(0, VIZ_FRAME_MS)).toBe(true);
+  });
+  it('allows rAF-jitter slack just under the interval', () => {
+    expect(updateDue(0, VIZ_FRAME_MS - 3)).toBe(true);
+    expect(updateDue(0, VIZ_FRAME_MS - 10)).toBe(false);
+  });
+  it('draws every 2nd tick of a 60Hz rAF, every 4th of 120Hz', () => {
+    expect(updateDue(0, 16.67)).toBe(false);
+    expect(updateDue(0, 33.33)).toBe(true);
+    expect(updateDue(0, 8.33 * 3)).toBe(false);
+    expect(updateDue(0, 8.33 * 4)).toBe(true);
+  });
+  it('honors a custom interval', () => {
+    expect(updateDue(0, 95, 100)).toBe(false);
+    expect(updateDue(0, 96, 100)).toBe(true);
+  });
+});
+
+describe('reopenDue', () => {
+  it('is false when no system close is pending', () => {
+    expect(reopenDue(null, 1000)).toBe(false);
+  });
+  it('is true right after a system close', () => {
+    expect(reopenDue(1000, 1001)).toBe(true);
+  });
+  it('is true just inside the window', () => {
+    expect(reopenDue(0, VIZ_REOPEN_MAX_MS - 1)).toBe(true);
+  });
+  it('expires at and beyond the window', () => {
+    expect(reopenDue(0, VIZ_REOPEN_MAX_MS)).toBe(false);
+    expect(reopenDue(0, VIZ_REOPEN_MAX_MS * 2)).toBe(false);
+  });
+  it('honors a custom window', () => {
+    expect(reopenDue(0, 150, 100)).toBe(false);
+    expect(reopenDue(0, 50, 100)).toBe(true);
   });
 });
