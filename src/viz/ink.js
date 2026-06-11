@@ -60,13 +60,13 @@ void main() {
               * exp(-age / ${INK_DILUTE_TAU.toFixed(1)})
               * min(1.0, age * 3.0)
               * smoothstep(${INK_LIFE.toFixed(1)}, ${(INK_LIFE - 5).toFixed(1)}, age);
-    float dens = smoothstep(0.22, 0.7, fbm(q * 4.0 + b.w * 11.0 + u_seed)) * env;
+    float dens = smoothstep(0.18, 0.62, fbm(q * 4.0 + b.w * 11.0 + u_seed)) * env;
 
     // Absorption: ink multiplies the light away (order-independent)
     vec3 inkCol = pride
       ? paletteAt(max(b.w, 1.0))
-      : mix(u_palette[3], u_palette[1], min(dens * 1.5, 1.0));
-    col *= mix(vec3(1.0), inkCol * 1.25, min(dens * 1.4, 1.0));
+      : mix(u_palette[3], u_palette[1], min(dens * 1.6, 1.0));
+    col *= mix(vec3(1.0), inkCol * 1.1, min(dens * 1.8, 1.0));
   }
 
   // Breathing luminance + faint vignette (house style)
