@@ -1,7 +1,7 @@
-const CACHE = 'muxtape-bbfb2d24';
+const CACHE = 'muxtape-eb9d8c2f';
 
 // Resources to pre-cache on install (the HTML shell + bundled assets)
-const PRECACHE = ["/","/config.js","/assets/admin-BvE0ni-8.css","/assets/main-BqjVb0OP.css","/assets/admin-DdvEaI0U.js","/assets/main-Dko0ylCS.js","/assets/utils-BEnsSy_Q.js","/assets/pride-canvas-mqzX5Oty.js","/embed.html","/admin.html"];
+const PRECACHE = ["/","/config.js","/assets/admin-Ido4kWBZ.css","/assets/main-DrmmTTGp.css","/assets/admin-BTc7HxbA.js","/assets/main-T0i9sRV-.js","/assets/ids--mDhdjNR.js","/assets/pride-canvas-CqvQUd3K.js","/assets/lava-YrWnSUF7.js","/assets/rain-DXh7g2Rz.js","/assets/aurora-Q5RmgGVe.js","/assets/ink-CevgLhOc.js","/assets/incense-DVWknNtV.js","/assets/scope-B6lTryvo.js","/assets/stars-DyzwnDB8.js","/assets/topo-LckkRGks.js","/assets/caustics-Bi1K2aF-.js","/assets/kaleido-Cb5schin.js","/admin.html","/embed.html"];
 
 self.addEventListener('install', event => {
   event.waitUntil(
