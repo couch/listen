@@ -1,4 +1,4 @@
-import{C as u,P as d,a as p}from"./main-B2Dk9lik.js";import{h as f,i as s}from"./ids-v0r2gKiX.js";const l=[45,30,20],n=[.06,.04,.025],r=[2.5,4,7],h=.5,m=6,b=.12,c=6,x=Math.PI*2;function _(e,t,o=null){const i=o||new Float32Array(l.length);for(let a=0;a<l.length;a++)i[a]=x*e/l[a]+t*(2.3+a*1.7);return i}function v(e){return Math.max(-1,Math.min(e,1))*h}const g=p+`
+import{C as u,P as d,a as p}from"./main-DNg0-V21.js";import{h as f,i as s}from"./ids-B41xo6G2.js";const l=[45,30,20],n=[.06,.04,.025],r=[2.5,4,7],h=.5,m=6,b=.12,c=6,x=Math.PI*2;function _(e,t,o=null){const i=o||new Float32Array(l.length);for(let a=0;a<l.length;a++)i[a]=x*e/l[a]+t*(2.3+a*1.7);return i}function v(e){return Math.max(-1,Math.min(e,1))*h}const g=p+`
 uniform vec3 u_phase;  // ribbon sway phases
 uniform float u_draft; // tilt draft, applied ×y²
 

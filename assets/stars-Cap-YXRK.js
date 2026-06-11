@@ -1,4 +1,4 @@
-import{C as p,P as h,a as d}from"./main-B2Dk9lik.js";import{h as u,i as l}from"./ids-v0r2gKiX.js";const s=[8,12,18,26],i=[90,60,45,36],c=.3,f=.3,r=4;function v(t,e,a){const o=n=>Math.max(-1,Math.min(n,1));return[a*.5+o(t)*c,.5+o(e)*c]}const m=d+`
+import{C as p,P as h,a as d}from"./main-DNg0-V21.js";import{h as u,i as l}from"./ids-B41xo6G2.js";const s=[8,12,18,26],i=[90,60,45,36],c=.3,f=.3,r=4;function v(t,e,a){const o=n=>Math.max(-1,Math.min(n,1));return[a*.5+o(t)*c,.5+o(e)*c]}const m=d+`
 uniform vec2 u_vp; // vanishing point, aspect-space
 
 // One shell of stars: a grid in direction-space (q = offset/zoom) whose
