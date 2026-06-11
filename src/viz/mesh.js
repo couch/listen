@@ -138,8 +138,8 @@ void main() {
 `;
 
 export default {
-  id: 'mesh',
-  name: 'Mesh',
+  id: 'mesh', // the id is persisted (localStorage, playlist viz field) — only the display name is Bloom
+  name: 'Bloom',
   frag,
   uniformSpec: { ...COMMON_UNIFORM_SPEC, u_sites: '3fv' },
   // Pride keeps its fixed spectrum but slot 0 still tracks the live bg

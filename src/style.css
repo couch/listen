@@ -463,13 +463,17 @@ body.viz-active { overflow: hidden; }
   align-items: center;
   gap: 10px;
   color: rgba(255,255,255,0.65);
-  /* Interactive: horizontal swipe here skips tracks. Padding+negative margin
-     enlarge the touch target without moving the visual position. */
-  pointer-events: auto;
+  /* Padding+negative margin enlarge the swipe touch target without moving
+     the visual position. */
   touch-action: none;
   padding: 16px;
   margin: -16px;
 }
+
+/* Interactive (horizontal swipe skips tracks) only while the overlay is
+   open — an unconditional pointer-events:auto would keep this invisible
+   block hit-testable over the playback drawer's controls when closed */
+#viz-overlay.viz-open #viz-text { pointer-events: auto; }
 
 #viz-progress {
   width: 14px;
@@ -511,7 +515,10 @@ body.viz-active { overflow: hidden; }
   right: max(16px, env(safe-area-inset-right));
   bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
   display: flex;
-  flex-direction: column;
+  /* Toggle pinned to the corner, menu opening upward — the (invisible)
+     menu participates in layout, so a plain column would push the toggle
+     up to mid-screen */
+  flex-direction: column-reverse;
   align-items: flex-end;
   gap: 2px;
   z-index: 2;
