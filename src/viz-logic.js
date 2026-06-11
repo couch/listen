@@ -1,7 +1,7 @@
 // Pure logic for the WebGL visualizer — palette math, bloom ring buffer,
 // gesture classification, canvas sizing. No DOM, no GL; fully unit-testable.
 
-import { hexToHsl, hslToHex } from './utils.js';
+import { hexToHsl, hslToHex, smootherstep } from './utils.js';
 
 export const VIZ_PALETTE_SLOTS = 9;   // fixed uniform array size in the shader
 export const VIZ_BLOOM_SLOTS = 12;    // fixed bloom uniform array size
@@ -201,12 +201,48 @@ export function computeCanvasSize(cssW, cssH, dpr) {
   };
 }
 
-// Classify a pointer down→up pair: downward swipe closes the visualizer,
-// a quick small-movement tap spawns a bloom, anything else is ignored.
+// Classify a pointer down→up pair: a quick small-movement tap spawns a
+// bloom, anything else is ignored. No fullscreen navigation gestures —
+// swipes over the open field must never trigger a UI change.
 export function tapGesture(downX, downY, upX, upY, durationMs) {
-  if (upY - downY > 80) return 'close';
   const dx = upX - downX;
   const dy = upY - downY;
   if (Math.hypot(dx, dy) < 12 && durationMs < 500) return 'bloom';
   return null;
+}
+
+// Horizontal swipe scoped to the metadata block: left = next track,
+// right = previous (content follows the finger).
+export const SKIP_MIN_DX = 60;
+export const SKIP_MAX_DY = 40;
+export const SKIP_MAX_MS = 600;
+
+export function skipGesture(downX, downY, upX, upY, durationMs) {
+  const dx = upX - downX;
+  const dy = upY - downY;
+  if (durationMs > SKIP_MAX_MS || Math.abs(dy) > SKIP_MAX_DY || Math.abs(dx) < SKIP_MIN_DX) return null;
+  return dx < 0 ? 'next' : 'prev';
+}
+
+// ── Visualization switching ───────────────────────────────────────────────
+
+export const VIZ_FADE_MS = 600;
+
+// Eased 0→1 progress of a visualization crossfade.
+export function crossfadeAlpha(elapsedMs, durationMs = VIZ_FADE_MS) {
+  if (durationMs <= 0) return 1;
+  return smootherstep(Math.max(0, Math.min(elapsedMs / durationMs, 1)));
+}
+
+// Selection priority: listener override (localStorage) > author default
+// (TAPE.viz) > mesh. Unknown ids fall through at each level.
+export function resolveVizSelection(storedId, tapeViz, validIds, fallback = 'mesh') {
+  if (validIds.includes(storedId)) return storedId;
+  if (validIds.includes(tapeViz)) return tapeViz;
+  return fallback;
+}
+
+// Desktop picker reveal: pointer hovering in the bottom quarter of the screen.
+export function pickerRevealZone(clientY, innerHeight) {
+  return clientY >= innerHeight * 0.75;
 }

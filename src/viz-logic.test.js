@@ -8,6 +8,8 @@ import {
   FALLOFF_COLOR, FALLOFF_HIGHLIGHT, FALLOFF_DARK,
   SITE_PERIODS, EPI_PERIODS, AMP_PRIMARY, AMP_EPI, TILT_GAIN,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
+  skipGesture, SKIP_MIN_DX, SKIP_MAX_DY, SKIP_MAX_MS,
+  crossfadeAlpha, VIZ_FADE_MS, resolveVizSelection, pickerRevealZone,
 } from './viz-logic.js';
 import { hexToHsl } from './utils.js';
 
@@ -270,11 +272,9 @@ describe('computeCanvasSize', () => {
 });
 
 describe('tapGesture', () => {
-  it('classifies a downward swipe >80px as close', () => {
-    expect(tapGesture(100, 100, 105, 200, 300)).toBe('close');
-  });
-  it('swipe-down wins even when fast', () => {
-    expect(tapGesture(100, 100, 100, 181, 100)).toBe('close');
+  it('ignores a large downward swipe (no fullscreen navigation gestures)', () => {
+    expect(tapGesture(100, 100, 105, 200, 300)).toBeNull();
+    expect(tapGesture(100, 100, 100, 181, 100)).toBeNull();
   });
   it('classifies a quick small-movement tap as bloom', () => {
     expect(tapGesture(100, 100, 104, 103, 120)).toBe('bloom');
@@ -290,5 +290,66 @@ describe('tapGesture', () => {
   });
   it('ignores an upward swipe', () => {
     expect(tapGesture(100, 200, 100, 80, 200)).toBeNull();
+  });
+});
+
+describe('skipGesture', () => {
+  it('classifies a swipe left as next (content follows the finger)', () => {
+    expect(skipGesture(200, 100, 100, 105, 300)).toBe('next');
+  });
+  it('classifies a swipe right as prev', () => {
+    expect(skipGesture(100, 100, 200, 95, 300)).toBe('prev');
+  });
+  it('ignores a swipe shorter than the minimum travel', () => {
+    expect(skipGesture(100, 100, 100 + SKIP_MIN_DX - 1, 100, 300)).toBeNull();
+    expect(skipGesture(100, 100, 100 + SKIP_MIN_DX, 100, 300)).toBe('prev');
+  });
+  it('ignores a diagonal swipe with too much vertical drift', () => {
+    expect(skipGesture(100, 100, 220, 100 + SKIP_MAX_DY + 1, 300)).toBeNull();
+    expect(skipGesture(100, 100, 220, 100 - SKIP_MAX_DY - 1, 300)).toBeNull();
+  });
+  it('ignores a slow drag', () => {
+    expect(skipGesture(200, 100, 100, 100, SKIP_MAX_MS + 1)).toBeNull();
+  });
+});
+
+describe('crossfadeAlpha', () => {
+  it('starts at 0 and ends at 1', () => {
+    expect(crossfadeAlpha(0)).toBe(0);
+    expect(crossfadeAlpha(VIZ_FADE_MS)).toBe(1);
+  });
+  it('clamps beyond the duration and below zero', () => {
+    expect(crossfadeAlpha(VIZ_FADE_MS * 3)).toBe(1);
+    expect(crossfadeAlpha(-50)).toBe(0);
+  });
+  it('eases: midpoint is 0.5 but quarter-point lags linear', () => {
+    expect(crossfadeAlpha(VIZ_FADE_MS / 2)).toBeCloseTo(0.5, 5);
+    expect(crossfadeAlpha(VIZ_FADE_MS / 4)).toBeLessThan(0.25);
+  });
+  it('treats a zero duration as instantly complete', () => {
+    expect(crossfadeAlpha(0, 0)).toBe(1);
+  });
+});
+
+describe('resolveVizSelection', () => {
+  const IDS = ['mesh', 'lava', 'rain', 'aurora'];
+  it('prefers the stored listener override', () => {
+    expect(resolveVizSelection('rain', 'lava', IDS)).toBe('rain');
+  });
+  it('falls back to the playlist default when the override is unknown', () => {
+    expect(resolveVizSelection('plasma', 'lava', IDS)).toBe('lava');
+    expect(resolveVizSelection(null, 'lava', IDS)).toBe('lava');
+  });
+  it('falls back to mesh when both are unknown or missing', () => {
+    expect(resolveVizSelection('plasma', 'wormhole', IDS)).toBe('mesh');
+    expect(resolveVizSelection(null, undefined, IDS)).toBe('mesh');
+  });
+});
+
+describe('pickerRevealZone', () => {
+  it('is true only in the bottom quarter of the screen', () => {
+    expect(pickerRevealZone(749, 1000)).toBe(false);
+    expect(pickerRevealZone(750, 1000)).toBe(true);
+    expect(pickerRevealZone(999, 1000)).toBe(true);
   });
 });

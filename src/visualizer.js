@@ -183,7 +183,8 @@ export function initVisualizer(reducedMotion, isPride = false) {
   vizExitBtn.textContent = '×';
   vizExitBtn.addEventListener('click', closeVisualizer);
 
-  // Swipe down (touch) closes; a quick tap blooms — the fidget interaction
+  // A quick tap blooms — the fidget interaction. Swipes are deliberately
+  // inert: no fullscreen navigation gestures over the field.
   let ptrDown = null;
   vizOverlay.addEventListener('pointerdown', e => {
     if (e.target.closest('#viz-exit')) return;
@@ -194,9 +195,7 @@ export function initVisualizer(reducedMotion, isPride = false) {
     const gesture = tapGesture(ptrDown.x, ptrDown.y, e.clientX, e.clientY, performance.now() - ptrDown.at);
     ptrDown = null;
     if (!isOpen) return;
-    if (gesture === 'close' && e.pointerType === 'touch') {
-      closeVisualizer();
-    } else if (gesture === 'bloom') {
+    if (gesture === 'bloom') {
       const now = performance.now();
       const x = e.clientX / window.innerWidth;
       const y = 1 - e.clientY / window.innerHeight; // GL origin is bottom-left

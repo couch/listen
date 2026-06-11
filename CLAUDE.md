@@ -59,7 +59,7 @@ When changing anything visual (`viz-gl.js`, `viz-logic.js`, `visualizer.js`, `am
 
 ### Architecture (shared by all visualizations)
 
-- `src/visualizer.js` — DOM/lifecycle owner: overlay, ⊙ entry button, entry/exit crossfade (400 ms), gestures, rAF loop, track metadata corner, exports. Opens only during playback; closes on ×, Escape, swipe-down >80px, pause, or playlist end.
+- `src/visualizer.js` — DOM/lifecycle owner: overlay, ⊙ entry button, entry/exit crossfade (400 ms), gestures, rAF loop, track metadata corner, exports. Opens only during playback; closes on ×, Escape, pause, or playlist end. No fullscreen navigation gestures — swipes over the field are inert (taps bloom).
 - `src/viz-gl.js` — WebGL1/2 plumbing (one fullscreen triangle, one fragment shader) + context-loss/restore handling. No WebGL → no ⊙ button, feature absent.
 - `src/viz-logic.js` — all pure logic (palette math, site motion, tilt physics, gestures, sizing). No DOM, no GL; unit-tested in `viz-logic.test.js`. New behavior goes here first.
 - Wiring in `main.js`: `tickDrift` calls `setVizBgColor(hex)` each frame; `enableMotionListeners()` (behind the iOS π-button permission flow) feeds `deviceorientation` → `setVizOrientation(beta, gamma)`.
