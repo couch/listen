@@ -199,6 +199,12 @@
 
 .track-num { font-size: 0.8125rem; opacity: 0.4; width: 20px; text-align: right; flex-shrink: 0; }
 
+.track-src-badge {
+  font-size: 0.6875rem; opacity: 0.4;
+  flex-shrink: 0; max-width: 14ch;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .track-field {
   background: none; border: none;
   border-bottom: 1px solid transparent;

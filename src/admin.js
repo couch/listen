@@ -1,13 +1,14 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, resolveBg, extractId, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
+import { PALETTE, resolveBg, parseTrackInput, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
 import { spineColor, spineTextColor, shelfOrder, reorderPublished } from './library.js';
 import { T } from './admin-strings.js';
 import { checkAuth, getGHConfig, IS_LOCAL } from './admin-auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
 import { validatePlaylist, validateIndex } from './schema.js';
 import { VIZ_IDS, VIZ_NAMES, DEFAULT_VIZ_ID, resolveVizId } from './viz/ids.js';
+import { attributionFor } from './sources/ids.js';
 
 const YT_API_KEY_STORE = 'muxtape-yt-api-key';
 
@@ -47,7 +48,9 @@ let idx = { active: null, ids: [] };
 let playlists = {};
 let currentId = null;
 const state = {
-  title: "", color: "random", viz: DEFAULT_VIZ_ID, tracks: [], pendingId: null, location: null,
+  // pending: the parsed-but-not-yet-added input — { id } (YouTube) or
+  // { source: 'file', url }
+  title: "", color: "random", viz: DEFAULT_VIZ_ID, tracks: [], pending: null, location: null,
   addTrack(t)       { this.tracks.push(t); },
   removeTrack(i)    { return this.tracks.splice(i, 1)[0]; },
   insertTrack(i, t) { this.tracks.splice(i, 0, t); },
@@ -239,7 +242,7 @@ function loadPlaylist(id) {
   // always highlighted; a re-save then writes the fallback
   state.viz = resolveVizId(p.viz);
   state.tracks = p.tracks.map(t => ({ ...t }));
-  state.pendingId = null;
+  state.pending = null;
   state.location = p.location || null;
 
   document.getElementById("tape-name").value = state.title;
@@ -483,7 +486,17 @@ function renderTracks() {
       showUndo(deletedTrack, deletedAt);
     });
 
-    li.append(handle, num, titleInput, artistInput, del);
+    li.append(handle, num, titleInput, artistInput);
+    if (track.source === 'file') {
+      // Mixed tapes stay scannable: file tracks wear their host. The URL is
+      // not inline-editable (parity with YouTube ids — delete and re-add).
+      const badge = document.createElement("span");
+      badge.className = "track-src-badge";
+      badge.textContent = attributionFor(track).label;
+      badge.title = track.url;
+      li.append(badge);
+    }
+    li.append(del);
     trackList.appendChild(li);
   });
 }
@@ -511,20 +524,27 @@ const metaArtist = document.getElementById("meta-artist");
 const addBtn = document.getElementById("add-btn");
 
 async function doFetch() {
-  const id = extractId(ytInput.value);
-  if (!id) {
-    if (extractPlaylistId(ytInput.value)) { updateImportRow(); return; }
-    setFetchStatus(T.noId, true);
+  const input = parseTrackInput(ytInput.value);
+  if (!input) { setFetchStatus(T.noId, true); return; }
+  if (input.kind === 'ytPlaylist') { updateImportRow(); return; }
+  if (input.kind === 'file') {
+    // No metadata service for arbitrary audio URLs — straight to manual entry
+    state.pending = { source: 'file', url: input.url };
+    metaTitle.value = "";
+    metaArtist.value = "";
+    metaRow.hidden = false;
+    metaTitle.focus();
+    setFetchStatus(T.fileDetected);
     return;
   }
   fetchBtn.disabled = true;
   setFetchStatus(T.fetching);
   metaRow.hidden = true;
   try {
-    const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`);
+    const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${input.id}&format=json`);
     if (!res.ok) throw new Error(T.videoUnavail);
     const data = await res.json();
-    state.pendingId = id;
+    state.pending = { id: input.id };
     metaTitle.value = data.title;
     metaArtist.value = data.author_name;
     metaRow.hidden = false;
@@ -538,12 +558,12 @@ async function doFetch() {
 }
 
 addBtn.addEventListener("click", () => {
-  if (!state.pendingId || !metaTitle.value.trim()) return;
+  if (!state.pending || !metaTitle.value.trim()) return;
   if (state.tracks.length >= 12) { setFetchStatus(T.atLimitFull, true); return; }
-  state.addTrack({ id: state.pendingId, title: metaTitle.value.trim(), artist: metaArtist.value.trim() });
+  state.addTrack({ ...state.pending, title: metaTitle.value.trim(), artist: metaArtist.value.trim() });
   renderTracks();
   ytInput.value = ""; metaTitle.value = ""; metaArtist.value = "";
-  metaRow.hidden = true; state.pendingId = null;
+  metaRow.hidden = true; state.pending = null;
   setFetchStatus(""); ytInput.focus();
 });
 
