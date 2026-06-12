@@ -1,4 +1,4 @@
-import{C as u,P as p,a as m}from"./main-BpEOPMzc.js";import{q as _,t as l}from"./ids-CNKnrzPe.js";const f=Math.PI*2,g=48,v=18,b=.015,x=12,e=.13,S=.84,r=24,i=28,n=9,C=.016,A=.7,O=.6,w=.08,F=.04,h=4,c=o=>Math.max(-1,Math.min(1,o));function I(o){const t=o/g;return f*(t-Math.floor(t))}function T(o){const t=o/x;return t-Math.floor(t)}function D(o,t,a,s){const d=b*Math.sin(f*o/v)+c(a)*w;return[t*.5+d,S-c(s)*F]}const $=m+`
+import{C as u,P as p,a as m}from"./main-hIPNpFcd.js";import{q as _,t as l}from"./ids-CJuwb7jW.js";const f=Math.PI*2,g=48,v=18,b=.015,x=12,e=.13,S=.84,r=24,i=28,n=9,C=.016,A=.7,O=.6,w=.08,F=.04,h=4,c=o=>Math.max(-1,Math.min(1,o));function I(o){const t=o/g;return f*(t-Math.floor(t))}function T(o){const t=o/x;return t-Math.floor(t)}function D(o,t,a,s){const d=b*Math.sin(f*o/v)+c(a)*w;return[t*.5+d,S-c(s)*F]}const $=m+`
 uniform vec2 u_ball;   // aspect-space ball center
 uniform float u_rot;   // rotation phase [0, TAU)
 uniform float u_glint; // glint era phase [0, 1)
