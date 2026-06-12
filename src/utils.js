@@ -57,6 +57,22 @@ export function extractId(raw) {
   return null;
 }
 
+// What a pasted admin input means: a YouTube video, a YouTube playlist
+// import, or a direct audio-file URL. YouTube forms are consumed first, so
+// any other http(s) URL is unambiguously a file track (no extension
+// allowlist — Audius/Internet Archive stream URLs are extensionless).
+export function parseTrackInput(raw) {
+  const id = extractId(raw);
+  if (id) return { kind: 'youtube', id };
+  const listId = extractPlaylistId(raw);
+  if (listId) return { kind: 'ytPlaylist', listId };
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol === 'https:' || u.protocol === 'http:') return { kind: 'file', url: u.href };
+  } catch {}
+  return null;
+}
+
 export function buildConfig(playlist) {
   if (!playlist) return "";
   let extra = '';
@@ -66,7 +82,15 @@ export function buildConfig(playlist) {
   if (playlist.viz) extra += `\n  viz: ${JSON.stringify(playlist.viz)},`;
   if (playlist.location) extra += `\n  location: ${JSON.stringify(playlist.location)},`;
   const lines = playlist.tracks
-    .map(t => `    { id: ${JSON.stringify(t.id)}, title: ${JSON.stringify(t.title)}, artist: ${JSON.stringify(t.artist)} }`)
+    .map(t => {
+      // Field order id, source, url — absent fields omitted, so all-YouTube
+      // tapes produce byte-identical config.js output to pre-source builds
+      let fields = '';
+      if (t.id !== undefined) fields += `id: ${JSON.stringify(t.id)}, `;
+      if (t.source !== undefined) fields += `source: ${JSON.stringify(t.source)}, `;
+      if (t.url !== undefined) fields += `url: ${JSON.stringify(t.url)}, `;
+      return `    { ${fields}title: ${JSON.stringify(t.title)}, artist: ${JSON.stringify(t.artist)} }`;
+    })
     .join(",\n");
   return `const TAPE = {\n  title: ${JSON.stringify(playlist.title)},\n\n  // A hex color like "#c1440e", "random" to pick each load, or "pride" for rainbow\n  color: ${JSON.stringify(playlist.color)},${extra}\n\n  tracks: [\n${lines},\n  ]\n};\n`;
 }

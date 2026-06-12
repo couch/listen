@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, resolveBg, positionState, parsePositions, positionFor, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, extractId, parseTrackInput, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -101,6 +101,35 @@ describe('extractId', () => {
   it('extracts from a Music URL', () => expect(extractId('https://music.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ'));
 });
 
+describe('parseTrackInput', () => {
+  it('classifies YouTube ids and URLs first', () => {
+    expect(parseTrackInput('dQw4w9WgXcQ')).toEqual({ kind: 'youtube', id: 'dQw4w9WgXcQ' });
+    expect(parseTrackInput('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toEqual({ kind: 'youtube', id: 'dQw4w9WgXcQ' });
+    expect(parseTrackInput('https://youtu.be/dQw4w9WgXcQ')).toEqual({ kind: 'youtube', id: 'dQw4w9WgXcQ' });
+  });
+  it('classifies playlist URLs as imports', () => {
+    expect(parseTrackInput('https://www.youtube.com/playlist?list=PLabc123')).toEqual({ kind: 'ytPlaylist', listId: 'PLabc123' });
+  });
+  it('classifies any other http(s) URL as a file track', () => {
+    expect(parseTrackInput('https://example.com/song.mp3')).toEqual({ kind: 'file', url: 'https://example.com/song.mp3' });
+    // extensionless stream URLs (Audius, Internet Archive) count too
+    expect(parseTrackInput('https://discoveryprovider.audius.co/v1/tracks/abc/stream')).toEqual({ kind: 'file', url: 'https://discoveryprovider.audius.co/v1/tracks/abc/stream' });
+    expect(parseTrackInput('http://localhost:5173/tone.wav').kind).toBe('file');
+  });
+  it('trims whitespace around a file URL', () => {
+    expect(parseTrackInput('  https://example.com/a.mp3  ').url).toBe('https://example.com/a.mp3');
+  });
+  it('rejects non-http(s) schemes', () => {
+    expect(parseTrackInput('ftp://example.com/a.mp3')).toBeNull();
+    expect(parseTrackInput('javascript:alert(1)')).toBeNull();
+    expect(parseTrackInput('file:///tmp/a.mp3')).toBeNull();
+  });
+  it('returns null for plain text and empty input', () => {
+    expect(parseTrackInput('not a url')).toBeNull();
+    expect(parseTrackInput('')).toBeNull();
+  });
+});
+
 describe('fmt', () => {
   it('formats zero as 0:00', () => expect(fmt(0)).toBe('0:00'));
   it('pads single-digit seconds', () => expect(fmt(9)).toBe('0:09'));
@@ -194,6 +223,18 @@ describe('buildConfig', () => {
     const result = buildConfig(p);
     expect(result).toContain('\\"Quoted\\"');
     expect(result).toContain("Artist's");
+  });
+  it('emits all-YouTube tapes byte-identically to the pre-source format', () => {
+    // The exact track line older builds produced — deployed config.js files
+    // must not churn when nothing about the tape changed
+    expect(buildConfig(playlist)).toContain('    { id: "abc123defgh", title: "Song One", artist: "Artist A" }');
+    expect(buildConfig(playlist)).not.toContain('source');
+    expect(buildConfig(playlist)).not.toContain('url');
+  });
+  it('emits source and url for file tracks, omitting id', () => {
+    const p = { ...playlist, tracks: [{ source: 'file', url: 'https://example.com/a.mp3', title: 'T', artist: 'A' }] };
+    expect(buildConfig(p)).toContain('    { source: "file", url: "https://example.com/a.mp3", title: "T", artist: "A" }');
+    expect(buildConfig(p)).not.toContain('id:');
   });
 });
 
