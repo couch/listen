@@ -241,28 +241,46 @@ function getSavedPosition() {
 // not playing then). On mobile the OS pauses media on hide, so a quick return
 // resumes — see shouldResumeOnForeground.
 let bgHiddenAt = null;
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    // At hide time the OS pause hasn't fired yet, so `playing` still reflects
-    // intent — capturing it here is what tells a real user pause from an
-    // incidental background pause when we return.
-    bgHiddenAt = playing ? performance.now() : null;
-    savePosition();
-    wakeLock = null; // browser auto-releases it; clear our reference
-  } else {
-    const resume = isMobile &&
-      shouldResumeOnForeground(bgHiddenAt !== null, bgHiddenAt, performance.now());
-    bgHiddenAt = null;
-    // On success the source emits PLAYING and handleState re-acquires the wake
-    // lock / restarts drift; if iOS blocks the gesture-less resume it surfaces
-    // 'blocked' (paused UI, no skip) — worst case is "stayed paused".
-    if (resume && active && !playing) active.play();
-    else if (playing) acquireWakeLock();
+// After a foreground resume, a PAUSED arriving within this window is the OS's
+// delayed background pause racing past the visibility event (the YouTube iframe
+// is frozen while hidden and delivers its PAUSED only once we're visible
+// again) — resume through it rather than tearing the UI down.
+const RESUME_RACE_MS = 2000;
+let resumeRaceUntil = 0;
+
+// iOS may background Safari via the bfcache (pagehide/pageshow) and/or
+// visibilitychange, and the order isn't guaranteed — capture the playing
+// state on whichever fires first while we're still playing.
+function noteBackgrounded() {
+  if (bgHiddenAt === null && playing) bgHiddenAt = performance.now();
+  savePosition();
+  wakeLock = null; // browser auto-releases it; clear our reference
+}
+
+function onForeground() {
+  const within = isMobile &&
+    shouldResumeOnForeground(bgHiddenAt !== null, bgHiddenAt, performance.now());
+  bgHiddenAt = null;
+  if (within) {
+    // Arm the race guard either way: if the OS pause already landed we resume
+    // now; if it's still queued behind the visibility event, the PAUSED branch
+    // catches it. A blocked gesture-less resume surfaces 'blocked' (paused UI,
+    // no skip) — worst case is "stayed paused".
+    resumeRaceUntil = performance.now() + RESUME_RACE_MS;
+    if (active && !playing) active.play();
+  } else if (playing) {
+    acquireWakeLock();
   }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) noteBackgrounded();
+  else onForeground();
 });
+window.addEventListener('pageshow', onForeground);
 
 window.addEventListener('pagehide', () => {
-  savePosition();
+  noteBackgrounded();
   stopTicker();
   stopColorDrift();
   if (isPride) stopPrideCanvas();
@@ -371,6 +389,7 @@ function hideBufferingBanner() {
 function handleState(state) {
   if (state === STATE.PLAYING) {
     trackLoadAt = null;
+    resumeRaceUntil = 0; // resumed cleanly — disarm the race guard
     clearBufferingWatchdog();
     hideBufferingBanner();
     if (document.body.classList.contains('is-offline')) goOnline();
@@ -395,6 +414,14 @@ function handleState(state) {
       trackEls[currentIndex]?.classList.add('playing');
     }
   } else if (state === STATE.PAUSED) {
+    // A pause landing right after a foreground resume is the OS's delayed
+    // background pause racing past the visibility event — replay through it
+    // instead of tearing the UI down (see onForeground / RESUME_RACE_MS).
+    if (resumeRaceUntil && performance.now() < resumeRaceUntil && active && !document.hidden) {
+      resumeRaceUntil = 0;
+      active.play();
+      return;
+    }
     // First PAUSED inside a track transition is loadVideoById's transient
     // pause, not the user's — consume the marker so the next pause is real.
     const transientPause = isTransientPause(trackLoadAt, performance.now());
