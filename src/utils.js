@@ -23,6 +23,24 @@ export function positionState(dur, pos) {
   return { duration: dur, position: p, playbackRate: 1 };
 }
 
+// Session playback positions, one slot per tape: { [tapeId]: { index, time } }.
+// Earlier builds stored a single { id, index, time } object — fold it in so a
+// mid-session deploy doesn't lose the listening spot.
+export function parsePositions(raw) {
+  let v;
+  try { v = JSON.parse(raw || '{}'); } catch { return {}; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  if (typeof v.id === 'string') return { [v.id]: { index: v.index, time: v.time } };
+  return v;
+}
+
+// The saved slot for a tape, when it's usable against the current track list.
+export function positionFor(map, tapeId, trackCount) {
+  const s = tapeId ? map?.[tapeId] : null;
+  if (!s || !Number.isInteger(s.index) || s.index < 0 || s.index >= trackCount) return null;
+  return { index: s.index, time: Number.isFinite(s.time) ? s.time : 0 };
+}
+
 export function extractPlaylistId(raw) {
   const m = raw.trim().match(/[?&]list=([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;
