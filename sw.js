@@ -1,7 +1,7 @@
-const CACHE = 'muxtape-0ad25f57';
+const CACHE = 'muxtape-a11ab0b8';
 
 // Resources to pre-cache on install (the HTML shell + bundled assets)
-const PRECACHE = ["/","/config.js","/assets/admin-CYMK5Ljs.css","/assets/main-7lOxHyoJ.css","/assets/admin-D5F0YtiU.js","/assets/main-hIPNpFcd.js","/assets/ids-CJuwb7jW.js","/assets/pride-canvas-CKuUMDzd.js","/assets/rain-DSE-bdxj.js","/assets/aurora-CvbpY3S-.js","/assets/ink-BosEmzlr.js","/assets/incense-hqilVut-.js","/assets/scope-CHZqYk_F.js","/assets/stars-UVk_qtpP.js","/assets/topo-BabQo3mc.js","/assets/caustics-BLUtDUqY.js","/assets/kaleido-B9F9DXaV.js","/assets/disco-v62hs7Q4.js","/embed.html","/admin.html"];
+const PRECACHE = ["/","/config.js","/assets/admin-BOng-muC.css","/assets/main-7lOxHyoJ.css","/assets/admin-C7GeHkes.js","/assets/main-BjUTBfvI.js","/assets/ids-Bf9IBoiG.js","/assets/pride-canvas-C3sgW9gv.js","/assets/rain-CIrjRL2j.js","/assets/aurora-SAHP__iG.js","/assets/ink-BDKfwBfs.js","/assets/incense-YeCWnuYi.js","/assets/scope-CLsYFuRl.js","/assets/stars-Ctv8pnCb.js","/assets/topo-BO8cwHHx.js","/assets/caustics-CYqboYMO.js","/assets/kaleido-eTm1BPjZ.js","/assets/disco-gLM6FIGr.js","/admin.html","/embed.html"];
 
 self.addEventListener('install', event => {
   event.waitUntil(

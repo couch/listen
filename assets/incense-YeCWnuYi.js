@@ -1,4 +1,4 @@
-import{C as u,P as d,a as p}from"./main-hIPNpFcd.js";import{q as f,t as s}from"./ids-CJuwb7jW.js";const l=[45,30,20],n=[.06,.04,.025],r=[2.5,4,7],h=.5,m=6,b=.12,c=6,x=Math.PI*2;function _(e,t,o=null){const i=o||new Float32Array(l.length);for(let a=0;a<l.length;a++)i[a]=x*e/l[a]+t*(2.3+a*1.7);return i}function v(e){return Math.max(-1,Math.min(e,1))*h}const g=p+`
+import{C as c,P as d,a as p}from"./main-BjUTBfvI.js";import{u as f,w as s}from"./ids-Bf9IBoiG.js";const l=[45,30,20],n=[.06,.04,.025],r=[2.5,4,7],h=.5,m=6,b=.12,u=6,x=Math.PI*2;function _(e,t,o=null){const i=o||new Float32Array(l.length);for(let a=0;a<l.length;a++)i[a]=x*e/l[a]+t*(2.3+a*1.7);return i}function v(e){return Math.max(-1,Math.min(e,1))*h}const g=p+`
 uniform vec3 u_phase;  // ribbon sway phases
 uniform float u_draft; // tilt draft, applied ×y²
 
@@ -58,7 +58,7 @@ void main() {
   for (int i = 0; i < BLOOM_SLOTS; i++) {
     vec4 b = u_blooms[i];
     float age = u_time - b.z;
-    if (b.z < 0.0 || age < 0.0 || age > ${c.toFixed(1)}) continue;
+    if (b.z < 0.0 || age < 0.0 || age > ${u.toFixed(1)}) continue;
     vec2 rc = vec2(b.x * aspect, b.y + age * ${b.toFixed(2)});
     vec2 rd = (p - rc) * vec2(1.0, 1.6); // flattened ring, seen at an angle
     float dist = length(rd);
@@ -76,4 +76,4 @@ void main() {
 
   gl_FragColor = vec4(outCol, u_fade);
 }
-`,A={id:"incense",name:"Incense",frag:g,uniformSpec:{...u,u_phase:"3fv",u_draft:"1f"},buildPalette(e,t){if(t)return[e,...d.slice(1)];const[o,i]=f(e);return[e,s(o,Math.min(i*.8,60),8),s(o,15,75),s(o-20,20,55),s(o+25,85,55)]},initState(e){return{seed:e,phases:new Float32Array(l.length)}},frame(e,t){return{u_time:t.t,u_seed:e.seed,u_palette:t.paletteData,u_paletteCount:t.paletteCount,u_blooms:t.blooms,u_phase:_(t.t,e.seed,e.phases),u_draft:v(t.tiltX)}},eventLife:c};export{h as DRAFT_GAIN,m as EMBER_PULSE,n as RIBBON_AMPS,l as RIBBON_PERIODS,r as RIBBON_WINDS,c as RING_LIFE,b as RING_RISE,A as default,v as incenseDraft,_ as ribbonPhases};
+`,A={id:"incense",name:"Incense",frag:g,uniformSpec:{...c,u_phase:"3fv",u_draft:"1f"},buildPalette(e,t){if(t)return[e,...d.slice(1)];const[o,i]=f(e);return[e,s(o,Math.min(i*.8,60),8),s(o,15,75),s(o-20,20,55),s(o+25,85,55)]},initState(e){return{seed:e,phases:new Float32Array(l.length)}},frame(e,t){return{u_time:t.t,u_seed:e.seed,u_palette:t.paletteData,u_paletteCount:t.paletteCount,u_blooms:t.blooms,u_phase:_(t.t,e.seed,e.phases),u_draft:v(t.tiltX)}},eventLife:u};export{h as DRAFT_GAIN,m as EMBER_PULSE,n as RIBBON_AMPS,l as RIBBON_PERIODS,r as RIBBON_WINDS,u as RING_LIFE,b as RING_RISE,A as default,v as incenseDraft,_ as ribbonPhases};

@@ -1,4 +1,4 @@
-import{C as u,P as p,a as m}from"./main-hIPNpFcd.js";import{q as _,t as l}from"./ids-CJuwb7jW.js";const f=Math.PI*2,g=48,v=18,b=.015,x=12,e=.13,S=.84,r=24,i=28,n=9,C=.016,A=.7,O=.6,w=.08,F=.04,h=4,c=o=>Math.max(-1,Math.min(1,o));function I(o){const t=o/g;return f*(t-Math.floor(t))}function T(o){const t=o/x;return t-Math.floor(t)}function D(o,t,a,s){const d=b*Math.sin(f*o/v)+c(a)*w;return[t*.5+d,S-c(s)*F]}const $=m+`
+import{C as u,P as p,a as m}from"./main-BjUTBfvI.js";import{u as _,w as l}from"./ids-Bf9IBoiG.js";const f=Math.PI*2,g=48,v=18,b=.015,x=12,e=.13,S=.84,r=24,i=28,n=9,C=.016,A=.7,w=.6,O=.08,F=.04,h=4,c=o=>Math.max(-1,Math.min(1,o));function I(o){const t=o/g;return f*(t-Math.floor(t))}function T(o){const t=o/x;return t-Math.floor(t)}function D(o,t,a,s){const d=b*Math.sin(f*o/v)+c(a)*O;return[t*.5+d,S-c(s)*F]}const $=m+`
 uniform vec2 u_ball;   // aspect-space ball center
 uniform float u_rot;   // rotation phase [0, TAU)
 uniform float u_glint; // glint era phase [0, 1)
@@ -76,7 +76,7 @@ void main() {
     }
   }
   float spotMask = smoothstep(${(e*1.5).toFixed(3)}, ${(e*2.4).toFixed(3)}, r);
-  col += spotAcc * spotMask * ${O.toFixed(2)} * (1.0 + 2.0 * burstLocal);
+  col += spotAcc * spotMask * ${w.toFixed(2)} * (1.0 + 2.0 * burstLocal);
   col += paletteAt(4.0) * shimmer * 0.25;
 
   // Hanging rod
@@ -128,4 +128,4 @@ void main() {
 
   gl_FragColor = vec4(outCol, u_fade);
 }
-`,P={id:"disco",name:"Disco",frag:$,uniformSpec:{...u,u_ball:"2f",u_rot:"1f",u_glint:"1f"},buildPalette(o,t){if(t)return[o,...p.slice(1)];const[a,s]=_(o);return[o,l(a,Math.min(s,50),8),l(a+15,25,82),l(a,8,60),l(a+30,15,93)]},initState(o){return{seed:o}},frame(o,t){return{u_time:t.t,u_seed:o.seed,u_palette:t.paletteData,u_paletteCount:t.paletteCount,u_blooms:t.blooms,u_ball:D(t.t,t.aspect,t.tiltX,t.tiltY),u_rot:I(t.t),u_glint:T(t.t)}},eventLife:h};export{e as DISCO_BALL_R,S as DISCO_BALL_Y,F as DISCO_BOB,A as DISCO_ELONG,r as DISCO_FACETS,h as DISCO_FLASH_LIFE,n as DISCO_RINGS,g as DISCO_ROT_PERIOD,i as DISCO_SPOKES,O as DISCO_SPOT_GAIN,C as DISCO_SPOT_R,b as DISCO_SWAY_AMP,v as DISCO_SWAY_PERIOD,w as DISCO_TILT_GAIN,x as GLINT_PERIOD,P as default,D as discoBallPos,T as discoGlintPhase,I as discoRot};
+`,P={id:"disco",name:"Disco",frag:$,uniformSpec:{...u,u_ball:"2f",u_rot:"1f",u_glint:"1f"},buildPalette(o,t){if(t)return[o,...p.slice(1)];const[a,s]=_(o);return[o,l(a,Math.min(s,50),8),l(a+15,25,82),l(a,8,60),l(a+30,15,93)]},initState(o){return{seed:o}},frame(o,t){return{u_time:t.t,u_seed:o.seed,u_palette:t.paletteData,u_paletteCount:t.paletteCount,u_blooms:t.blooms,u_ball:D(t.t,t.aspect,t.tiltX,t.tiltY),u_rot:I(t.t),u_glint:T(t.t)}},eventLife:h};export{e as DISCO_BALL_R,S as DISCO_BALL_Y,F as DISCO_BOB,A as DISCO_ELONG,r as DISCO_FACETS,h as DISCO_FLASH_LIFE,n as DISCO_RINGS,g as DISCO_ROT_PERIOD,i as DISCO_SPOKES,w as DISCO_SPOT_GAIN,C as DISCO_SPOT_R,b as DISCO_SWAY_AMP,v as DISCO_SWAY_PERIOD,O as DISCO_TILT_GAIN,x as GLINT_PERIOD,P as default,D as discoBallPos,T as discoGlintPhase,I as discoRot};
