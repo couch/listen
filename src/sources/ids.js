@@ -25,6 +25,14 @@ export function sourceOf(track) {
   return SOURCE_IDS.includes(s) ? s : DEFAULT_SOURCE_ID;
 }
 
+// Same logical track across tape objects (a refetched playlist JSON is a new
+// object). Family-aware identity: YT tracks compare ids, file tracks compare
+// urls — the other field is undefined on both sides, so one expression covers
+// every family.
+export function sameTrack(a, b) {
+  return !!a && !!b && sourceOf(a) === sourceOf(b) && a.id === b.id && a.url === b.url;
+}
+
 /**
  * @typedef {Object} SourceCaps
  * @property {boolean} needsTransientPauseGuard  YT fires a spurious PAUSED

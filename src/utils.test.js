@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, resolveBg, positionState, parsePositions, positionFor, extractId, parseTrackInput, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, extractId, parseTrackInput, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -41,6 +41,23 @@ describe('positionFor', () => {
   it('defaults a non-finite time to 0', () => {
     expect(positionFor({ 42: { index: 0, time: NaN } }, '42', 12)).toEqual({ index: 0, time: 0 });
     expect(positionFor({ 42: { index: 0 } }, '42', 12)).toEqual({ index: 0, time: 0 });
+  });
+});
+
+describe('tapeSwitchAction', () => {
+  it('idle bar always resets, whatever the incoming tape is', () => {
+    expect(tapeSwitchAction(false, false, false)).toBe('reset');
+    expect(tapeSwitchAction(false, true, true)).toBe('reset');
+  });
+  it('occupied bar detaches when switching to a different tape', () => {
+    expect(tapeSwitchAction(true, false, false)).toBe('detach');
+    expect(tapeSwitchAction(true, false, true)).toBe('detach');
+  });
+  it('returning to the playing tape relinks when the track still matches', () => {
+    expect(tapeSwitchAction(true, true, true)).toBe('relink');
+  });
+  it('returning to a same-id tape whose track list changed resets', () => {
+    expect(tapeSwitchAction(true, true, false)).toBe('reset');
   });
 });
 

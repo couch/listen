@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { STRINGS, lang, L, fmtDate } from './strings.js';
 
 const ALL_LANGS = ['en', 'es', 'it', 'de', 'fr', 'zh', 'ko', 'ja', 'ru', 'hi', 'mr'];
-const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'auf', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline', 'vz', 'lb'];
+const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'auf', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline', 'vz', 'lb', 'bk', 'rs'];
 
 describe('STRINGS', () => {
   it('contains all 11 supported languages', () => {
@@ -90,6 +90,18 @@ describe('format functions', () => {
     ALL_LANGS.forEach(l => {
       expect(typeof STRINGS[l].auf, l).toBe('function');
       expect(STRINGS[l].auf('archive.org'), l).toContain('archive.org');
+    });
+  });
+  it('bk() embeds the tape title in every locale', () => {
+    ALL_LANGS.forEach(l => {
+      expect(typeof STRINGS[l].bk, l).toBe('function');
+      expect(STRINGS[l].bk('Summer Tape'), l).toContain('Summer Tape');
+    });
+  });
+  it('rs() embeds the timecode in every locale', () => {
+    ALL_LANGS.forEach(l => {
+      expect(typeof STRINGS[l].rs, l).toBe('function');
+      expect(STRINGS[l].rs('1:23'), l).toContain('1:23');
     });
   });
 });

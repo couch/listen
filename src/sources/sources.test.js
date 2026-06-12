@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SOURCE_IDS, DEFAULT_SOURCE_ID, STATE, sourceOf, CAPS, capsOf, attributionFor, artworkFor } from './ids.js';
+import { SOURCE_IDS, DEFAULT_SOURCE_ID, STATE, sourceOf, sameTrack, CAPS, capsOf, attributionFor, artworkFor } from './ids.js';
 
 const YT_TRACK = { id: 'dQw4w9WgXcQ', title: 'Song', artist: 'Artist' };
 const FILE_TRACK = { source: 'file', url: 'https://www.archive.org/track.mp3', title: 'Song', artist: 'Artist' };
@@ -24,6 +24,28 @@ describe('sourceOf', () => {
     expect(sourceOf({ ...YT_TRACK, source: 'spotify' })).toBe('youtube');
     expect(sourceOf(null)).toBe('youtube');
     expect(sourceOf(undefined)).toBe('youtube');
+  });
+});
+
+describe('sameTrack', () => {
+  it('matches youtube tracks by id', () => {
+    expect(sameTrack(YT_TRACK, { ...YT_TRACK, title: 'Renamed' })).toBe(true);
+    expect(sameTrack(YT_TRACK, { ...YT_TRACK, id: 'xxxxxxxxxxx' })).toBe(false);
+  });
+  it('matches file tracks by url', () => {
+    expect(sameTrack(FILE_TRACK, { ...FILE_TRACK, title: 'Renamed' })).toBe(true);
+    expect(sameTrack(FILE_TRACK, { ...FILE_TRACK, url: 'https://other.example/b.mp3' })).toBe(false);
+  });
+  it('an omitted source matches an explicit youtube', () => {
+    expect(sameTrack(YT_TRACK, { ...YT_TRACK, source: 'youtube' })).toBe(true);
+  });
+  it('different families never match', () => {
+    expect(sameTrack(YT_TRACK, FILE_TRACK)).toBe(false);
+  });
+  it('null/undefined never match', () => {
+    expect(sameTrack(null, YT_TRACK)).toBe(false);
+    expect(sameTrack(YT_TRACK, undefined)).toBe(false);
+    expect(sameTrack(undefined, undefined)).toBe(false);
   });
 });
 

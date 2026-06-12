@@ -79,6 +79,39 @@ describe('createFileSource', () => {
     expect(callbacks.onState).not.toHaveBeenCalledWith(STATE.CUED);
   });
 
+  it('play with startSeconds plays synchronously and seeks on loadedmetadata, never CUED', () => {
+    make();
+    source.load(TRACK, { startSeconds: 42 });
+    expect(audio.play).toHaveBeenCalledOnce(); // gesture-context rule
+    audio.dispatchEvent(new Event('loadedmetadata'));
+    expect(audio.currentTime).toBe(42);
+    expect(callbacks.onState).not.toHaveBeenCalledWith(STATE.CUED);
+  });
+
+  it('play without startSeconds does not seek', () => {
+    make();
+    source.load(TRACK, {});
+    audio.currentTime = 0;
+    audio.dispatchEvent(new Event('loadedmetadata'));
+    expect(audio.currentTime).toBe(0);
+  });
+
+  it('a superseded load drops the previous pending seek', () => {
+    make();
+    source.load(TRACK, { startSeconds: 42 });
+    source.load({ ...TRACK, url: 'https://example.com/b.mp3' }, {});
+    audio.dispatchEvent(new Event('loadedmetadata'));
+    expect(audio.currentTime).toBe(0);
+  });
+
+  it('stop() clears a pending cue (no late CUED from a stale metadata event)', () => {
+    make();
+    source.load(TRACK, { startSeconds: 42, cue: true });
+    source.stop();
+    audio.dispatchEvent(new Event('loadedmetadata'));
+    expect(callbacks.onState).not.toHaveBeenCalledWith(STATE.CUED);
+  });
+
   it('autoplay rejection (NotAllowedError) → blocked, never unplayable', async () => {
     make(() => Promise.reject(new DOMException('denied', 'NotAllowedError')));
     source.load(TRACK, {});

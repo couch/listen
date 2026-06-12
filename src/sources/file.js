@@ -38,7 +38,11 @@ export function createFileSource({ onReady, onState, onError }) {
   audio.hidden = true;
   document.body.appendChild(audio);
 
-  let cuePending = null; // startSeconds awaiting loadedmetadata
+  // startSeconds awaiting loadedmetadata (currentTime can't be set before
+  // metadata); cueRequested distinguishes a cue (emit CUED once seeked) from
+  // a play-from-offset (already playing — a CUED would flip the UI to paused)
+  let seekPending = null;
+  let cueRequested = false;
   // A dead resource fails twice — the 'error' event and the play() promise
   // rejection — but must report 'unplayable' once, or one dead track skips
   // two. gen staleness also drops rejections from a superseded load().
@@ -55,10 +59,10 @@ export function createFileSource({ onReady, onState, onError }) {
   // clears the watchdog through the ordinary PLAYING branch
   audio.addEventListener('canplay', () => { if (!audio.paused) onState(STATE.PLAYING); });
   audio.addEventListener('loadedmetadata', () => {
-    if (cuePending === null) return;
-    try { audio.currentTime = cuePending; } catch {}
-    cuePending = null;
-    onState(STATE.CUED); // paints the restored scrubber, same as YT's cue path
+    if (seekPending === null) return;
+    try { audio.currentTime = seekPending; } catch {}
+    seekPending = null;
+    if (cueRequested) onState(STATE.CUED); // paints the restored scrubber, same as YT's cue path
   });
   function reportFatal() {
     if (fatalReported) return;
@@ -95,15 +99,18 @@ export function createFileSource({ onReady, onState, onError }) {
     load(track, { startSeconds, cue } = {}) {
       gen++;
       fatalReported = false;
-      cuePending = null;
+      seekPending = cue ? (startSeconds ?? 0) : (startSeconds ?? null);
+      cueRequested = !!cue;
       audio.src = track.url;
-      if (cue) cuePending = startSeconds ?? 0;
-      else tryPlay();
+      // Synchronous play inside the gesture (iOS rule); the seek lands on
+      // loadedmetadata, so a slow host may play a beat from 0:00 first
+      if (!cue) tryPlay();
     },
     play: () => tryPlay(),
     pause: () => audio.pause(),
     stop() {
-      cuePending = null;
+      seekPending = null;
+      cueRequested = false;
       audio.pause();
       audio.removeAttribute('src');
       try { audio.load(); } catch {} // release the network connection
