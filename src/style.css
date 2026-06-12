@@ -101,20 +101,23 @@ body.is-offline .track:hover { background: transparent; }
 /* Header row: [≣ library][title][↑ share] — the ≣ hugs the left edge, the
    side its drawer slides out from (embed keeps a bare title). Both button
    slots are reserved via visibility, never display, so the title's position
-   doesn't depend on whether a library or native share exists. */
+   doesn't depend on whether a library or native share exists.
+   The header mirrors the track-row grid: the ≣ glyph right-aligns on the
+   track-number column edge and the title left-aligns with the track titles
+   (padding 28 + 20px column + 16px gap = 64px; 20/20/14 = 54px mobile). */
 #tape-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 24px;
-  padding-right: 14px;
+  padding: 0 14px 0 28px;
+  gap: 16px;
 }
 
 #tape-head #tape-title {
   margin-bottom: 0;
   flex: 1;
   min-width: 0;
-  padding-left: 0; /* the reserved ≣ slot provides the left gutter */
+  padding-left: 0; /* the reserved ≣ slot + gap supply the left gutter */
 }
 
 #library-btn {
@@ -125,7 +128,13 @@ body.is-offline .track:hover { background: transparent; }
   font-family: inherit;
   line-height: 1;
   cursor: pointer;
+  /* 20px visual slot (the track-number column), glyph right-aligned;
+     padding + negative margin keep a 48px touch target without occupying
+     layout (border-box: 14 + 20 + 14) */
+  width: 48px;
   padding: 14px;
+  margin: -14px;
+  text-align: right;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s;
   user-select: none;
@@ -323,6 +332,7 @@ body.is-offline .track:hover { background: transparent; }
 
 @media (max-width: 480px) {
   #tape-title { font-size: 0.9375rem; padding: 0 20px; }
+  #tape-head { padding-left: 20px; gap: 14px; }
   .track { padding: 13px 20px; gap: 14px; }
   .track-title { font-size: 1rem; }
   .track-artist { font-size: 0.8125rem; }
