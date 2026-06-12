@@ -14,8 +14,10 @@ Minimalist YouTube audio player and tape-sharing tool. Deployed to GitHub Pages 
 
 | File | Purpose |
 |------|---------|
-| `src/main.js` | Player: playback, UI, gestures, geolocation |
-| `src/admin.js` | Admin: auth, playlist CRUD, save dispatch |
+| `src/main.js` | Player: playback, UI, gestures, geolocation, tape hot-swap (`applyTape`/`switchTape`) |
+| `src/library.js` | Pure tape-library logic: `resolveTapeParam`, `drawerEntries`, `spineColor`, `spineTextColor`, `tapeUrl` |
+| `src/drawer.js` | Library drawer DOM: ≣ button, cassette-spine shelf, open/close |
+| `src/admin.js` | Admin: auth, playlist CRUD, publish toggle, save dispatch |
 | `src/auth.js` | PBKDF2 password hashing and verification |
 | `src/github.js` | GitHub git-tree commit and file-delete operations |
 | `src/schema.js` | Runtime validation: `validateTrack`, `validatePlaylist`, `validateIndex` |
@@ -213,9 +215,9 @@ The standard recipe: file under `src/viz/<id>.js` + loader in `registry.js` + id
 
 ## Data model
 
-- `playlists/index.json` — `{ active: string, ids: string[] }`
+- `playlists/index.json` — `{ active: string, ids: string[], published?: string[] }` (`published` = the library drawer's tapes in display order, each id also in `ids`; editorial curation only — every playlist JSON is deployed and publicly fetchable regardless)
 - `playlists/{id}.json` — `{ title, color, tracks, created?, lastEdited?, viz?, location? }` (`viz` = visualization id; omitted when it's the default `mesh`)
-- `config.js` — generated from active playlist by `buildConfig()`; loaded at parse-time as `window.TAPE`
+- `config.js` — generated from active playlist by `buildConfig()`; loaded at parse-time as `window.TAPE` (the baked-in tape; main.js may hot-swap the *displayed* tape from `playlists/{id}.json` via the drawer or `?tape=<id>`)
 
 ## Auth
 

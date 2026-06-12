@@ -21,13 +21,17 @@ export function drawerEntries(index, activeId) {
 
 // Deterministic display color for a tape spine. "random" tapes pick a stable
 // palette color from the id (same tape, same spine every visit); "pride" is
-// a sentinel the CSS renders as a rainbow gradient.
+// a sentinel the CSS renders as a rainbow gradient. FNV-1a — tape ids are
+// near-identical timestamp strings, which collide badly under weaker hashes.
 export function spineColor(color, id, palette) {
   if (color === 'pride') return 'pride';
   if (!color || color === 'random') {
-    let h = 0;
+    let h = 2166136261;
     const s = String(id ?? '');
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
     return palette[h % palette.length];
   }
   return color;

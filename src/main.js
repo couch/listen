@@ -3,6 +3,7 @@ import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, resolveBg, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { validatePlaylist } from './schema.js';
 import { resolveTapeParam, tapeUrl } from './library.js';
+import { initDrawer } from './drawer.js';
 import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
@@ -938,7 +939,8 @@ function enableMotionListeners() {
 // π doubles as that permission probe and its visibility is decided once at
 // startup. Everywhere else π is purely the location opt-in, so its
 // visibility depends on the current tape and re-evaluates on tape switch.
-const isIOSMotionGate = typeof DeviceOrientationEvent?.requestPermission === 'function';
+const isIOSMotionGate = typeof DeviceOrientationEvent !== 'undefined'
+  && typeof DeviceOrientationEvent.requestPermission === 'function';
 
 function updatePiVisibility() {
   if (isEmbed || (isMobile && isIOSMotionGate)) return;
@@ -947,10 +949,13 @@ function updatePiVisibility() {
 }
 
 if (!isEmbed) {
-// π button: opt-in to orientation + device location
+// π button: opt-in to orientation + device location. embed.html has no π —
+// loaded top-level (outside an iframe) isEmbed is false there, so guard.
 const piBtnEl = document.getElementById('pi-btn');
 
-if (isMobile && isIOSMotionGate) {
+if (!piBtnEl) {
+  if (isMobile && !isIOSMotionGate) enableMotionListeners();
+} else if (isMobile && isIOSMotionGate) {
   // iOS 13+: probe for existing orientation permission
   let resolved = false;
   const earlyCheck = () => {
@@ -1125,6 +1130,7 @@ function applyTape(nextTape) {
   const saved = getSavedPosition();
   if (saved && player?.cueVideoById) load(saved.index, saved.time, true);
 
+  drawer?.markActive(tape.id);
   window.scrollTo({ top: 0 });
   announce(tape.title);
 }
@@ -1154,7 +1160,14 @@ async function switchTape(id, { pushUrl = true } = {}) {
   }
 }
 
+let drawer = null;
 if (!isEmbed) {
+  drawer = initDrawer({
+    bakedTape: originalTape,
+    getCurrentTapeId: () => tape.id,
+    onSelect: id => switchTape(id),
+  });
+
   const tapeParam = resolveTapeParam(location.search, BAKED_ID);
   history.replaceState({ tape: tapeParam ?? BAKED_ID }, '', location.href);
   // Deep link: the baked tape renders instantly, the linked tape swaps in
