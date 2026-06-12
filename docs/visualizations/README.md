@@ -2,11 +2,8 @@
 
 The player's eleven visualizations (⊙ button during playback; picker in the lower-right of the overlay). Each derives its palette from the live background color, answers taps in its own vocabulary, and reacts to device tilt. See the "Visualizer model" section of [CLAUDE.md](../../CLAUDE.md) for the maintained technical model.
 
-![Mesh](mesh.jpg)
-**Mesh** — The default. iOS-wallpaper-style soft color field derived from the playlist color, drifting organically with no hard edges; taps bloom expanding rings; tilt pours the colors like thick gel.
-
-![Lava](lava.jpg)
-**Lava** — Metaball wax rising and falling through live-bg liquid, merging and necking apart. Tap heats the nearest blob (it swells and climbs) or splits a big one into a rising satellite; tilt sloshes the wax; each new track stokes the biggest blob.
+![Bloom](mesh.jpg)
+**Bloom** — The default. iOS-wallpaper-style soft color field derived from the playlist color, drifting organically with no hard edges; taps bloom expanding rings; tilt pours the colors like thick gel.
 
 ![Rain](rain.jpg)
 **Rain** — Beaded drops running down glass, refracting bokeh lights behind it, with trails and micro-droplets. Tilt leans the streaks toward gravity and speeds the rain; taps splat as refractive rings.
@@ -34,3 +31,6 @@ The player's eleven visualizations (⊙ button during playback; picker in the lo
 
 ![Kaleido](kaleido.jpg)
 **Kaleido** — The feedback visualization: every frame folds the last into a precessing k-fold mirrored wedge, seeded by scheduled sparks that trail into mandalas. Taps fast-clear and re-bloom at your finger; each track change steps the symmetry order (6→8→10→12).
+
+![Disco](disco.jpg)
+**Disco** — A faceted mirror ball hanging in a room washed in the live background, slowly turning while its soft light spots sweep the walls and a few facets glint at a time. Tilt swings the ball (the whole light field follows); a tap is a sparkle burst — spots flare and the ball answers.

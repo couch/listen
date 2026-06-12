@@ -244,7 +244,9 @@ describe('validatePlaylist', () => {
   it('rejects non-string created', () => {
     expect(() => validatePlaylist({ ...VALID_PLAYLIST, created: 20260101 })).toThrow(/created/);
   });
-  it('accepts optional viz as string (unknown ids are a runtime fallback)', () => {
+  it('accepts archived/unknown viz ids — saved playlists stay valid', () => {
+    // 'lava' is a real archived id: playlists that stored it must keep
+    // validating; the player resolves it to the default at runtime.
     expect(() => validatePlaylist({ ...VALID_PLAYLIST, viz: 'lava' })).not.toThrow();
   });
   it('rejects non-string viz', () => {

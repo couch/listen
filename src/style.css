@@ -576,7 +576,18 @@ body.viz-active { overflow: hidden; }
 
 #viz-picker-toggle:hover { color: rgba(255,255,255,0.65); }
 
+/* Accordion: the wrap's grid row animates 0fr -> 1fr, growing to the
+   menu's intrinsic height (no max-height magic number); the bottom-anchored
+   column-reverse container makes it unfold upward out of the toggle */
+#viz-picker-menu-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
 #viz-picker-menu {
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -586,11 +597,15 @@ body.viz-active { overflow: hidden; }
   transition: opacity 0.25s ease;
 }
 
-#viz-picker.picker-open #viz-picker-menu,
-#viz-picker.picker-reveal #viz-picker-menu,
-#viz-picker:focus-within #viz-picker-menu {
+#viz-picker.picker-open #viz-picker-menu-wrap { grid-template-rows: 1fr; }
+
+#viz-picker.picker-open #viz-picker-menu {
   opacity: 1;
   pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #viz-picker-menu-wrap, #viz-picker-menu { transition: none; }
 }
 
 #viz-picker-menu button {
@@ -611,17 +626,6 @@ body.viz-active { overflow: hidden; }
   content: '● ';
   font-size: 0.5rem;
   vertical-align: 2px;
-}
-
-/* Hover-capable pointers: everything hides until the mouse enters the
-   bottom-quarter reveal zone (or the control holds keyboard focus) */
-@media (hover: hover) and (pointer: fine) {
-  #viz-picker-toggle { opacity: 0; pointer-events: none; }
-  #viz-picker.picker-reveal #viz-picker-toggle,
-  #viz-picker:focus-within #viz-picker-toggle {
-    opacity: 1;
-    pointer-events: auto;
-  }
 }
 
 #btn-viz {

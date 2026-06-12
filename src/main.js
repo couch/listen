@@ -803,6 +803,8 @@ if (!isEmbed) initVisualizer(reducedMotion, isPride, {
     else if (currentIndex > 0) load(currentIndex - 1);
   },
   isPlaying: () => playing,
+  // ⊙ click (user gesture): iOS orientation permission prompt
+  onUserOpen: requestVizOrientation,
   // The opaque viz canvas hides the page — pause the decorative layers
   // behind it while the overlay is open, resume them on close
   onOpenChange(open) {
@@ -942,6 +944,23 @@ function enableMotionListeners() {
 // visibility depends on the current tape and re-evaluates on tape switch.
 const isIOSMotionGate = typeof DeviceOrientationEvent !== 'undefined'
   && typeof DeviceOrientationEvent.requestPermission === 'function';
+
+// iOS: orientation grants expire each session and need a user gesture, so
+// entering the visualizer (where tilt matters most) prompts for access —
+// the ⊙ click invokes this synchronously via the onUserOpen opt. Orientation
+// only: π keeps the geolocation job (and stays as the motion fallback).
+function requestVizOrientation() {
+  if (!isMobile || motionListenersEnabled || !isIOSMotionGate) return;
+  DeviceOrientationEvent.requestPermission().then(result => {
+    if (result !== 'granted') return;
+    enableMotionListeners();
+    // With motion granted, π's only remaining purpose is device location
+    if (!tape.location?.lat) {
+      const pi = document.getElementById('pi-btn');
+      if (pi) pi.hidden = true;
+    }
+  }).catch(() => {});
+}
 
 function updatePiVisibility() {
   if (isEmbed || (isMobile && isIOSMotionGate)) return;
