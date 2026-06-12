@@ -1,4 +1,4 @@
-import{C as n,P as c,a as d}from"./main-Cq-Q3dfC.js";import{u as p,w as o}from"./ids-BE9-dRHw.js";const s=[1/45,1/60],r=3.5,v=3,a=.4,l=5;function m(t){const e=Math.max(-a,Math.min(t*a,a));return[Math.sin(e),-Math.cos(e)]}const f=d+`
+import{C as n,P as c,a as d}from"./main-DP0h6V2S.js";import{u as p,w as o}from"./ids-5mOaK_zc.js";const s=[1/45,1/60],r=3.5,v=3,a=.4,l=5;function m(t){const e=Math.max(-a,Math.min(t*a,a));return[Math.sin(e),-Math.cos(e)]}const f=d+`
 uniform vec2 u_sun; // unit vector, (0,-1) at rest
 
 float ridged(vec2 q) {
