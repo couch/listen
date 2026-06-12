@@ -1,6 +1,6 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, resolveBg, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { PALETTE, resolveBg, positionState, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { validatePlaylist } from './schema.js';
 import { resolveTapeParam, tapeUrl } from './library.js';
 import { initDrawer } from './drawer.js';
@@ -388,7 +388,7 @@ function onState(e) {
       const scrub = document.getElementById("scrubber");
       scrub.setAttribute("aria-valuenow", Math.round(ratio * 100));
       scrub.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
-      navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
+      setMediaPosition(dur, cur);
       const p = trackEls[currentIndex]?.querySelector(".track-progress");
       if (p) { p.style.transition = "none"; p.style.width = pct; }
       requestAnimationFrame(() => {
@@ -477,6 +477,19 @@ function next() {
   }
 }
 
+// Lock-screen position cosmetics must never break playback or a tape
+// switch: WebKit enforces MediaPositionState strictly (duration required and
+// finite, position <= duration) and throws TypeError where Chrome forgives —
+// an unguarded call inside applyTape silently killed tape switching on iOS.
+function setMediaPosition(dur, pos) {
+  try {
+    if (!navigator.mediaSession?.setPositionState) return;
+    if (dur === undefined) { navigator.mediaSession.setPositionState(); return; } // clear
+    const state = positionState(dur, pos);
+    if (state) navigator.mediaSession.setPositionState(state);
+  } catch {}
+}
+
 // Return all playback UI to the idle state — shared by the end-of-playlist
 // branch of next() and the library tape switch (which runs it against the
 // outgoing tape's DOM before rebuilding).
@@ -491,7 +504,7 @@ function resetPlaybackUI() {
   if (isPride) stopPrideCanvas();
   if (isVisualizerOpen()) closeVisualizer();
   releaseWakeLock();
-  navigator.mediaSession?.setPositionState?.({});
+  setMediaPosition(); // clear
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
   currentIndex = -1;
   pendingTrackIndex = -1;
@@ -642,7 +655,7 @@ scrubEl.addEventListener("touchend", () => {
   if (dur) {
     const t = pendingScrubPct * dur;
     player.seekTo(t, true);
-    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+    setMediaPosition(dur, t);
   }
   pendingScrubPct = null;
 }, { passive: true });
@@ -669,7 +682,7 @@ function seek(e) {
     const t = pct * dur;
     player.seekTo(t, true);
     snapSeek(pct);
-    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+    setMediaPosition(dur, t);
   }
 }
 
@@ -701,7 +714,7 @@ function startTicker() {
       const s = document.getElementById("scrubber");
       s.setAttribute("aria-valuenow", Math.round(ratio * 100));
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
-      navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
+      setMediaPosition(dur, cur);
       if (now - lastPositionSave >= 30000) { lastPositionSave = now; savePosition(); }
       if (isVisualizerOpen()) updateVisualizer(cur, dur, tape.tracks[currentIndex]?.title, tape.tracks[currentIndex]?.artist);
     }
@@ -1100,7 +1113,7 @@ function updateMediaSession(state = "playing") {
     if (!dur) return;
     const t = Math.min(cur + off, dur);
     player.seekTo(t, true);
-    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+    setMediaPosition(dur, t);
   });
   navigator.mediaSession.setActionHandler("seekbackward", ({ seekOffset } = {}) => {
     const off = seekOffset || 10;
@@ -1109,7 +1122,7 @@ function updateMediaSession(state = "playing") {
     if (!dur) return;
     const t = Math.max(cur - off, 0);
     player.seekTo(t, true);
-    navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+    setMediaPosition(dur, t);
   });
 }
 
