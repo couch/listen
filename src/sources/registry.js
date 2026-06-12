@@ -1,5 +1,6 @@
 import { DEFAULT_SOURCE_ID } from './ids.js';
 import { createYouTubeSource } from './youtube.js';
+import { createFileSource } from './file.js';
 
 // Static imports on purpose — no viz-style lazy registry. load() must stay
 // synchronously reachable inside the click gesture (iOS autoplay), and both
@@ -8,6 +9,7 @@ import { createYouTubeSource } from './youtube.js';
 // families present in the tape — the same trick loadYouTubeAPI used.
 export const SOURCES = {
   youtube: createYouTubeSource,
+  file: createFileSource,
 };
 
 export function sourceFactory(sourceId) {

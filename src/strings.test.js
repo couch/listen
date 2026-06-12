@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { STRINGS, lang, L, fmtDate } from './strings.js';
 
 const ALL_LANGS = ['en', 'es', 'it', 'de', 'fr', 'zh', 'ko', 'ja', 'ru', 'hi', 'mr'];
-const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline', 'vz', 'lb'];
+const REQUIRED_KEYS = ['mo', 'tr', 'cr', 'ed', 'nb', 'fa', 'au', 'auf', 'mi', 'pl', 'pc', 'pp', 'play', 'pause', 'by', 'np', 'pe', 'of', 'pi', 'offline', 'vz', 'lb'];
 
 describe('STRINGS', () => {
   it('contains all 11 supported languages', () => {
@@ -85,5 +85,11 @@ describe('format functions', () => {
     const result = STRINGS.en.np('Track Title', 'The Artist');
     expect(result).toContain('Track Title');
     expect(result).toContain('The Artist');
+  });
+  it('auf() embeds the host in every locale', () => {
+    ALL_LANGS.forEach(l => {
+      expect(typeof STRINGS[l].auf, l).toBe('function');
+      expect(STRINGS[l].auf('archive.org'), l).toContain('archive.org');
+    });
   });
 });
