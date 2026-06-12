@@ -1,15 +1,4 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-html {
-  font-size: calc(100% * env(preferred-text-scale, 1));
-}
-
-body {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  min-height: 100vh;
-  background: var(--bg, #c1440e);
-  color: rgba(255,255,255,0.9);
-}
+@import './shared.css';
 
 .page {
   max-width: 680px;
@@ -146,15 +135,6 @@ body {
 
 .viz-chip:hover { background: rgba(255,255,255,0.16); }
 .viz-chip.active { border-color: rgba(255,255,255,0.85); }
-
-/* ── Section labels ── */
-.section-label {
-  font-size: 0.6875rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  opacity: 0.45;
-  margin-bottom: 12px;
-}
 
 /* ── Track list ── */
 #tracks-section { margin-bottom: 36px; }
