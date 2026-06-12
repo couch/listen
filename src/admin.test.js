@@ -222,6 +222,26 @@ describe('validateTrack', () => {
   it('rejects non-string artist', () => expect(() => validateTrack({ ...VALID_TRACK, artist: null })).toThrow(/artist/));
   it('accepts empty string title', () => expect(() => validateTrack({ ...VALID_TRACK, title: '' })).not.toThrow());
   it('accepts id with underscores and hyphens', () => expect(() => validateTrack({ ...VALID_TRACK, id: 'dQw4w9Wg-cQ' })).not.toThrow());
+  it('accepts an explicit youtube source', () => expect(() => validateTrack({ ...VALID_TRACK, source: 'youtube' })).not.toThrow());
+  it('accepts a file track with an https url and no id', () => {
+    expect(() => validateTrack({ source: 'file', url: 'https://example.com/a.mp3', title: 'T', artist: 'A' })).not.toThrow();
+  });
+  it('accepts a file track with an http url', () => {
+    expect(() => validateTrack({ source: 'file', url: 'http://localhost:5173/a.wav', title: 'T', artist: 'A' })).not.toThrow();
+  });
+  it('rejects a file track without a url', () => {
+    expect(() => validateTrack({ source: 'file', title: 'T', artist: 'A' })).toThrow(/url/);
+  });
+  it('rejects a file track with an unparseable url', () => {
+    expect(() => validateTrack({ source: 'file', url: 'not a url', title: 'T', artist: 'A' })).toThrow(/url/);
+  });
+  it('rejects a file track with a non-http(s) scheme', () => {
+    expect(() => validateTrack({ source: 'file', url: 'ftp://example.com/a.mp3', title: 'T', artist: 'A' })).toThrow(/http/);
+    expect(() => validateTrack({ source: 'file', url: 'javascript:alert(1)', title: 'T', artist: 'A' })).toThrow(/http/);
+  });
+  it('rejects unknown sources', () => {
+    expect(() => validateTrack({ ...VALID_TRACK, source: 'spotify' })).toThrow(/source/);
+  });
 });
 
 describe('validatePlaylist', () => {
@@ -263,6 +283,20 @@ describe('validatePlaylist', () => {
   });
   it('accepts empty tracks array', () => {
     expect(() => validatePlaylist({ ...VALID_PLAYLIST, tracks: [] })).not.toThrow();
+  });
+  it('accepts a mixed-source playlist', () => {
+    const tracks = [VALID_TRACK, { source: 'file', url: 'https://example.com/a.mp3', title: 'T', artist: 'A' }];
+    expect(() => validatePlaylist({ ...VALID_PLAYLIST, tracks })).not.toThrow();
+  });
+  it('every deployed playlist JSON still validates (no-migration guarantee)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const dir = path.join(import.meta.dirname, '../playlists');
+    for (const f of fs.readdirSync(dir)) {
+      if (f === 'index.json' || !f.endsWith('.json')) continue;
+      const pl = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      expect(() => validatePlaylist(pl), f).not.toThrow();
+    }
   });
 });
 

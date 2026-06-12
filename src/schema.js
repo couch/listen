@@ -2,7 +2,18 @@ function err(msg) { throw new TypeError(msg); }
 
 export function validateTrack(obj) {
   if (typeof obj !== 'object' || obj === null) err('track must be an object');
-  if (typeof obj.id !== 'string' || !/^[a-zA-Z0-9_-]{11}$/.test(obj.id)) err('track.id must be an 11-char YouTube ID');
+  // source omitted = youtube, so every pre-source playlist stays valid
+  const source = obj.source === undefined ? 'youtube' : obj.source;
+  if (source === 'youtube') {
+    if (typeof obj.id !== 'string' || !/^[a-zA-Z0-9_-]{11}$/.test(obj.id)) err('track.id must be an 11-char YouTube ID');
+  } else if (source === 'file') {
+    if (typeof obj.url !== 'string') err('track.url must be a string');
+    let u;
+    try { u = new URL(obj.url); } catch { err('track.url must be a valid URL'); }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') err('track.url must be an http(s) URL');
+  } else {
+    err('track.source must be "youtube" or "file"');
+  }
   if (typeof obj.title !== 'string') err('track.title must be a string');
   if (typeof obj.artist !== 'string') err('track.artist must be a string');
 }

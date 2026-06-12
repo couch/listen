@@ -2,6 +2,8 @@ import './style.css';
 import { L, lang, fmtDate } from './strings.js';
 import { PALETTE, resolveBg, positionState, parsePositions, positionFor, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { validatePlaylist } from './schema.js';
+import { STATE, sourceOf, capsOf, attributionFor, artworkFor } from './sources/ids.js';
+import { sourceFactory } from './sources/registry.js';
 import { resolveTapeParam, tapeUrl } from './library.js';
 import { initDrawer } from './drawer.js';
 import { createOfflineUI } from './offline-ui.js';
@@ -166,10 +168,12 @@ if (!isEmbed) {
   list.after(footer);
 }
 
-// Player state
-let player = null;
-let ytApiLoading = false;
-let ytApiReady = false;
+// Player state — one persistent controller per source family (created
+// lazily, cached for the page lifetime); `active` is the controller driving
+// the current track. A pure-file tape never instantiates the YT iframe.
+const controllers = {};
+let active = null;
+let activeSourceId = null;
 let pendingTrackIndex = -1;
 let currentIndex = -1;
 let playing = false;
@@ -178,7 +182,7 @@ let focusedIndex = -1;
 // Track transition in flight: performance.now() of the last load(). The
 // transient PAUSED that loadVideoById fires mid-transition (mobile) must not
 // count as a real pause; consumed by the first PAUSED, cleared on
-// PLAYING/CUED/error.
+// PLAYING/CUED/error. Only armed for sources whose caps demand it.
 let trackLoadAt = null;
 let lastLoadWasCue = false;
 
@@ -191,7 +195,7 @@ function savePosition(overrideTime) {
     const map = parsePositions(sessionStorage.getItem(POS_KEY));
     map[tape.id] = {
       index: currentIndex,
-      time: overrideTime !== undefined ? overrideTime : (player?.getCurrentTime ? Math.floor(player.getCurrentTime()) : 0),
+      time: overrideTime !== undefined ? overrideTime : (active ? Math.floor(active.getCurrentTime()) : 0),
     };
     sessionStorage.setItem(POS_KEY, JSON.stringify(map));
   } catch {}
@@ -231,49 +235,55 @@ window.addEventListener('pagehide', () => {
   releaseWakeLock();
 });
 
-function loadYouTubeAPI() {
-  if (ytApiLoading || ytApiReady) return;
-  ytApiLoading = true;
-  const tag = document.createElement("script");
-  tag.src = "https://www.youtube.com/iframe_api";
-  document.head.appendChild(tag);
+function controllerFor(sid) {
+  if (!controllers[sid]) {
+    controllers[sid] = sourceFactory(sid)({
+      onReady: () => onSourceReady(sid),
+      // Stale-event guard: a stopped outgoing controller still emits a
+      // PAUSED — only the active track's source may drive the state machine.
+      onState: s => { if (sid === activeSourceId) handleState(s); },
+      onError: k => { if (sid === activeSourceId) handleSourceError(k); },
+    });
+  }
+  return controllers[sid];
 }
 
-window.onYouTubeIframeAPIReady = () => {
-  ytApiReady = true;
-  ytApiLoading = false;
-  player = new YT.Player("yt-player", {
-    width: "1", height: "1",
-    playerVars: {
-      autoplay: 0, controls: 0, disablekb: 1,
-      fs: 0, iv_load_policy: 3, rel: 0,
-      modestbranding: 1, playsinline: 1,
-    },
-    events: {
-      onReady(e) {
-        e.target.getIframe().setAttribute(
-          "allow", "autoplay; encrypted-media; picture-in-picture"
-        );
-        if (pendingTrackIndex >= 0) {
-          const idx = pendingTrackIndex;
-          pendingTrackIndex = -1;
-          updateBtn();
-          load(idx);
-        } else {
-          const saved = getSavedPosition();
-          if (saved) load(saved.index, saved.time, true);
-        }
-      },
-      onStateChange: onState,
-      onError: onPlayerError,
-    }
-  });
-};
+// Warm a controller for every source family in the tape eagerly — creating
+// one from an async callback later would lose the user-gesture context on
+// iOS, preventing autoplay on the first track click.
+function warmControllers() {
+  new Set(tape.tracks.map(sourceOf)).forEach(controllerFor);
+}
 
-// YT error codes: 2 invalid id, 5 HTML5 player error, 100 removed/private,
-// 101/150 embed-restricted — all fatal for this video, so skip it.
-function onPlayerError(e) {
-  console.warn('YouTube player error', e?.data);
+function onSourceReady(sid) {
+  if (pendingTrackIndex >= 0) {
+    if (sourceOf(tape.tracks[pendingTrackIndex]) !== sid) return;
+    const idx = pendingTrackIndex;
+    pendingTrackIndex = -1;
+    updateBtn();
+    load(idx);
+  } else {
+    maybeRestoreSavedPosition();
+  }
+}
+
+// Cue the saved spot once at startup, as soon as its track's source is
+// ready; any explicit load() (user click, pending flush) supersedes it.
+let savedRestoreDone = false;
+function maybeRestoreSavedPosition() {
+  if (savedRestoreDone) return;
+  const saved = getSavedPosition();
+  if (!saved) { savedRestoreDone = true; return; }
+  if (!controllerFor(sourceOf(tape.tracks[saved.index])).isReady()) return; // its onReady comes back here
+  load(saved.index, saved.time, true);
+}
+
+// Every 'unplayable' is fatal for this track (the YT codes — invalid id,
+// removed/private, embed-restricted — and dead file URLs alike), so skip it.
+// 'blocked' is the browser denying autoplay: show paused, never skip.
+function handleSourceError(kind) {
+  console.warn('player error', activeSourceId, kind);
+  if (kind === 'blocked') { handleState(STATE.PAUSED); return; }
   clearBufferingWatchdog();
   hideBufferingBanner();
   trackLoadAt = null; // next() → load() arms a fresh transition marker
@@ -323,8 +333,8 @@ function hideBufferingBanner() {
   updateBtn();
 }
 
-function onState(e) {
-  if (e.data === YT.PlayerState.PLAYING) {
+function handleState(state) {
+  if (state === STATE.PLAYING) {
     trackLoadAt = null;
     clearBufferingWatchdog();
     hideBufferingBanner();
@@ -345,7 +355,7 @@ function onState(e) {
     acquireWakeLock();
     trackEls[currentIndex]?.classList.remove('paused');
     trackEls[currentIndex]?.classList.add('playing');
-  } else if (e.data === YT.PlayerState.PAUSED) {
+  } else if (state === STATE.PAUSED) {
     // First PAUSED inside a track transition is loadVideoById's transient
     // pause, not the user's — consume the marker so the next pause is real.
     const transientPause = isTransientPause(trackLoadAt, performance.now());
@@ -365,28 +375,28 @@ function onState(e) {
     releaseWakeLock();
     trackEls[currentIndex]?.classList.remove('playing');
     trackEls[currentIndex]?.classList.add('paused');
-  } else if (e.data === YT.PlayerState.BUFFERING) {
+  } else if (state === STATE.BUFFERING) {
     clearBufferingWatchdog();
     bufferingWatchdog = setTimeout(() => {
-      if (player?.getPlayerState() === YT.PlayerState.BUFFERING) {
+      if (active?.getState() === STATE.BUFFERING) {
         showBufferingBanner(false);
         bufferingEscalation = setTimeout(() => {
-          if (player?.getPlayerState() === YT.PlayerState.BUFFERING) {
+          if (active?.getState() === STATE.BUFFERING) {
             showBufferingBanner(true);
           }
         }, 70000);
       }
     }, 4000);
-  } else if (e.data === YT.PlayerState.ENDED) {
+  } else if (state === STATE.ENDED) {
     clearBufferingWatchdog();
     next();
-  } else if (e.data === YT.PlayerState.CUED) {
+  } else if (state === STATE.CUED) {
     trackLoadAt = null; // load() arms the marker on the cue path too
     clearBufferingWatchdog();
     playing = false;
     updateBtn();
-    const cur = player.getCurrentTime();
-    const dur = player.getDuration();
+    const cur = active.getCurrentTime();
+    const dur = active.getDuration();
     if (dur > 0) {
       const ratio = cur / dur;
       const pct = `${ratio * 100}%`;
@@ -409,15 +419,15 @@ function onState(e) {
 }
 
 function onTrackClick(i) {
-  if (!tape.tracks[i]) return; // empty tape, or an index from a stale handler
-  if (!ytApiReady) {
+  const t = tape.tracks[i];
+  if (!t) return; // empty tape, or an index from a stale handler
+  if (!controllerFor(sourceOf(t)).isReady()) {
     pendingTrackIndex = i;
     document.getElementById("btn-play").textContent = "·";
     return;
   }
-  if (!player || !player.loadVideoById) return;
   if (i === currentIndex) {
-    playing ? player.pauseVideo() : player.playVideo();
+    playing ? active.pause() : active.play();
   } else {
     load(i);
   }
@@ -426,6 +436,14 @@ function onTrackClick(i) {
 function load(i, startSeconds, silent = false) {
   const t = tape.tracks[i];
   if (!t) return; // empty tape, or an index from a stale handler
+  const sid = sourceOf(t);
+  const c = controllerFor(sid);
+  if (!c.isReady()) {
+    pendingTrackIndex = i;
+    document.getElementById("btn-play").textContent = "·";
+    return;
+  }
+  savedRestoreDone = true; // an explicit load supersedes the startup restore
   if (!silent && !isEmbed) navigator.vibrate?.(30);
   clearActive();
   barEl.classList.add("bar-visible");
@@ -441,8 +459,14 @@ function load(i, startSeconds, silent = false) {
   scrub.setAttribute("aria-valuenow", "0");
   scrub.setAttribute("aria-valuetext", "0:00");
   document.getElementById("time").textContent = "";
+  // Source handoff — point the event filter at the new source before
+  // stopping the old controller, so its stop-induced PAUSED is ignored
+  activeSourceId = sid;
+  const prev = active;
+  active = c;
+  if (prev && prev !== c) { try { prev.stop(); } catch {} }
   currentIndex = i;
-  trackLoadAt = performance.now();
+  trackLoadAt = capsOf(sid).needsTransientPauseGuard ? performance.now() : null;
   lastLoadWasCue = startSeconds !== undefined;
   updateMediaSession("paused");
   if (isPride) {
@@ -451,17 +475,15 @@ function load(i, startSeconds, silent = false) {
     document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
   }
   document.title = `${t.title} — ${t.artist} | ${tape.title}`;
-  if (startSeconds !== undefined) {
-    player.cueVideoById({ videoId: t.id, startSeconds });
-  } else {
-    player.loadVideoById(t.id);
-  }
+  c.load(t, { startSeconds, cue: startSeconds !== undefined });
   const npTitle = document.getElementById("np-title");
   const npArtist = document.getElementById("np-artist");
   npTitle.querySelector("span").textContent = t.title;
   npArtist.querySelector("span").textContent = t.artist;
   const attr = document.getElementById("attribution");
-  attr.href = `https://www.youtube.com/watch?v=${t.id}`;
+  const a = attributionFor(t);
+  attr.href = a.href;
+  attr.textContent = a.label ? L.auf(a.label) : L.au;
   attr.style.display = "block";
   const el = trackEls[i];
   el.classList.add("active");
@@ -518,6 +540,10 @@ function resetPlaybackUI() {
   currentIndex = -1;
   pendingTrackIndex = -1;
   trackLoadAt = null;
+  // Detach the source so any late events from a stopped controller are
+  // filtered out by the activeSourceId guard
+  active = null;
+  activeSourceId = null;
   barEl.classList.remove("bar-visible");
   document.documentElement.style.setProperty('--bar-h', '0px');
   document.getElementById("scrubber-fill").style.width = "0%";
@@ -567,7 +593,7 @@ document.addEventListener("keydown", e => {
     // The list-focus logic below targets the hidden playlist — skip it.
     if (e.key === " ") {
       e.preventDefault();
-      if (player) playing ? player.pauseVideo() : player.playVideo();
+      if (active) playing ? active.pause() : active.play();
     } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       e.preventDefault();
       next();
@@ -583,21 +609,13 @@ document.addEventListener("keydown", e => {
     // Let viz-open / viz-exit buttons handle their own Space/click natively
     if (e.target.tagName === "BUTTON" && e.target.id !== "btn-play") return;
     e.preventDefault();
-    if (!ytApiReady) {
-      if (focusedIndex >= 0) {
-        onTrackClick(focusedIndex);
-      } else {
-        onTrackClick(currentIndex >= 0 ? currentIndex : 0);
-      }
-      return;
-    }
-    if (!player) return;
+    // onTrackClick handles a not-yet-ready source (pends the track)
     if (focusedIndex >= 0) {
       onTrackClick(focusedIndex);
     } else if (currentIndex === -1) {
-      load(0);
-    } else {
-      playing ? player.pauseVideo() : player.playVideo();
+      onTrackClick(0);
+    } else if (active) {
+      playing ? active.pause() : active.play();
     }
   } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
     e.preventDefault();
@@ -627,14 +645,9 @@ function updateBtn() {
 }
 
 document.getElementById("btn-play").addEventListener("click", () => {
-  if (!ytApiReady) {
-    const idx = currentIndex >= 0 ? currentIndex : 0;
-    onTrackClick(idx);
-    return;
-  }
-  if (!player) return;
-  if (currentIndex === -1) { load(0); return; }
-  playing ? player.pauseVideo() : player.playVideo();
+  if (currentIndex === -1) { onTrackClick(0); return; }
+  if (!active) return;
+  playing ? active.pause() : active.play();
 });
 
 // Scrubber — mouse
@@ -644,15 +657,15 @@ document.getElementById("scrubber").addEventListener("click", seek);
 const scrubEl = document.getElementById("scrubber");
 let pendingScrubPct = null;
 scrubEl.addEventListener("touchstart", e => {
-  if (!player || currentIndex === -1) return;
+  if (!active || currentIndex === -1) return;
   const touch = e.touches[0];
   const r = scrubEl.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
-  const dur = player.getDuration();
-  if (dur) { player.seekTo(pct * dur, true); snapSeek(pct); }
+  const dur = active.getDuration();
+  if (dur) { active.seekTo(pct * dur); snapSeek(pct); }
 }, { passive: true });
 scrubEl.addEventListener("touchmove", e => {
-  if (!player || currentIndex === -1) return;
+  if (!active || currentIndex === -1) return;
   const touch = e.touches[0];
   const r = scrubEl.getBoundingClientRect();
   pendingScrubPct = Math.max(0, Math.min(1, (touch.clientX - r.left) / r.width));
@@ -660,10 +673,10 @@ scrubEl.addEventListener("touchmove", e => {
 }, { passive: true });
 scrubEl.addEventListener("touchend", () => {
   if (pendingScrubPct === null) return;
-  const dur = player?.getDuration();
+  const dur = active?.getDuration();
   if (dur) {
     const t = pendingScrubPct * dur;
-    player.seekTo(t, true);
+    active.seekTo(t);
     setMediaPosition(dur, t);
   }
   pendingScrubPct = null;
@@ -683,13 +696,13 @@ function snapSeek(pct) {
 }
 
 function seek(e) {
-  if (!player || currentIndex === -1) return;
+  if (!active || currentIndex === -1) return;
   const r = scrubEl.getBoundingClientRect();
   const pct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-  const dur = player.getDuration();
+  const dur = active.getDuration();
   if (dur) {
     const t = pct * dur;
-    player.seekTo(t, true);
+    active.seekTo(t);
     snapSeek(pct);
     setMediaPosition(dur, t);
   }
@@ -699,9 +712,9 @@ function startTicker() {
   stopTicker();
   let lastSlowUpdate = 0;
   function tick(now) {
-    if (!player || !player.getCurrentTime) return;
-    const cur = player.getCurrentTime();
-    const dur = player.getDuration();
+    if (!active) return;
+    const cur = active.getCurrentTime();
+    const dur = active.getDuration();
     if (!dur) { ticker = requestAnimationFrame(tick); return; }
     const ratio = cur / dur;
     const pct = `${ratio * 100}%`;
@@ -852,7 +865,7 @@ if (!isEmbed) {
     dimColor,
     offlineText: L.offline,
     getPlaying: () => playing,
-    getPlayer: () => player,
+    getPlayer: () => active,
     getCurrentIndex: () => currentIndex,
     releaseWakeLock,
     stopColorDrift,
@@ -937,7 +950,7 @@ function scrollTrackIntoView(el) {
 
 let flickCooldown = false;
 function handleMotion(e) {
-  if (flickCooldown || !player) return;
+  if (flickCooldown || !active) return;
   const rate = e.rotationRate?.gamma;
   if (!rate) return;
   if (rate > 250 && currentIndex > 0) {
@@ -1101,14 +1114,15 @@ function updateMediaSession(state = "playing") {
   if (!("mediaSession" in navigator)) return;
   const t = tape.tracks[currentIndex];
   if (!t) return;
+  const artwork = artworkFor(t);
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title,
     artist: t.artist,
-    artwork: [{ src: `https://i.ytimg.com/vi/${t.id}/hqdefault.jpg`, sizes: '480x360', type: 'image/jpeg' }],
+    ...(artwork ? { artwork } : {}),
   });
   navigator.mediaSession.playbackState = state;
-  navigator.mediaSession.setActionHandler("play", () => player.playVideo());
-  navigator.mediaSession.setActionHandler("pause", () => player.pauseVideo());
+  navigator.mediaSession.setActionHandler("play", () => active?.play());
+  navigator.mediaSession.setActionHandler("pause", () => active?.pause());
   navigator.mediaSession.setActionHandler("nexttrack",
     currentIndex + 1 < tape.tracks.length ? () => next() : null
   );
@@ -1117,20 +1131,20 @@ function updateMediaSession(state = "playing") {
   );
   navigator.mediaSession.setActionHandler("seekforward", ({ seekOffset } = {}) => {
     const off = seekOffset || 10;
-    const cur = player?.getCurrentTime?.() || 0;
-    const dur = player?.getDuration?.() || 0;
+    const cur = active?.getCurrentTime() || 0;
+    const dur = active?.getDuration() || 0;
     if (!dur) return;
     const t = Math.min(cur + off, dur);
-    player.seekTo(t, true);
+    active.seekTo(t);
     setMediaPosition(dur, t);
   });
   navigator.mediaSession.setActionHandler("seekbackward", ({ seekOffset } = {}) => {
     const off = seekOffset || 10;
-    const cur = player?.getCurrentTime?.() || 0;
-    const dur = player?.getDuration?.() || 0;
+    const cur = active?.getCurrentTime() || 0;
+    const dur = active?.getDuration() || 0;
     if (!dur) return;
     const t = Math.max(cur - off, 0);
-    player.seekTo(t, true);
+    active.seekTo(t);
     setMediaPosition(dur, t);
   });
 }
@@ -1143,13 +1157,14 @@ function updateMediaSession(state = "playing") {
 
 function applyTape(nextTape) {
   savePosition(); // a same-session return to the outgoing tape restores
-  try { player?.stopVideo?.(); } catch {}
+  try { active?.stop(); } catch {}
   resetPlaybackUI(); // runs against the outgoing tape's DOM — order matters
   stopAmbient();
   document.getElementById('btn-viz')?.setAttribute('hidden', '');
 
   tape = nextTape;
   computePrideState();
+  warmControllers();
 
   const newBg = resolveBg(tape.color, PALETTE);
   document.documentElement.style.setProperty('--bg', newBg);
@@ -1170,7 +1185,9 @@ function applyTape(nextTape) {
   // Same-session position for this tape — every tape keeps its own slot in
   // the position map, so A→B→A returns to A's spot
   const saved = getSavedPosition();
-  if (saved && player?.cueVideoById) load(saved.index, saved.time, true);
+  if (saved && controllerFor(sourceOf(tape.tracks[saved.index])).isReady()) {
+    load(saved.index, saved.time, true);
+  }
 
   drawer?.markActive(tape.id);
   window.scrollTo({ top: 0 });
@@ -1226,7 +1243,6 @@ if (!isEmbed && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
 }
 
-// Load YouTube API eagerly so it's ready before the first track click —
-// calling loadVideoById from an async callback (onReady) loses the user gesture
-// context on iOS, preventing autoplay.
-loadYouTubeAPI();
+// Warm the tape's source controllers eagerly so they're ready before the
+// first track click — see warmControllers (iOS gesture-context rule).
+warmControllers();
