@@ -1,10 +1,29 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
   it('every entry is a valid hex color', () => {
     PALETTE.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
+  });
+});
+
+describe('resolveBg', () => {
+  it('passes a hex color through', () => {
+    expect(resolveBg('#a83232', PALETTE)).toBe('#a83232');
+  });
+  it('picks from the palette for random', () => {
+    expect(PALETTE).toContain(resolveBg('random', PALETTE));
+  });
+  it('picks from the palette for pride', () => {
+    expect(PALETTE).toContain(resolveBg('pride', PALETTE));
+  });
+  it('picks from the palette for a missing color', () => {
+    expect(PALETTE).toContain(resolveBg(undefined, PALETTE));
+  });
+  it('uses the injected rng', () => {
+    expect(resolveBg('random', PALETTE, () => 0)).toBe(PALETTE[0]);
+    expect(resolveBg('random', PALETTE, () => 0.999)).toBe(PALETTE[PALETTE.length - 1]);
   });
 });
 
@@ -344,6 +363,13 @@ describe('buildSaveFiles', () => {
     const files = buildSaveFiles('100', playlists, idx);
     const pf = files.find(f => f.path === 'playlists/100.json');
     expect(JSON.parse(pf.content)).toEqual(playlist);
+  });
+
+  it('index.json content round-trips a published array', () => {
+    const pubIdx = { active: '100', ids: ['100'], published: ['100'] };
+    const files = buildSaveFiles('100', playlists, pubIdx);
+    const indexFile = files.find(f => f.path === 'playlists/index.json');
+    expect(JSON.parse(indexFile.content)).toEqual(pubIdx);
   });
 
   it('does not duplicate the active playlist when current === active', () => {

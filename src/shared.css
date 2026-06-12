@@ -1,0 +1,98 @@
+/* Shared tokens and components for the player (style.css) and the admin
+   (admin.css). Imported first by both — page-specific layout stays in the
+   page's own sheet. */
+
+:root {
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* the hidden attribute must win over any author display value
+   (display:flex on an id otherwise overrides the UA's display:none) */
+[hidden] { display: none !important; }
+
+html {
+  font-size: calc(100% * env(preferred-text-scale, 1));
+}
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  background-color: var(--bg, #c1440e);
+  color: rgba(255,255,255,0.9);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.section-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  opacity: 0.45;
+  margin-bottom: 12px;
+}
+
+/* ── Cassette spine — the player's library drawer and the admin's shelf ──── */
+.spine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 3px;
+  font-family: inherit;
+  text-align: left;
+  background-color: var(--spine, #444);
+  /* ridged cassette plastic: faint vertical grooves + edge bevel */
+  background-image: repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.04) 0 1px, transparent 1px 8px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12),
+              inset 0 -1px 0 rgba(0,0,0,0.25);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.4s var(--ease), opacity 0.2s;
+  opacity: 0.85;
+}
+
+@media (hover: hover) { .spine:hover { opacity: 1; } }
+
+.spine:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.55);
+  outline-offset: 2px;
+}
+
+/* the playing (or edited) tape sits pulled off the shelf */
+.spine.spine-active { transform: translateX(8px); opacity: 1; }
+
+.spine.spine-pride {
+  background-image: linear-gradient(135deg,
+    #b33030 0%, #c25a10 20%, #9a7a10 38%, #2a7a30 52%,
+    #1a4a8a 68%, #5a2080 82%, #9e2a60 100%);
+}
+
+.spine-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255,255,255,0.88);
+}
+
+.spine-count {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.45);
+  flex-shrink: 0;
+}
+
+.spine[data-text="dark"] .spine-title { color: rgba(0,0,0,0.78); }
+.spine[data-text="dark"] .spine-count { color: rgba(0,0,0,0.45); }
+
+@media (prefers-reduced-motion: reduce) {
+  .spine { transition: none; }
+}

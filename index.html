@@ -37,7 +37,10 @@
 </div>
 
 <div id="tape" role="region" aria-label="Playlist">
-  <p id="tape-title"></p>
+  <div id="tape-head">
+    <p id="tape-title"></p>
+    <button id="share-btn" aria-label="Share tape">↑</button>
+  </div>
   <ul id="track-list"></ul>
 </div>
 
@@ -54,7 +57,6 @@
   <a id="attribution" href="#" target="_blank" rel="noopener noreferrer">audio via YouTube</a>
 </div>
 
-<button id="share-btn" hidden aria-label="Share tape">↑</button>
 <button id="pi-btn" hidden aria-label="Enable tilt peek">π</button>
 <div id="a11y-announce" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 <div id="yt-player" aria-hidden="true"></div>

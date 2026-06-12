@@ -1,16 +1,8 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
+@import './shared.css';
 
-html {
-  font-size: calc(100% * env(preferred-text-scale, 1));
-}
-
-body {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  min-height: 100vh;
-  background-color: var(--bg, #c1440e);
-  color: rgba(255,255,255,0.9);
-  -webkit-tap-highlight-color: transparent;
-}
+/* Chrome opacity tiers — every label and affordance sits on one of three:
+   content 0.9 (body color) · labels/meta 0.35–0.45 · quiet affordances 0.3
+   (0.55 on hover). */
 
 #ambient-bg {
   position: fixed;
@@ -51,7 +43,7 @@ body {
   padding: 10px 16px;
   z-index: 200;
   transform: translateY(-100%);
-  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.38s var(--ease);
   pointer-events: none;
 }
 
@@ -105,6 +97,44 @@ body.is-offline .track:hover { background: transparent; }
   margin-bottom: 24px;
   padding: 0 28px;
 }
+
+/* Header row: [≣ library][title][↑ share] — the ≣ hugs the left edge, the
+   side its drawer slides out from (embed keeps a bare title). Both button
+   slots are reserved via visibility, never display, so the title's position
+   doesn't depend on whether a library or native share exists. */
+#tape-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-right: 14px;
+}
+
+#tape-head #tape-title {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+  padding-left: 0; /* the reserved ≣ slot provides the left gutter */
+}
+
+#library-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  font-size: 1.125rem;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  padding: 14px;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+  visibility: hidden; /* drawer.js reveals it when a library exists */
+}
+
+@media (hover: hover) { #library-btn:hover { color: rgba(255,255,255,0.55); } }
 
 #track-list { list-style: none; }
 
@@ -186,7 +216,7 @@ body.is-offline .track:hover { background: transparent; }
   -webkit-backdrop-filter: blur(12px);
   padding: 14px 28px max(16px, env(safe-area-inset-bottom));
   transform: translateY(calc(100% + 1px));
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.4s var(--ease);
   will-change: transform;
   z-index: 2;
 }
@@ -272,7 +302,7 @@ body.is-offline .track:hover { background: transparent; }
 
 #attribution {
   font-size: 0.625rem;
-  opacity: 0.28;
+  opacity: 0.3;
   text-align: right;
   margin-top: 10px;
   color: inherit;
@@ -320,7 +350,7 @@ body.is-offline .track:hover { background: transparent; }
   height: 2px;
   background: linear-gradient(to bottom, rgba(0,0,0,0.3) 50%, rgba(255,255,255,0.06) 50%);
   opacity: 0;
-  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.4s var(--ease);
 }
 
 #bar.bar-visible::before { opacity: 1; }
@@ -341,10 +371,9 @@ body.is-offline .track:hover { background: transparent; }
   flex: 1;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-  color: rgba(0,0,0,0.2);
+  color: rgba(255,255,255,0.35);
   opacity: 0;
   transition: opacity 0.9s ease;
-  text-shadow: 0 1px 1px rgba(255,255,255,0.3);
 }
 
 #playlist-meta.visible { opacity: 1; }
@@ -369,7 +398,17 @@ body.is-offline .track:hover { background: transparent; }
   flex-shrink: 0;
 }
 
-#pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+/* share lives in the header cluster beside ≣ — header metrics, and an
+   invisible-but-present slot where native share is unsupported so the
+   library button never shifts (main.js flips visibility on) */
+#share-btn {
+  padding: 14px;
+  visibility: hidden;
+}
+
+@media (hover: hover) {
+  #pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+}
 
 @property --mask-l {
   syntax: '<length>';
@@ -606,4 +645,55 @@ body.viz-active { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   body.viz-entering #tape,
   body.viz-exiting #tape { animation: none; opacity: 0; }
+}
+
+/* ── Library drawer — published tapes as cassette spines on a shelf ──────── */
+#library-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(78vw, 300px);
+  background: rgba(14,14,14,0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transform: translateX(-100%);
+  visibility: hidden; /* not hit-testable or focusable while closed */
+  transition: transform 0.4s var(--ease), visibility 0s linear 0.4s;
+  z-index: 60;
+  padding: max(56px, env(safe-area-inset-top)) 0 env(safe-area-inset-bottom);
+  overflow-y: auto;
+}
+
+#library-drawer.drawer-open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.4s var(--ease);
+}
+
+#library-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  z-index: 59;
+}
+
+#library-drawer.drawer-open + #library-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#library-shelf { list-style: none; }
+
+/* the .spine component lives in shared.css; only the drawer inset is local */
+#library-shelf .spine {
+  width: calc(100% - 20px);
+  margin: 6px 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #library-drawer, #library-scrim { transition: none; }
 }

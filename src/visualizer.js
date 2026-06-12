@@ -645,6 +645,20 @@ export function setVizBgColor(hex) {
   if (hex) vizBgHex = hex;
 }
 
+// Re-target per-tape state after a library tape switch: the persistence key,
+// selection priority, and pride palette mode all follow the new tape. The
+// switch closes the overlay before calling this, so there's no live-render
+// race; clearing reopen eligibility keeps an old tape's GPU-loss close from
+// resurrecting the overlay on the new tape.
+export function setVizTape(tapeId, defaultViz, isPride) {
+  vizIsPride = isPride;
+  vizTapeKey = tapeId || '_';
+  vizSelection = resolveVizSelection(readVizPref(vizTapeKey), defaultViz, VIZ_IDS, getDefaultViz().id);
+  picker?.setActive(vizSelection);
+  sysClosedAt = null;
+  lastAppliedBgHex = null; // palette rebuilds for the new tape on next open
+}
+
 // Warm the saved selection's chunk once playback starts (intent is proven —
 // the ⊙ button just appeared), so opening the visualizer doesn't wait on it.
 export function preloadVizSelection() {

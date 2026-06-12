@@ -14,7 +14,8 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Full keyboard navigation — arrows to move focus, space/enter to play
 - MediaSession API: lock screen controls, album artwork, and scrubber position state
 - Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
-- Web Share: `↑` button in the playlist footer opens the native share sheet (where supported)
+- Web Share: `↑` button in the header beside the library button opens the native share sheet (where supported; the slot stays reserved elsewhere so the header never shifts)
+- Tape library: a `≣` button left of the tape title — hugging the edge its drawer slides out from — opens a left drawer of published tapes, drawn as cassette spines in their playlist colors (the playing tape sits pulled off the shelf); picking one hot-swaps the whole player in place — track list, color, visualizer default, metadata — with no reload, and back/forward navigate the history. Every tape is also deep-linkable at `?tape=<id>` (a bad id falls back to the live tape). The button only appears when more than one tape is published (its slot stays reserved either way, so the title never shifts); publishing is editorial curation, not privacy — playlist JSON stays publicly fetchable either way, and share previews (OG tags) always describe the live tape
 - Service worker caches the shell; playlist data always fetched fresh
 - Tab title updates to "Track — Artist | tape name" while playing; reverts to the tape name when the playlist ends
 - Playback persistence: last track and seek position saved in `sessionStorage` per playlist; resumes on reload without autoplay
@@ -24,12 +25,14 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Respects `prefers-reduced-motion`: background color drift skipped; decorative transitions removed
 
 **Playlist management (admin)**
+- Styled like the player it edits: the page background live-previews the edited tape's color, playlists sit on a cassette-spine shelf (published first, in drawer order; unpublished spines are dimmed with a dashed edge; the edited tape sits pulled off the shelf), and track rows carry the player's type and spacing
 - Create, edit, reorder (drag), and delete playlists without touching JSON
 - Fetch track title and artist automatically from YouTube oEmbed
 - Import an entire YouTube playlist by URL — requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
 - 5-second undo after deleting a track
 - Color picker: fixed hex, random-per-load, or Pride rainbow
 - Set a playlist's geographic location with one tap
+- Publish/unpublish any playlist to the player's tape library (newly published tapes append to the drawer order); drag published spines to reorder the drawer
 - Promote any playlist to live; `config.js` regenerates on every save
 - Password-gated; accessible from any device
 - Remote saves commit directly to `main` via the GitHub API — no server required, deploy triggers automatically (~60 seconds to live); save status shows live progress ("connecting…" → "uploading files…" → "pushing…")
@@ -75,9 +78,12 @@ config.js               # Active playlist — loaded by the player at parse time
 server.py               # Local dev server (handles admin file writes)
 src/
   main.js               # Player logic (shared by index.html and embed.html)
+  library.js            # Pure tape-library logic: ?tape= params, drawer order, spine colors
+  drawer.js             # Library drawer DOM: ≣ button, cassette-spine shelf
   visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js GL plumbing, viz-logic.js pure logic)
   viz/                  # Visualization registry: ids.js, registry.js, prelude.js, one module per visualization
   viz-picker.js         # Lower-right visualization picker (accordion from the ⁘ toggle)
+  shared.css            # Tokens, reset, and the cassette-spine component shared by both pages
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
   utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
@@ -89,7 +95,7 @@ src/
   admin.css             # Admin styles
   admin-strings.js      # Admin i18n strings
 playlists/
-  index.json            # { active: id, ids: [id, …] }
+  index.json            # { active: id, ids: [id, …], published: [id, …] }
   {id}.json             # Individual playlist files (timestamp-based IDs)
 public/
   sw.js                 # Service worker
@@ -116,8 +122,10 @@ public/
 
 **`playlists/index.json`**
 ```json
-{ "active": "1748649600000", "ids": ["1748649600000"] }
+{ "active": "1748649600000", "ids": ["1748649600000"], "published": ["1748649600000"] }
 ```
+
+`published` (optional) lists the tapes shown in the player's library drawer, in display order; every entry must also be in `ids`. The live tape always appears in the drawer even when unlisted. Unpublished tapes are hidden from the drawer but still publicly fetchable at `playlists/{id}.json` and viewable via `?tape=<id>` — curation, not privacy.
 
 **`config.js`** — regenerated by the admin on every save; the player reads this directly.
 ```js
@@ -214,5 +222,5 @@ npm run build     # production build → dist/
 | `Enter` / `Space` | Play focused track |
 | `Space` (no focus) | Play/pause current track |
 | `←` / `→` (visualizer open) | Previous / next track |
-| `Esc` | Close the visualizer |
+| `Esc` | Close the visualizer or the library drawer |
 | `Tab` | Standard focus navigation |

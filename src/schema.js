@@ -35,4 +35,12 @@ export function validateIndex(obj) {
   obj.ids.forEach((id, i) => {
     if (typeof id !== 'string') err(`index.ids[${i}] must be a string`);
   });
+  // Editorial curation only — every playlist JSON is publicly fetchable regardless
+  if (obj.published !== undefined) {
+    if (!Array.isArray(obj.published)) err('index.published must be an array');
+    obj.published.forEach((id, i) => {
+      if (typeof id !== 'string') err(`index.published[${i}] must be a string`);
+      if (!obj.ids.includes(id)) err(`index.published[${i}] is not in index.ids`);
+    });
+  }
 }

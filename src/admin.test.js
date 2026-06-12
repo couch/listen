@@ -275,6 +275,24 @@ describe('validateIndex', () => {
     expect(() => validateIndex({ active: '1', ids: ['a', 2, 'b'] })).toThrow(/ids\[1\]/);
   });
   it('accepts empty ids array', () => expect(() => validateIndex({ active: '', ids: [] })).not.toThrow());
+  it('accepts a missing published field', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1', '2'] })).not.toThrow();
+  });
+  it('accepts a valid published array', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1', '2'], published: ['2', '1'] })).not.toThrow();
+  });
+  it('accepts an empty published array', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1'], published: [] })).not.toThrow();
+  });
+  it('rejects non-array published', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1'], published: '1' })).toThrow(/published/);
+  });
+  it('rejects published array containing a non-string', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1'], published: ['1', 2] })).toThrow(/published\[1\]/);
+  });
+  it('rejects published id not present in ids', () => {
+    expect(() => validateIndex({ active: '1', ids: ['1'], published: ['1', '9'] })).toThrow(/published\[1\]/);
+  });
 });
 
 // ── Integration: save path ────────────────────────────────────────────────────
