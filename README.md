@@ -25,13 +25,14 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Respects `prefers-reduced-motion`: background color drift skipped; decorative transitions removed
 
 **Playlist management (admin)**
+- Styled like the player it edits: the page background live-previews the edited tape's color, playlists sit on a cassette-spine shelf (published first, in drawer order; unpublished spines are dimmed with a dashed edge; the edited tape sits pulled off the shelf), and track rows carry the player's type and spacing
 - Create, edit, reorder (drag), and delete playlists without touching JSON
 - Fetch track title and artist automatically from YouTube oEmbed
 - Import an entire YouTube playlist by URL — requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
 - 5-second undo after deleting a track
 - Color picker: fixed hex, random-per-load, or Pride rainbow
 - Set a playlist's geographic location with one tap
-- Publish/unpublish any playlist to the player's tape library (newly published tapes append to the drawer order)
+- Publish/unpublish any playlist to the player's tape library (newly published tapes append to the drawer order); drag published spines to reorder the drawer
 - Promote any playlist to live; `config.js` regenerates on every save
 - Password-gated; accessible from any device
 - Remote saves commit directly to `main` via the GitHub API — no server required, deploy triggers automatically (~60 seconds to live); save status shows live progress ("connecting…" → "uploading files…" → "pushing…")
@@ -82,6 +83,7 @@ src/
   visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js GL plumbing, viz-logic.js pure logic)
   viz/                  # Visualization registry: ids.js, registry.js, prelude.js, one module per visualization
   viz-picker.js         # Lower-right visualization picker (hover/tap revealed)
+  shared.css            # Tokens, reset, and the cassette-spine component shared by both pages
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
   utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt

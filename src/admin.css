@@ -6,76 +6,113 @@
   padding: 48px 28px 80px;
 }
 
-/* ── Playlist bar ── */
-#playlist-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 40px;
-  flex-wrap: wrap;
-}
-
-#playlist-select {
-  flex: 1;
-  min-width: 160px;
-  background: rgba(0,0,0,0.2);
-  border: 1px solid rgba(255,255,255,0.22);
-  border-radius: 4px;
-  color: inherit;
-  font-family: inherit;
-  font-size: 0.875rem;
-  padding: 8px 10px;
-  outline: none;
-  cursor: pointer;
-}
-
-#playlist-select option { background: #222; color: #fff; }
-
-.bar-btn {
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 4px;
+/* ── Quiet text buttons — the player's affordance language ── */
+.text-btn {
+  background: none;
+  border: none;
   color: inherit;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.8125rem;
-  padding: 8px 13px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  opacity: 0.45;
+  padding: 4px 0;
   white-space: nowrap;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
   line-height: 1;
 }
 
-.bar-btn:hover { background: rgba(255,255,255,0.22); }
-.bar-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.text-btn:hover { opacity: 0.8; }
+.text-btn:disabled { opacity: 0.2; cursor: default; pointer-events: none; }
+
+/* ── Tape shelf ── */
+#shelf-section { margin-bottom: 40px; }
+
+#tape-shelf { list-style: none; }
+
+#tape-shelf .spine {
+  width: 100%;
+  margin: 6px 0;
+}
+
+#tape-shelf .sortable-ghost { opacity: 0.35; }
+
+/* unpublished tapes: dimmed, dashed edge — not on the drawer's shelf */
+#tape-shelf .spine-unpublished {
+  opacity: 0.5;
+  border-left: 3px dashed rgba(255,255,255,0.35);
+}
+
+@media (hover: hover) { #tape-shelf .spine-unpublished:hover { opacity: 0.7; } }
+
+.spine-live {
+  font-size: 0.5rem;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.88);
+}
+
+.spine[data-text="dark"] .spine-live { color: rgba(0,0,0,0.78); }
+
+/* a new tape slips in as an empty dashed slot at the end of the shelf */
+#new-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 6px 0;
+  background: none;
+  border: 1px dashed rgba(255,255,255,0.3);
+  border-radius: 3px;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+#new-btn:hover { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.5); }
+
+#tape-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 10px;
+}
 
 #live-badge {
-  font-size: 0.75rem;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.35);
-  border-radius: 4px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  opacity: 0.65;
   white-space: nowrap;
 }
 
 /* ── Settings ── */
 #settings { margin-bottom: 40px; }
 
+/* the tape title field mirrors the player's #tape-title */
 #tape-name {
   background: none;
   border: none;
-  border-bottom: 1px solid rgba(255,255,255,0.25);
+  border-bottom: 1px solid transparent;
   color: inherit;
   font-family: inherit;
-  font-size: 1.375rem;
-  font-weight: 500;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  opacity: 0.65;
   width: 100%;
   padding: 4px 0 6px;
   margin-bottom: 20px;
   outline: none;
+  transition: opacity 0.15s, border-color 0.15s;
 }
 
-#tape-name::placeholder { opacity: 0.35; }
-#tape-name:focus { border-bottom-color: rgba(255,255,255,0.6); }
+#tape-name::placeholder { opacity: 0.5; }
+#tape-name:focus { opacity: 1; border-bottom-color: rgba(255,255,255,0.4); }
 
 #color-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -140,9 +177,11 @@
 #tracks-section { margin-bottom: 36px; }
 #track-list { list-style: none; }
 
+/* track rows carry the player's .track metrics */
 .track-item {
   display: flex; align-items: center;
-  gap: 12px; padding: 10px 0;
+  gap: 16px; padding: 6px 0;
+  min-height: 60px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -158,7 +197,7 @@
 
 .drag-handle:active { cursor: grabbing; }
 
-.track-num { font-size: 0.75rem; opacity: 0.4; width: 18px; text-align: right; flex-shrink: 0; }
+.track-num { font-size: 0.8125rem; opacity: 0.4; width: 20px; text-align: right; flex-shrink: 0; }
 
 .track-field {
   background: none; border: none;
@@ -170,8 +209,8 @@
 
 .track-field:focus { border-bottom-color: rgba(255,255,255,0.4); }
 .track-field::placeholder { opacity: 0.3; }
-.track-title-field { font-size: 0.9375rem; font-weight: 500; flex: 2; }
-.track-artist-field { font-size: 0.8125rem; opacity: 0.65; flex: 1.5; }
+.track-title-field { font-size: 1.0625rem; font-weight: 500; flex: 2; }
+.track-artist-field { font-size: 0.875rem; opacity: 0.6; flex: 1.5; }
 
 .track-delete {
   background: none; border: none; color: inherit;
@@ -200,19 +239,19 @@
 
 #yt-api-key {
   width: 100%;
-  background: rgba(0,0,0,0.12);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
   color: inherit;
   font-family: inherit;
   font-size: 0.8125rem;
-  padding: 8px 12px;
+  padding: 8px 0;
   outline: none;
   transition: border-color 0.15s;
 }
 
 #yt-api-key::placeholder { opacity: 0.3; font-style: italic; }
-#yt-api-key:focus { border-color: rgba(255,255,255,0.4); }
+#yt-api-key:focus { border-bottom-color: rgba(255,255,255,0.5); }
 
 #url-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
 
@@ -233,27 +272,30 @@
 
 #yt-input {
   flex: 1;
-  background: rgba(0,0,0,0.15);
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.25);
   color: inherit; font-family: inherit; font-size: 0.875rem;
-  padding: 9px 12px; outline: none;
+  padding: 9px 0; outline: none;
   transition: border-color 0.15s;
 }
 
 #yt-input::placeholder { opacity: 0.4; }
-#yt-input:focus { border-color: rgba(255,255,255,0.5); }
+#yt-input:focus { border-bottom-color: rgba(255,255,255,0.6); }
 
 #fetch-btn {
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 4px; color: inherit;
-  cursor: pointer; font-size: 0.875rem;
-  padding: 9px 16px; transition: background 0.15s; white-space: nowrap;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer; font-family: inherit; font-size: 0.875rem;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  opacity: 0.55;
+  padding: 9px 0; transition: opacity 0.15s; white-space: nowrap;
 }
 
-#fetch-btn:hover { background: rgba(255,255,255,0.25); }
-#fetch-btn:disabled { opacity: 0.4; cursor: default; }
+#fetch-btn:hover { opacity: 0.9; }
+#fetch-btn:disabled { opacity: 0.2; cursor: default; }
 
 #meta-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 
@@ -292,18 +334,22 @@
 #save-status.error { color: rgba(255,180,180,1); opacity: 1; }
 
 #save-btn {
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 4px; color: inherit;
+  background: none;
+  border: none;
+  color: inherit;
   cursor: pointer; font-family: inherit;
-  font-size: 0.875rem; padding: 10px 20px;
-  transition: background 0.15s;
+  font-size: 0.875rem;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  opacity: 0.75;
+  padding: 10px 0;
+  transition: opacity 0.15s;
 }
 
-#save-btn:hover { background: rgba(255,255,255,0.25); }
-#save-btn:disabled { opacity: 0.4; cursor: default; }
+#save-btn:hover { opacity: 1; }
+#save-btn:disabled { opacity: 0.3; cursor: default; }
 
-#view-link { font-size: 0.875rem; color: inherit; opacity: 0.55; text-decoration: none; transition: opacity 0.15s; }
+#view-link { font-size: 0.875rem; color: inherit; opacity: 0.55; text-decoration: none; text-transform: lowercase; letter-spacing: 0.06em; transition: opacity 0.15s; }
 #view-link:hover { opacity: 0.9; }
 
 #location-row {

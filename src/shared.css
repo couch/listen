@@ -8,6 +8,10 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* the hidden attribute must win over any author display value
+   (display:flex on an id otherwise overrides the UA's display:none) */
+[hidden] { display: none !important; }
+
 html {
   font-size: calc(100% * env(preferred-text-scale, 1));
 }

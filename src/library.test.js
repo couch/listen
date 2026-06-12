@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTapeParam, drawerEntries, spineColor, spineTextColor, tapeUrl } from './library.js';
+import { resolveTapeParam, drawerEntries, spineColor, spineTextColor, tapeUrl, shelfOrder, reorderPublished } from './library.js';
 import { PALETTE } from './utils.js';
 
 describe('resolveTapeParam', () => {
@@ -82,6 +82,44 @@ describe('spineTextColor', () => {
   });
   it('every palette color takes light text', () => {
     PALETTE.forEach(hex => expect(spineTextColor(hex)).toBe('light'));
+  });
+});
+
+describe('shelfOrder', () => {
+  it('lists published tapes first in curated order, then the rest in ids order', () => {
+    const index = { active: '1', ids: ['1', '2', '3', '4'], published: ['3', '1'] };
+    expect(shelfOrder(index)).toEqual(['3', '1', '2', '4']);
+  });
+  it('falls back to ids order with no published field', () => {
+    expect(shelfOrder({ active: '1', ids: ['2', '1'] })).toEqual(['2', '1']);
+  });
+  it('drops published ids that are not in ids', () => {
+    const index = { active: '1', ids: ['1', '2'], published: ['ghost', '2'] };
+    expect(shelfOrder(index)).toEqual(['2', '1']);
+  });
+  it('handles a missing index', () => {
+    expect(shelfOrder(undefined)).toEqual([]);
+  });
+});
+
+describe('reorderPublished', () => {
+  it('reorders published ids to match the DOM order', () => {
+    expect(reorderPublished(['1', '2', '3'], ['3', '1', '2'])).toEqual(['3', '1', '2']);
+  });
+  it('ignores unpublished ids in the DOM order', () => {
+    expect(reorderPublished(['1', '2'], ['4', '2', '5', '1'])).toEqual(['2', '1']);
+  });
+  it('never changes membership', () => {
+    expect(reorderPublished(['1'], ['2', '3'])).toEqual(['1']);
+    expect(reorderPublished([], ['1', '2'])).toEqual([]);
+  });
+  it('keeps published ids missing from the DOM', () => {
+    expect(reorderPublished(['1', '2', '3'], ['3', '1'])).toEqual(['3', '1', '2']);
+  });
+  it('does not mutate its inputs', () => {
+    const pub = ['1', '2'];
+    reorderPublished(pub, ['2', '1']);
+    expect(pub).toEqual(['1', '2']);
   });
 });
 

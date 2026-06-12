@@ -1,7 +1,8 @@
 import './admin.css';
 import Sortable from 'sortablejs';
 import { lang, fmtDate } from './strings.js';
-import { PALETTE, extractId, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
+import { PALETTE, resolveBg, extractId, extractPlaylistId, fuzzyCoord, buildConfig, buildSaveFiles } from './utils.js';
+import { spineColor, spineTextColor, shelfOrder, reorderPublished } from './library.js';
 import { T } from './admin-strings.js';
 import { checkAuth, getGHConfig, IS_LOCAL } from './admin-auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
@@ -104,9 +105,9 @@ async function init() {
   buildVizPicker();
   applyStrings();
   buildSortable();
+  buildShelfSortable();
   attachListeners();
   loadPlaylist(initialId);
-  renderSelect();
 
   const savedKey = localStorage.getItem(YT_API_KEY_STORE);
   if (savedKey) document.getElementById('yt-api-key').value = savedKey;
@@ -115,21 +116,74 @@ async function init() {
 // ── Helpers ──
 function today() { return new Date().toISOString().split("T")[0]; }
 
-// ── Playlist select ──
-const selectEl = document.getElementById("playlist-select");
+// ── Tape shelf — spines ordered published-first, like the player's drawer ──
+const shelfEl = document.getElementById("tape-shelf");
 
-function renderSelect() {
-  selectEl.innerHTML = "";
-  idx.ids.forEach(id => {
+function renderShelf() {
+  shelfEl.replaceChildren();
+  const published = idx.published || [];
+  shelfOrder(idx).forEach(id => {
     const p = playlists[id];
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = (id === idx.active ? "● " : "") + (p?.title || "untitled") + (p?.created ? ` — ${fmtDate(p.created)}` : "");
-    selectEl.appendChild(opt);
+    // the edited tape previews its unsaved title/color
+    const current = id === currentId;
+    const li = document.createElement("li");
+    li.dataset.id = id;
+
+    const spine = document.createElement("button");
+    spine.type = "button";
+    spine.className = "spine";
+    if (current) spine.classList.add("spine-active");
+    if (!published.includes(id)) {
+      li.classList.add("unpublished");
+      spine.classList.add("spine-unpublished");
+    }
+    const color = spineColor(current ? state.color : p?.color, id, PALETTE);
+    if (color === "pride") {
+      spine.classList.add("spine-pride");
+    } else {
+      spine.style.setProperty("--spine", color);
+      spine.dataset.text = spineTextColor(color);
+    }
+
+    const live = document.createElement("span");
+    live.className = "spine-live";
+    live.textContent = "●";
+    live.hidden = id !== idx.active;
+    const title = document.createElement("span");
+    title.className = "spine-title";
+    title.textContent = (current ? state.title : p?.title) || "untitled";
+    const date = document.createElement("span");
+    date.className = "spine-count";
+    date.textContent = p?.created ? fmtDate(p.created) : "";
+    spine.append(live, title, date);
+
+    spine.addEventListener("click", () => {
+      if (id !== currentId) loadPlaylist(id);
+    });
+    li.appendChild(spine);
+    shelfEl.appendChild(li);
   });
-  selectEl.value = currentId;
   updateLiveBadge();
   document.getElementById("delete-btn").disabled = idx.ids.length <= 1;
+}
+
+// Drag a published spine to set the library drawer's order; unpublished
+// spines stay put (their order is just ids order). The re-render after a
+// drop normalizes any spine dragged across the published/unpublished line.
+function buildShelfSortable() {
+  Sortable.create(shelfEl, {
+    animation: 120,
+    delay: 150,
+    delayOnTouchOnly: true,
+    filter: ".unpublished",
+    ghostClass: "sortable-ghost",
+    chosenClass: "sortable-chosen",
+    onEnd() {
+      const domOrder = [...shelfEl.querySelectorAll("li")].map(el => el.dataset.id);
+      idx.published = reorderPublished(idx.published || [], domOrder);
+      renderShelf();
+    }
+  });
 }
 
 function updateLiveBadge() {
@@ -155,16 +209,8 @@ document.getElementById("publish-btn").addEventListener("click", () => {
     idx.published = [...(idx.published || []), currentId];
   }
   updatePublishBtn();
+  renderShelf();
 });
-
-function updateLiveUI() {
-  updateLiveBadge();
-  selectEl.querySelectorAll("option").forEach(opt => {
-    const id = opt.value;
-    const p = playlists[id];
-    opt.textContent = (id === idx.active ? "● " : "") + (p?.title || "untitled") + (p?.created ? ` — ${fmtDate(p.created)}` : "");
-  });
-}
 
 function syncToPlaylists() {
   if (!currentId || !playlists[currentId]) return;
@@ -203,12 +249,10 @@ function loadPlaylist(id) {
   document.getElementById("yt-input").value = "";
   document.getElementById("meta-row").hidden = true;
   setFetchStatus("");
-  updateLiveBadge();
   updatePublishBtn();
   updateLocationDisplay();
+  renderShelf();
 }
-
-selectEl.addEventListener("change", () => loadPlaylist(selectEl.value));
 
 // ── New ──
 document.getElementById("new-btn").addEventListener("click", () => {
@@ -216,7 +260,6 @@ document.getElementById("new-btn").addEventListener("click", () => {
   playlists[id] = { id, created: today(), lastEdited: today(), title: T.newTape, color: "random", tracks: [] };
   idx.ids.push(id);
   loadPlaylist(id);
-  renderSelect();
   const nameEl = document.getElementById("tape-name");
   nameEl.focus();
   nameEl.select();
@@ -247,7 +290,6 @@ document.getElementById("delete-btn").addEventListener("click", async () => {
       { path: 'playlists/index.json', content: JSON.stringify(idx, null, 2) },
       { path: 'config.js', content: buildConfig(playlists[idx.active]) },
     ], `delete playlist: ${p?.title || idToDelete}`, msg => { status.textContent = msg; });
-    renderSelect();
     loadPlaylist(currentId);
     status.textContent = T.saved;
     setTimeout(() => { status.textContent = ""; }, 2500);
@@ -263,7 +305,7 @@ document.getElementById("delete-btn").addEventListener("click", async () => {
 document.getElementById("set-live-btn").addEventListener("click", async () => {
   syncToPlaylists();
   idx.active = currentId;
-  updateLiveUI();
+  renderShelf();
   await doSave();
 });
 
@@ -347,12 +389,11 @@ function setColor(hex, fromCustom = false) {
   state.color = hex;
   applyColor(hex);
   updateColorSwatches(hex, fromCustom);
+  renderShelf();
 }
 
 function applyColor(hex) {
-  const resolved = hex === "random"
-    ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
-    : hex === "pride" ? "#b33030" : hex;
+  const resolved = resolveBg(hex, PALETTE);
   document.documentElement.style.setProperty("--bg", resolved);
   document.body.style.background = resolved;
 }
@@ -379,9 +420,8 @@ function updateColorSwatches(color, fromCustom = false) {
 // ── Tape name ──
 document.getElementById("tape-name").addEventListener("input", e => {
   state.title = e.target.value;
-  const opt = selectEl.querySelector(`option[value="${currentId}"]`);
-  const p = playlists[currentId];
-  if (opt) opt.textContent = state.title + (p?.created ? ` — ${fmtDate(p.created)}` : "");
+  const title = shelfEl.querySelector(`li[data-id="${currentId}"] .spine-title`);
+  if (title) title.textContent = state.title || "untitled";
 });
 
 // ── Track list ──
@@ -566,6 +606,7 @@ async function doImport() {
 
 // ── i18n ──
 function applyStrings() {
+  document.getElementById('tapes-label').textContent = T.tapesLbl;
   document.getElementById('new-btn').textContent = T.newBtn;
   document.getElementById('delete-btn').textContent = T.delBtn;
   document.getElementById('live-badge').textContent = T.liveBadge;

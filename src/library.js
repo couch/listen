@@ -52,3 +52,23 @@ export function spineTextColor(hex) {
 export function tapeUrl(id, bakedId, pathname) {
   return id === bakedId ? pathname : `${pathname}?tape=${encodeURIComponent(id)}`;
 }
+
+// Admin shelf order: published tapes first in their curated order, then the
+// unpublished rest in ids order. Published ids not in ids are dropped (the
+// schema forbids them, but the shelf shouldn't render ghosts).
+export function shelfOrder(index) {
+  const ids = Array.isArray(index?.ids) ? index.ids : [];
+  const published = (Array.isArray(index?.published) ? index.published : [])
+    .filter(id => ids.includes(id));
+  return [...published, ...ids.filter(id => !published.includes(id))];
+}
+
+// New published order after a shelf drag: the DOM order filtered down to the
+// published set — a drag changes order only, never membership. Published ids
+// somehow missing from the DOM keep their membership at the end.
+export function reorderPublished(published, domOrder) {
+  const pub = Array.isArray(published) ? published : [];
+  const next = domOrder.filter(id => pub.includes(id));
+  for (const id of pub) if (!next.includes(id)) next.push(id);
+  return next;
+}
