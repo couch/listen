@@ -82,11 +82,14 @@ document.getElementById("bar").setAttribute("aria-label", L.pc);
 document.getElementById("scrubber").setAttribute("aria-label", L.pp);
 document.getElementById("btn-play").setAttribute("aria-label", L.play);
 document.getElementById("pi-btn")?.setAttribute("aria-label", L.pi);
+document.getElementById("share-btn")?.setAttribute("aria-label", L.sh);
 
-// Share button — show only where native share is available
+// Share button — revealed only where native share is available; the slot
+// keeps its width either way (visibility, not display) so the library
+// button beside it never shifts
 if (!isEmbed && navigator.share) {
   const shareBtnEl = document.getElementById('share-btn');
-  shareBtnEl.hidden = false;
+  shareBtnEl.style.visibility = 'visible';
   shareBtnEl.addEventListener('click', async () => {
     try { await navigator.share({ title: tape.title, url: location.href }); } catch {}
   });
@@ -158,8 +161,6 @@ if (!isEmbed) {
   const metaEl = document.createElement('div');
   metaEl.id = 'playlist-meta';
   footer.appendChild(metaEl);
-  const shareEl = document.getElementById('share-btn');
-  if (shareEl) footer.appendChild(shareEl);
   const piEl = document.getElementById('pi-btn');
   if (piEl) footer.appendChild(piEl);
   list.after(footer);

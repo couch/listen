@@ -17,7 +17,9 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
   btn.setAttribute('aria-label', L.lb);
   btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('aria-controls', 'library-drawer');
-  head.appendChild(btn);
+  // header cluster order is [≣ library][↑ share]; insertBefore(…, null)
+  // degrades to append if the share slot is ever absent
+  head.insertBefore(btn, head.querySelector('#share-btn'));
 
   const drawer = document.createElement('div');
   drawer.id = 'library-drawer';

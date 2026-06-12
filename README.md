@@ -14,7 +14,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Full keyboard navigation — arrows to move focus, space/enter to play
 - MediaSession API: lock screen controls, album artwork, and scrubber position state
 - Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
-- Web Share: `↑` button in the playlist footer opens the native share sheet (where supported)
+- Web Share: `↑` button in the header beside the library button opens the native share sheet (where supported; the slot stays reserved elsewhere so the header never shifts)
 - Tape library: a `≣` button beside the tape title opens a left drawer of published tapes, drawn as cassette spines in their playlist colors (the playing tape sits pulled off the shelf); picking one hot-swaps the whole player in place — track list, color, visualizer default, metadata — with no reload, and back/forward navigate the history. Every tape is also deep-linkable at `?tape=<id>` (a bad id falls back to the live tape). The button only appears when there's more than one tape to show; publishing is editorial curation, not privacy — playlist JSON stays publicly fetchable either way, and share previews (OG tags) always describe the live tape
 - Service worker caches the shell; playlist data always fetched fresh
 - Tab title updates to "Track — Artist | tape name" while playing; reverts to the tape name when the playlist ends

@@ -1,5 +1,9 @@
 @import './shared.css';
 
+/* Chrome opacity tiers — every label and affordance sits on one of three:
+   content 0.9 (body color) · labels/meta 0.35–0.45 · quiet affordances 0.3
+   (0.55 on hover). */
+
 #ambient-bg {
   position: fixed;
   inset: 0;
@@ -293,7 +297,7 @@ body.is-offline .track:hover { background: transparent; }
 
 #attribution {
   font-size: 0.625rem;
-  opacity: 0.28;
+  opacity: 0.3;
   text-align: right;
   margin-top: 10px;
   color: inherit;
@@ -362,10 +366,9 @@ body.is-offline .track:hover { background: transparent; }
   flex: 1;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-  color: rgba(0,0,0,0.2);
+  color: rgba(255,255,255,0.35);
   opacity: 0;
   transition: opacity 0.9s ease;
-  text-shadow: 0 1px 1px rgba(255,255,255,0.3);
 }
 
 #playlist-meta.visible { opacity: 1; }
@@ -390,7 +393,17 @@ body.is-offline .track:hover { background: transparent; }
   flex-shrink: 0;
 }
 
-#pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+/* share lives in the header cluster beside ≣ — header metrics, and an
+   invisible-but-present slot where native share is unsupported so the
+   library button never shifts (main.js flips visibility on) */
+#share-btn {
+  padding: 14px;
+  visibility: hidden;
+}
+
+@media (hover: hover) {
+  #pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+}
 
 @property --mask-l {
   syntax: '<length>';
