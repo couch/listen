@@ -71,6 +71,16 @@ body {
     #1a4a8a 68%, #5a2080 82%, #9e2a60 100%);
 }
 
+/* the tape you're hearing wears the page's live drift color, tracked via the
+   inherited --bg custom property (written ~10Hz by main.js's tickDrift) — so
+   the drawer item drifts in lockstep with the background you're looking at.
+   Overrides both the spine's own color and any pride gradient. */
+.spine.spine-playing {
+  background-color: var(--bg, var(--spine, #444));
+  background-image: repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.04) 0 1px, transparent 1px 8px);
+}
+
 .spine-title {
   flex: 1;
   min-width: 0;
@@ -92,6 +102,12 @@ body {
 
 .spine[data-text="dark"] .spine-title { color: rgba(0,0,0,0.78); }
 .spine[data-text="dark"] .spine-count { color: rgba(0,0,0,0.45); }
+
+/* drift colors are always dark — force light text on the playing spine even if
+   the tape's own color resolved to data-text="dark" (after the rules above so
+   it wins at equal specificity) */
+.spine.spine-playing .spine-title { color: rgba(255,255,255,0.88); }
+.spine.spine-playing .spine-count { color: rgba(255,255,255,0.45); }
 
 @media (prefers-reduced-motion: reduce) {
   .spine { transition: none; }

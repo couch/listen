@@ -6,7 +6,7 @@ import { PALETTE } from './utils.js';
 import { validateIndex, validatePlaylist } from './schema.js';
 import { drawerEntries, drawerEligible, spineColor, spineTextColor } from './library.js';
 
-export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
+export function initDrawer({ bakedTape, getCurrentTapeId, getPlayingTapeId, onSelect }) {
   const head = document.getElementById('tape-head');
   if (!head) return null; // embed has no header — no drawer
 
@@ -101,6 +101,7 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
       shelf.appendChild(li);
     });
     markActive(getCurrentTapeId());
+    markPlaying();
   }
 
   function markActive(id) {
@@ -112,11 +113,21 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
     });
   }
 
+  // The spine of the tape currently being heard wears the live --bg drift color
+  // (CSS .spine-playing) — set from the playing tape, which may differ from the
+  // displayed/active one when the bar is detached.
+  function markPlaying() {
+    const pid = getPlayingTapeId?.();
+    shelf.querySelectorAll('.spine').forEach(s =>
+      s.classList.toggle('spine-playing', !!pid && s.dataset.id === pid));
+  }
+
   function open() {
     if (isOpen) return;
     isOpen = true;
     loadShelf();
     markActive(getCurrentTapeId());
+    markPlaying();
     drawer.classList.add('drawer-open');
     drawer.setAttribute('aria-hidden', 'false');
     btn.setAttribute('aria-expanded', 'true');
@@ -138,5 +149,5 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
     if (e.key === 'Escape' && isOpen) close();
   });
 
-  return { markActive, close, isOpen: () => isOpen };
+  return { markActive, markPlaying, close, isOpen: () => isOpen };
 }

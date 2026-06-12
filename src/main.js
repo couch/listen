@@ -1,6 +1,6 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause, shouldResumeOnForeground } from './utils.js';
 import { validatePlaylist } from './schema.js';
 import { STATE, sourceOf, sameTrack, capsOf, attributionFor, artworkFor } from './sources/ids.js';
 import { sourceFactory } from './sources/registry.js';
@@ -237,12 +237,27 @@ function getSavedPosition() {
   return null;
 }
 
+// When we were backgrounded mid-playback (performance.now() at hide; null when
+// not playing then). On mobile the OS pauses media on hide, so a quick return
+// resumes — see shouldResumeOnForeground.
+let bgHiddenAt = null;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    // At hide time the OS pause hasn't fired yet, so `playing` still reflects
+    // intent — capturing it here is what tells a real user pause from an
+    // incidental background pause when we return.
+    bgHiddenAt = playing ? performance.now() : null;
     savePosition();
     wakeLock = null; // browser auto-releases it; clear our reference
-  } else if (playing) {
-    acquireWakeLock();
+  } else {
+    const resume = isMobile &&
+      shouldResumeOnForeground(bgHiddenAt !== null, bgHiddenAt, performance.now());
+    bgHiddenAt = null;
+    // On success the source emits PLAYING and handleState re-acquires the wake
+    // lock / restarts drift; if iOS blocks the gesture-less resume it surfaces
+    // 'blocked' (paused UI, no skip) — worst case is "stayed paused".
+    if (resume && active && !playing) active.play();
+    else if (playing) acquireWakeLock();
   }
 });
 
@@ -374,6 +389,7 @@ function handleState(state) {
     document.getElementById('btn-viz')?.removeAttribute('hidden');
     preloadVizSelection();
     acquireWakeLock();
+    drawer?.markPlaying(); // refresh the live-color marker if the drawer is open
     if (isLinked()) {
       trackEls[currentIndex]?.classList.remove('paused');
       trackEls[currentIndex]?.classList.add('playing');
@@ -1375,6 +1391,10 @@ if (!isEmbed) {
   drawer = initDrawer({
     bakedTape: originalTape,
     getCurrentTapeId: () => tape.id,
+    // The tape being heard (may differ from the displayed one when detached);
+    // `started` gates out an untouched startup cue, so the live drift color
+    // only marks a tape playback has actually driven --bg for.
+    getPlayingTapeId: () => started ? playingTape?.id ?? null : null,
     onSelect: id => switchTape(id),
   });
 
