@@ -1,6 +1,6 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, resolveBg, positionState, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { validatePlaylist } from './schema.js';
 import { resolveTapeParam, tapeUrl } from './library.js';
 import { initDrawer } from './drawer.js';
@@ -186,20 +186,29 @@ let lastLoadWasCue = false;
 const POS_KEY = 'muxtape-pos';
 
 function savePosition(overrideTime) {
-  if (currentIndex < 0) return;
+  if (currentIndex < 0 || !tape.id) return;
   try {
-    sessionStorage.setItem(POS_KEY, JSON.stringify({
-      id: tape.id,
+    const map = parsePositions(sessionStorage.getItem(POS_KEY));
+    map[tape.id] = {
       index: currentIndex,
       time: overrideTime !== undefined ? overrideTime : (player?.getCurrentTime ? Math.floor(player.getCurrentTime()) : 0),
-    }));
+    };
+    sessionStorage.setItem(POS_KEY, JSON.stringify(map));
+  } catch {}
+}
+
+function clearSavedPosition() {
+  if (!tape.id) return;
+  try {
+    const map = parsePositions(sessionStorage.getItem(POS_KEY));
+    delete map[tape.id];
+    sessionStorage.setItem(POS_KEY, JSON.stringify(map));
   } catch {}
 }
 
 function getSavedPosition() {
   try {
-    const s = JSON.parse(sessionStorage.getItem(POS_KEY) || '');
-    if (tape.id && s?.id === tape.id && s.index >= 0 && s.index < tape.tracks.length) return s;
+    return positionFor(parsePositions(sessionStorage.getItem(POS_KEY)), tape.id, tape.tracks.length);
   } catch {}
   return null;
 }
@@ -472,7 +481,7 @@ function next() {
   } else {
     resetPlaybackUI();
     document.title = tape.title;
-    try { sessionStorage.removeItem(POS_KEY); } catch {}
+    clearSavedPosition(); // this tape finished — other tapes keep their spots
     announce(L.pe);
   }
 }
@@ -1158,8 +1167,8 @@ function applyTape(nextTape) {
   setVizTape(tape.id, tape.viz, isPride);
   preloadVizSelection();
 
-  // Same-session position for this tape (single sessionStorage slot — only
-  // the most recently saved tape restores)
+  // Same-session position for this tape — every tape keeps its own slot in
+  // the position map, so A→B→A returns to A's spot
   const saved = getSavedPosition();
   if (saved && player?.cueVideoById) load(saved.index, saved.time, true);
 

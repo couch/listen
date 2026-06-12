@@ -1,10 +1,46 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, resolveBg, positionState, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
   it('every entry is a valid hex color', () => {
     PALETTE.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
+  });
+});
+
+describe('parsePositions', () => {
+  it('parses a per-tape map', () => {
+    expect(parsePositions('{"42":{"index":1,"time":30}}')).toEqual({ 42: { index: 1, time: 30 } });
+  });
+  it('folds the legacy single-slot shape into a map', () => {
+    expect(parsePositions('{"id":"42","index":2,"time":7}')).toEqual({ 42: { index: 2, time: 7 } });
+  });
+  it('returns an empty map for null, garbage, or non-object JSON', () => {
+    expect(parsePositions(null)).toEqual({});
+    expect(parsePositions('')).toEqual({});
+    expect(parsePositions('not json')).toEqual({});
+    expect(parsePositions('[1,2]')).toEqual({});
+    expect(parsePositions('"str"')).toEqual({});
+  });
+});
+
+describe('positionFor', () => {
+  const map = { 42: { index: 2, time: 30 } };
+  it('returns the slot for a tape with a valid index', () => {
+    expect(positionFor(map, '42', 12)).toEqual({ index: 2, time: 30 });
+  });
+  it('returns null for an unknown tape or missing id', () => {
+    expect(positionFor(map, '99', 12)).toBeNull();
+    expect(positionFor(map, undefined, 12)).toBeNull();
+  });
+  it('rejects an index outside the current track list', () => {
+    expect(positionFor(map, '42', 2)).toBeNull();
+    expect(positionFor({ 42: { index: -1, time: 0 } }, '42', 12)).toBeNull();
+    expect(positionFor({ 42: { index: 1.5, time: 0 } }, '42', 12)).toBeNull();
+  });
+  it('defaults a non-finite time to 0', () => {
+    expect(positionFor({ 42: { index: 0, time: NaN } }, '42', 12)).toEqual({ index: 0, time: 0 });
+    expect(positionFor({ 42: { index: 0 } }, '42', 12)).toEqual({ index: 0, time: 0 });
   });
 });
 
