@@ -1,6 +1,6 @@
 # listen (muxtape)
 
-Minimalist YouTube audio player and tape-sharing tool. Deployed to GitHub Pages via GitHub Actions on push to `main`.
+Minimalist audio player and tape-sharing tool (YouTube or direct audio URLs, per track). Deployed to GitHub Pages via GitHub Actions on push to `main`.
 
 ## Stack
 
@@ -14,7 +14,8 @@ Minimalist YouTube audio player and tape-sharing tool. Deployed to GitHub Pages 
 
 | File | Purpose |
 |------|---------|
-| `src/main.js` | Player: playback, UI, gestures, geolocation, tape hot-swap (`applyTape`/`switchTape`) |
+| `src/main.js` | Player: playback state machine, UI, gestures, geolocation, tape hot-swap (`applyTape`/`switchTape`) |
+| `src/sources/` | Audio-source seam: `ids.js` (pure metadata/caps), `registry.js`, `youtube.js`, `file.js` — see "Audio sources" |
 | `src/library.js` | Pure tape-library logic: `resolveTapeParam`, `drawerEntries`, `drawerEligible`, `spineColor`, `spineTextColor`, `tapeUrl`, `shelfOrder`, `reorderPublished` |
 | `src/drawer.js` | Library drawer DOM: ≣ button, cassette-spine shelf, open/close |
 | `src/admin.js` | Admin: auth, playlist CRUD, spine shelf (published-first, drag reorders `published`), publish toggle, save dispatch |
@@ -22,7 +23,7 @@ Minimalist YouTube audio player and tape-sharing tool. Deployed to GitHub Pages 
 | `src/auth.js` | PBKDF2 password hashing and verification |
 | `src/github.js` | GitHub git-tree commit and file-delete operations |
 | `src/schema.js` | Runtime validation: `validateTrack`, `validatePlaylist`, `validateIndex` |
-| `src/utils.js` | Pure utilities: `extractId`, `buildConfig`, `haversine`, `fuzzyCoord`, etc. |
+| `src/utils.js` | Pure utilities: `extractId`, `parseTrackInput`, `buildConfig`, `haversine`, `fuzzyCoord`, etc. |
 | `src/strings.js` | i18n: 11 languages, locale detection, pluralization rules |
 
 ## Tests
@@ -37,6 +38,7 @@ Test files live alongside source: `src/utils.test.js`, `src/strings.test.js`, `s
 - Changing auth logic (`auth.js`) → update the auth section of `admin.test.js`
 - Changing GitHub API logic (`github.js`) → update the GitHub API section of `admin.test.js`
 - Changing schema rules (`schema.js`) → update the schema section of `admin.test.js`
+- Changing an audio source (`src/sources/*.js`) → update its test file (`sources.test.js` for ids.js metadata, `youtube.test.js`/`file.test.js` for the pure mappers and the jsdom-driven `<audio>` behavior)
 - Changing shared visualizer logic (`viz-logic.js`) → update `viz-logic.test.js`
 - Adding or changing a visualization (`src/viz/<id>.js`) → update `src/viz/<id>.test.js`; the entry contract is asserted for every registered id in `src/viz/registry.test.js`
 - Adding a new pure function → add a `describe` block in the appropriate test file
@@ -229,10 +231,43 @@ Metaball wax in live-bg liquid. Playful, physical.
 
 The standard recipe: file under `src/viz/<id>.js` + loader in `registry.js` + id/name in `ids.js` + `src/viz/<id>.test.js` (periods divide 3600, palette slot-0 verbatim normal AND pride, motion bounds/tilt monotonicity) + headless screenshot acceptance + its own subsection above, all in one commit. Hard-won shader lessons: guard degenerate `smoothstep(e0, e1, x)` when a radius can reach 0 (NaN rectangles); anything cell/grid-based whose feature can cross its cell boundary must evaluate neighbor cells (rain) or bound the feature inside the cell (stars); point features need jittered centers + radial falloff, never flat cell fills; integrate phases in JS when a tilt-driven rate multiplies a time-derived `fract()` (else features teleport); unrotated value noise leaves axis-aligned ridges (rotate layered samples); for curve glow, shade geometry from min segment distance but brightness from a distance-weighted average (plain nearest flips at branch midlines, plain additive beads at seams); in a feedback loop, never multiply periodic gains or dither in (they compound — present-pass only), and additive terms are only stable where the loop's damp is zero.
 
+## Audio sources
+
+**Maintenance rule: like the visualizer section, this is the source of truth for the audio-source seam. Any change to `src/sources/` or its wiring in `main.js` must update this section in the same commit.**
+
+### The seam
+
+Each track resolves to a source family via `sourceOf(track)` (`src/sources/ids.js`): `track.source` omitted = `youtube` (every pre-source playlist works unmigrated; unknown values also fall back, failing soft at runtime while the schema rejects them at save time). main.js keeps **one persistent controller per family** (`controllers` map, created lazily by `controllerFor`, cached for the page lifetime) and drives the current track through `active`. A pure-file tape never instantiates the YT iframe.
+
+- `src/sources/ids.js` — pure metadata, no DOM/SDK (safe for admin.js and tests): `SOURCE_IDS`, `STATE` (normalized `'unstarted'|'cued'|'buffering'|'playing'|'paused'|'ended'` — main.js's `handleState` switches on these, never on provider constants), `sourceOf`, `capsOf`, `attributionFor(track)` (→ `{ href, label }`; label null = stock `L.au`, else `L.auf(label)`), `artworkFor(track)` (MediaSession artwork array or null to omit — file tracks have none).
+- **Capability flags** (`CAPS`): `needsTransientPauseGuard` (YT fires a spurious PAUSED inside `loadVideoById`; `load()` arms `trackLoadAt` only when true — a real pause on a file track closes the visualizer immediately, correctly), `hiddenPlayback` (false ⇒ the UI must mount a visible widget — reserved for licensed embeds, see below), `fullPlayback` (false ⇒ preview-only unless logged in), `cueable` (false ⇒ saved-position restore degrades to index-only).
+- `src/sources/registry.js` — **static imports, deliberately unlike the viz registry**: `load()` must stay synchronously reachable inside the click gesture or iOS blocks autoplay, and both sources are tiny. A future SDK-backed source adds an eager `prepare()` at startup instead (the old `loadYouTubeAPI` trick). `sourceFactory(id)` falls back to the default for unregistered ids.
+- **Controller contract** (`createXSource({ onReady, onState, onError }) → SourcePlayer`): `isReady()`, `load(track, { startSeconds, cue })` (cue = load-without-play for saved-position restore; **must be callable synchronously in a gesture — never await before play**), `play/pause/stop`, `seekTo(s)`, `getCurrentTime/getDuration` (0 when unknown), `getState()`. Errors normalize to `'unplayable'` (fatal for this track → main.js skips via `next()`, unless `lastLoadWasCue`) or `'blocked'` (autoplay denied → paused UI, never skip).
+- **Wiring in main.js**: `warmControllers()` instantiates a controller per family present in the tape, at startup and in `applyTape` (gesture-context rule). `load()` checks `isReady()` (not-ready → `pendingTrackIndex`, flushed by `onSourceReady`), then hands off: sets `activeSourceId` *before* stopping the outgoing controller — the **stale-event guard** (`onState`/`onError` filtered on `sid === activeSourceId`) is what keeps a stopped controller's late PAUSED from stomping the incoming track's UI on mixed tapes. `resetPlaybackUI` nulls `active`/`activeSourceId`. Saved-position restore: `maybeRestoreSavedPosition()` runs once (guarded by `savedRestoreDone`, set by any explicit `load`) from whichever `onSourceReady` arrives with the saved track's source ready. The buffering watchdog re-checks `active?.getState()`.
+
+### youtube (`src/sources/youtube.js`)
+
+Extraction of the old inline code: IFrame API script load at construction, `YT.Player` on the `#yt-player` div, pure `mapYouTubeState` (−1/0/1/2/3/5 → STATE) and `mapYouTubeError` (every error code is fatal → `'unplayable'`, matching pre-seam behavior). `cue` → `cueVideoById({ videoId, startSeconds })`, else `loadVideoById`.
+
+### file (`src/sources/file.js`)
+
+One hidden in-document `<audio preload="auto" playsinline>`; plays any http(s) URL (`track.url`). The subtleties, all unit-tested:
+
+- `mapMediaEvent` (pure): `pause` while `ended` is suppressed (browsers fire pause-before-ended; ENDED must drive `next()` exactly once); `waiting`/`stalled` only count as BUFFERING while not paused (Safari fires waiting on paused seeks); `canplay` while unpaused re-emits PLAYING (clears the buffering banner after a mid-play seek).
+- **One fatal report per load**: a dead URL fails twice (the `error` event AND the `play()` rejection) — `fatalReported` dedupes, else one dead track skips two; a `gen` counter drops rejections from superseded loads; `AbortError` is ignored; `NotAllowedError` → `'blocked'`.
+- `normalizeDuration`: Infinity (live streams) → 0, or the ticker paints NaN.
+- Cue path: `src` set, seek applied on `loadedmetadata`, then CUED (paints the restored scrubber like YT's cue).
+- `stop()` empties `src` + `load()` to release the connection; the error event that emptying fires is filtered by the no-src guard.
+- Same-origin self-hosted audio belongs under `public/` (deploys outside `/assets/`, so the SW's cache-first branch never eats its Range requests).
+
+### Adding a source (incl. the licensed-embed family)
+
+New file under `src/sources/` implementing the contract + entry in `registry.js` + id/caps in `ids.js` + tests + this section, one commit. For Spotify iframe / Apple MusicKit later: caps `{ hiddenPlayback: false, fullPlayback: false, cueable: false, needsTransientPauseGuard: false }` — `hiddenPlayback: false` means main.js must reveal a visible widget container (mount it next to `#bar`; their ToS forbid hiding, which is exactly the YouTube gray area this seam de-risks); `fullPlayback: false` drives a preview badge in the now-playing area; progress arrives as SDK callbacks, so the controller caches the last event to keep `getCurrentTime()` a sync read; the SDK loads via an eager `prepare()` at startup. Track shape `{ source: 'spotify', id: <provider-native id> }` — which is why file tracks use `url`, never `id`.
+
 ## Data model
 
 - `playlists/index.json` — `{ active: string, ids: string[], published?: string[] }` (`published` = the library drawer's tapes in display order, each id also in `ids`; editorial curation only — every playlist JSON is deployed and publicly fetchable regardless)
-- `playlists/{id}.json` — `{ title, color, tracks, created?, lastEdited?, viz?, location? }` (`viz` = visualization id; omitted when it's the default `mesh`)
+- `playlists/{id}.json` — `{ title, color, tracks, created?, lastEdited?, viz?, location? }` (`viz` = visualization id; omitted when it's the default `mesh`). Track: `{ id, title, artist }` (YouTube — `source` omitted) or `{ source: "file", url, title, artist }`; sources mix freely. `buildConfig` emits all-YouTube tapes byte-identically to pre-source builds.
 - `config.js` — generated from active playlist by `buildConfig()`; loaded at parse-time as `window.TAPE` (the baked-in tape; main.js may hot-swap the *displayed* tape from `playlists/{id}.json` via the drawer or `?tape=<id>`)
 
 ## Auth

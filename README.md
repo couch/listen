@@ -1,13 +1,13 @@
 # listen
 
-A minimalist web music player that streams curated playlists from YouTube. Inspired by the original [Muxtape](https://en.wikipedia.org/wiki/Muxtape) — a simple, no-frills tape-sharing aesthetic.
+A minimalist web music player that streams curated playlists from YouTube or any direct audio URL. Inspired by the original [Muxtape](https://en.wikipedia.org/wiki/Muxtape) — a simple, no-frills tape-sharing aesthetic.
 
 An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 
 ## Features
 
 **Player**
-- Streams audio from YouTube video IDs — no ads, no video
+- Streams audio from YouTube video IDs — no ads, no video — or from direct audio-file URLs (self-hosted MP3s, Audius/Internet Archive streams); sources mix freely per track within a tape, and the now-playing attribution names whichever host the track came from
 - Scrubber with seek, live timestamps, and per-track progress bar
 - Autoadvances through the playlist; player bar slides up on first play; unplayable tracks (deleted, embed-restricted, region-blocked) auto-skip to the next track
 - Playing track shows a bright left-bar indicator; paused state returns to the plain active background
@@ -27,7 +27,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 **Playlist management (admin)**
 - Styled like the player it edits: the page background live-previews the edited tape's color, playlists sit on a cassette-spine shelf (published first, in drawer order; unpublished spines are dimmed with a dashed edge; the edited tape sits pulled off the shelf), and track rows carry the player's type and spacing
 - Create, edit, reorder (drag), and delete playlists without touching JSON
-- Fetch track title and artist automatically from YouTube oEmbed
+- Fetch track title and artist automatically from YouTube oEmbed; pasting any other http(s) URL adds it as a direct-audio track (manual title/artist — file tracks wear a hostname badge in the track list)
 - Import an entire YouTube playlist by URL — requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
 - 5-second undo after deleting a track
 - Color picker: fixed hex, random-per-load, or Pride rainbow
@@ -78,6 +78,7 @@ config.js               # Active playlist — loaded by the player at parse time
 server.py               # Local dev server (handles admin file writes)
 src/
   main.js               # Player logic (shared by index.html and embed.html)
+  sources/              # Audio-source seam: ids.js (metadata/caps), registry.js, youtube.js, file.js
   library.js            # Pure tape-library logic: ?tape= params, drawer order, spine colors
   drawer.js             # Library drawer DOM: ≣ button, cassette-spine shelf
   visualizer.js         # Fullscreen WebGL visualizer (+ viz-gl.js GL plumbing, viz-logic.js pure logic)
@@ -86,7 +87,7 @@ src/
   shared.css            # Tokens, reset, and the cassette-spine component shared by both pages
   style.css             # Player styles
   strings.js            # Shared i18n strings, lang detection, fmtDate
-  utils.js              # Pure utilities: extractId, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
+  utils.js              # Pure utilities: extractId, parseTrackInput, buildConfig, buildSaveFiles, color helpers, haversine, fuzzyCoord, fmt
   auth.js               # PBKDF2 password hashing and verification
   github.js             # GitHub git-tree commit and file-delete operations
   schema.js             # Runtime validation: validateTrack, validatePlaylist, validateIndex
@@ -113,12 +114,15 @@ public/
   "color": "random",
   "location": { "city": "Portland", "lat": 45.523, "lng": -122.676 },
   "tracks": [
-    { "id": "dQw4w9WgXcQ", "title": "Never Gonna Give You Up", "artist": "Rick Astley" }
+    { "id": "dQw4w9WgXcQ", "title": "Never Gonna Give You Up", "artist": "Rick Astley" },
+    { "source": "file", "url": "https://example.com/song.mp3", "title": "Song", "artist": "Artist" }
   ]
 }
 ```
 
-`color` is `"random"`, a hex string like `"#c1440e"`, or `"pride"`. Track `id` is the YouTube video ID. Maximum 12 tracks per playlist. `location` is optional. `viz` (optional) sets the playlist's default visualization by id; it's omitted when set to the default (`"mesh"`), and listeners can override it per playlist from the visualizer (stored in their browser's localStorage as `muxtape-viz`).
+`color` is `"random"`, a hex string like `"#c1440e"`, or `"pride"`. Each track carries a `source`: omitted means `"youtube"` (so older playlists need no migration) with `id` as the YouTube video ID; `"file"` plays `url` — any http(s) audio URL — through a plain `<audio>` element. Sources mix freely within a tape. Maximum 12 tracks per playlist. `location` is optional. `viz` (optional) sets the playlist's default visualization by id; it's omitted when set to the default (`"mesh"`), and listeners can override it per playlist from the visualizer (stored in their browser's localStorage as `muxtape-viz`).
+
+To self-host audio files in this repo, put them under `public/` (e.g. `public/audio/song.mp3`, served at `/audio/song.mp3`). They deploy outside `/assets/`, so the service worker's cache-first handling never touches them and the Range requests audio seeking needs pass straight through. GitHub limits repo files to 100 MB; for larger libraries point `url` at any static host with Range support (object storage, Internet Archive, an Audius stream endpoint, …).
 
 **`playlists/index.json`**
 ```json
