@@ -1,11 +1,13 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { PALETTE, resolveBg, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { validatePlaylist } from './schema.js';
+import { resolveTapeParam, tapeUrl } from './library.js';
 import { createOfflineUI } from './offline-ui.js';
 import { initAmbient, startAmbient, stopAmbient } from './ambient.js';
 // pride-canvas is loaded lazily — only when the playlist uses pride mode
 let initPrideCanvas = () => {}, startPrideCanvas = () => {}, stopPrideCanvas = () => {};
-import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, maybeReopenVisualizer, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation, preloadVizSelection } from './visualizer.js';
+import { initVisualizer, openVisualizer, closeVisualizer, isVisualizerOpen, maybeReopenVisualizer, updateVisualizer, updateVisualizerTrack, setVizBgColor, setVizOrientation, setVizTape, preloadVizSelection } from './visualizer.js';
 import { updateDue } from './viz-logic.js';
 
 const isEmbed = window !== window.top;
@@ -21,16 +23,25 @@ const PRIDE_COLORS = [
   "#b33030","#c25a10","#9a7a10","#2a7a30",
   "#1e7a7a","#1a4a8a","#5a2080","#9e2a60","#6b3318"
 ];
-const isPride = TAPE.color === 'pride';
-// Random entry point into the spectrum — adjacent tracks always see adjacent hues
-const prideStartIdx = isPride ? Math.floor(Math.random() * PRIDE_COLORS.length) : 0;
-const trackPrideColors = TAPE.tracks.map((_, i) =>
-  PRIDE_COLORS[(prideStartIdx + i) % PRIDE_COLORS.length]
-);
+// The displayed tape — hot-swappable via the library drawer / ?tape= deep
+// links. config.js declares `const TAPE` (a non-reassignable lexical global),
+// so every per-tape read goes through this local instead.
+let tape = TAPE;
+const originalTape = TAPE; // baked-in active tape — switching back needs no fetch
+const BAKED_ID = TAPE.id;
 
-const bg = (!TAPE.color || TAPE.color === "random" || isPride)
-  ? PALETTE[Math.floor(Math.random() * PALETTE.length)]
-  : TAPE.color;
+let isPride, prideStartIdx, trackPrideColors;
+function computePrideState() {
+  isPride = tape.color === 'pride';
+  // Random entry point into the spectrum — adjacent tracks always see adjacent hues
+  prideStartIdx = isPride ? Math.floor(Math.random() * PRIDE_COLORS.length) : 0;
+  trackPrideColors = tape.tracks.map((_, i) =>
+    PRIDE_COLORS[(prideStartIdx + i) % PRIDE_COLORS.length]
+  );
+}
+computePrideState();
+
+const bg = resolveBg(tape.color, PALETTE);
 document.documentElement.style.setProperty("--bg", bg);
 document.documentElement.lang = lang;
 
@@ -62,8 +73,8 @@ function releaseWakeLock() {
 }
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 themeColorMeta.setAttribute('content', bg);
-document.title = TAPE.title;
-document.getElementById("tape-title").textContent = TAPE.title;
+document.title = tape.title;
+document.getElementById("tape-title").textContent = tape.title;
 document.getElementById("attribution").textContent = L.au;
 document.getElementById("tape").setAttribute("aria-label", L.pl);
 document.getElementById("bar").setAttribute("aria-label", L.pc);
@@ -76,15 +87,19 @@ if (!isEmbed && navigator.share) {
   const shareBtnEl = document.getElementById('share-btn');
   shareBtnEl.hidden = false;
   shareBtnEl.addEventListener('click', async () => {
-    try { await navigator.share({ title: TAPE.title, url: location.href }); } catch {}
+    try { await navigator.share({ title: tape.title, url: location.href }); } catch {}
   });
 }
 
 
-// Build track list
+// Build track list — re-run on tape switch
 const list = document.getElementById("track-list");
 const trackEls = [];
-TAPE.tracks.forEach((track, i) => {
+function buildTrackList(tracks) {
+  // Mutate trackEls in place — createOfflineUI captures this array reference
+  trackEls.length = 0;
+  list.replaceChildren();
+  tracks.forEach((track, i) => {
   const li = document.createElement("li");
   li.className = "track";
   li.dataset.i = i;
@@ -132,7 +147,9 @@ TAPE.tracks.forEach((track, i) => {
   li.addEventListener("click", () => onTrackClick(i));
   trackEls.push(li);
   list.appendChild(li);
-});
+  });
+}
+buildTrackList(tape.tracks);
 
 if (!isEmbed) {
   const footer = document.createElement('div');
@@ -170,7 +187,7 @@ function savePosition(overrideTime) {
   if (currentIndex < 0) return;
   try {
     sessionStorage.setItem(POS_KEY, JSON.stringify({
-      id: TAPE.id,
+      id: tape.id,
       index: currentIndex,
       time: overrideTime !== undefined ? overrideTime : (player?.getCurrentTime ? Math.floor(player.getCurrentTime()) : 0),
     }));
@@ -180,7 +197,7 @@ function savePosition(overrideTime) {
 function getSavedPosition() {
   try {
     const s = JSON.parse(sessionStorage.getItem(POS_KEY) || '');
-    if (TAPE.id && s?.id === TAPE.id && s.index >= 0 && s.index < TAPE.tracks.length) return s;
+    if (tape.id && s?.id === tape.id && s.index >= 0 && s.index < tape.tracks.length) return s;
   } catch {}
   return null;
 }
@@ -270,7 +287,7 @@ function showBufferingBanner(withRetry = false) {
     btn.setAttribute('aria-label', 'retry');
     btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); load(currentIndex); });
     el.appendChild(btn);
-  } else if (currentIndex + 1 < TAPE.tracks.length) {
+  } else if (currentIndex + 1 < tape.tracks.length) {
     const btn = document.createElement('button');
     btn.className = 'banner-action';
     btn.textContent = '⏭︎';
@@ -381,6 +398,7 @@ function onState(e) {
 }
 
 function onTrackClick(i) {
+  if (!tape.tracks[i]) return; // empty tape, or an index from a stale handler
   if (!ytApiReady) {
     pendingTrackIndex = i;
     document.getElementById("btn-play").textContent = "·";
@@ -395,6 +413,8 @@ function onTrackClick(i) {
 }
 
 function load(i, startSeconds, silent = false) {
+  const t = tape.tracks[i];
+  if (!t) return; // empty tape, or an index from a stale handler
   if (!silent && !isEmbed) navigator.vibrate?.(30);
   clearActive();
   barEl.classList.add("bar-visible");
@@ -419,8 +439,7 @@ function load(i, startSeconds, silent = false) {
     stopColorDrift();
     document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
   }
-  const t = TAPE.tracks[i];
-  document.title = `${t.title} — ${t.artist} | ${TAPE.title}`;
+  document.title = `${t.title} — ${t.artist} | ${tape.title}`;
   if (startSeconds !== undefined) {
     player.cueVideoById({ videoId: t.id, startSeconds });
   } else {
@@ -446,37 +465,49 @@ function load(i, startSeconds, silent = false) {
 }
 
 function next() {
-  if (currentIndex + 1 < TAPE.tracks.length) {
+  if (currentIndex + 1 < tape.tracks.length) {
     load(currentIndex + 1);
   } else {
-    clearActive();
-    playing = false;
-    updateBtn();
-    stopTicker();
-    stopColorDrift();
-    if (isPride) stopPrideCanvas();
-    if (isVisualizerOpen()) closeVisualizer();
-    releaseWakeLock();
-    navigator.mediaSession?.setPositionState?.({});
-    document.title = TAPE.title;
-    currentIndex = -1;
-    barEl.classList.remove("bar-visible");
-    document.documentElement.style.setProperty('--bar-h', '0px');
-    document.getElementById("scrubber-fill").style.width = "0%";
-    const npTitle = document.getElementById("np-title");
-    const npArtist = document.getElementById("np-artist");
-    stopMarquee(npTitle);
-    stopMarquee(npArtist);
-    npTitle.querySelector("span").textContent = "";
-    npArtist.querySelector("span").textContent = "";
-    document.getElementById("time").textContent = "";
-    document.getElementById("attribution").style.display = "none";
-    const s = document.getElementById("scrubber");
-    s.setAttribute("aria-valuenow", "0");
-    s.setAttribute("aria-valuetext", "0:00");
+    resetPlaybackUI();
+    document.title = tape.title;
     try { sessionStorage.removeItem(POS_KEY); } catch {}
     announce(L.pe);
   }
+}
+
+// Return all playback UI to the idle state — shared by the end-of-playlist
+// branch of next() and the library tape switch (which runs it against the
+// outgoing tape's DOM before rebuilding).
+function resetPlaybackUI() {
+  clearActive();
+  playing = false;
+  updateBtn();
+  stopTicker();
+  stopColorDrift();
+  clearBufferingWatchdog();
+  hideBufferingBanner();
+  if (isPride) stopPrideCanvas();
+  if (isVisualizerOpen()) closeVisualizer();
+  releaseWakeLock();
+  navigator.mediaSession?.setPositionState?.({});
+  if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+  currentIndex = -1;
+  pendingTrackIndex = -1;
+  trackLoadAt = null;
+  barEl.classList.remove("bar-visible");
+  document.documentElement.style.setProperty('--bar-h', '0px');
+  document.getElementById("scrubber-fill").style.width = "0%";
+  const npTitle = document.getElementById("np-title");
+  const npArtist = document.getElementById("np-artist");
+  stopMarquee(npTitle);
+  stopMarquee(npArtist);
+  npTitle.querySelector("span").textContent = "";
+  npArtist.querySelector("span").textContent = "";
+  document.getElementById("time").textContent = "";
+  document.getElementById("attribution").style.display = "none";
+  const s = document.getElementById("scrubber");
+  s.setAttribute("aria-valuenow", "0");
+  s.setAttribute("aria-valuetext", "0:00");
 }
 
 function clearActive() {
@@ -522,7 +553,8 @@ document.addEventListener("keydown", e => {
     }
     return;
   }
-  const n = TAPE.tracks.length;
+  const n = tape.tracks.length;
+  if (!n) return;
   if (e.key === " ") {
     // Let viz-open / viz-exit buttons handle their own Space/click natively
     if (e.target.tagName === "BUTTON" && e.target.id !== "btn-play") return;
@@ -669,7 +701,7 @@ function startTicker() {
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       navigator.mediaSession?.setPositionState?.({ duration: dur, position: cur, playbackRate: 1 });
       if (now - lastPositionSave >= 30000) { lastPositionSave = now; savePosition(); }
-      if (isVisualizerOpen()) updateVisualizer(cur, dur, TAPE.tracks[currentIndex]?.title, TAPE.tracks[currentIndex]?.artist);
+      if (isVisualizerOpen()) updateVisualizer(cur, dur, tape.tracks[currentIndex]?.title, tape.tracks[currentIndex]?.artist);
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -747,15 +779,21 @@ function stopColorDrift() {
 const barEl = document.getElementById('bar');
 const isMobile = isEmbed ? false : window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 initAmbient(reducedMotion);
-if (isPride && !isEmbed) {
+// Pride canvas loads lazily on first need — at startup, or when a tape
+// switch lands on a pride tape mid-session
+let prideCanvasRequested = false;
+function ensurePrideCanvas() {
+  if (!isPride || isEmbed || prideCanvasRequested) return;
+  prideCanvasRequested = true;
   import('./pride-canvas.js').then(m => {
     ({ initPrideCanvas, startPrideCanvas, stopPrideCanvas } = m);
     initPrideCanvas(reducedMotion);
   });
 }
+ensurePrideCanvas();
 if (!isEmbed) initVisualizer(reducedMotion, isPride, {
-  tapeId: TAPE.id,
-  defaultViz: TAPE.viz,
+  tapeId: tape.id,
+  defaultViz: tape.viz,
   // Horizontal swipe over the visualizer's metadata block — same moves as
   // the viz-open arrow keys
   onTrackSkip(dir) {
@@ -815,22 +853,28 @@ window.addEventListener('resize', () => {
   }
 });
 
-if (!isEmbed) (function initPlaylistMeta() {
-  const count = TAPE.tracks?.length ?? 0;
+function initPlaylistMeta() {
+  if (isEmbed) return;
+  const count = tape.tracks?.length ?? 0;
   let meta = L.tr(count);
-  const created = TAPE.created;
-  const lastEdited = TAPE.lastEdited || created;
+  const created = tape.created;
+  const lastEdited = tape.lastEdited || created;
   if (created) {
     meta += ` · ${L.cr} ${fmtDate(created)}`;
     if (lastEdited && lastEdited !== created) meta += ` · ${L.ed} ${fmtDate(lastEdited)}`;
   }
   const el = document.getElementById('playlist-meta');
   if (el) { el.dataset.base = meta; el.textContent = meta; }
-})();
+}
+initPlaylistMeta();
+
+// Viewer coords are cached so a tape switch can re-derive the distance line
+// for the new tape's location without another permission round-trip
+let viewerCoords = null;
 
 function applyViewerLocation(lat, lng) {
-  if (!TAPE.location?.lat) return;
-  const distKm = haversine(TAPE.location.lat, TAPE.location.lng, lat, lng);
+  if (!tape.location?.lat) return;
+  const distKm = haversine(tape.location.lat, tape.location.lng, lat, lng);
   const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
   const el = document.getElementById('playlist-meta');
   if (!el) return;
@@ -839,10 +883,13 @@ function applyViewerLocation(lat, lng) {
 }
 
 function requestViewerGeo() {
-  if (!TAPE.location?.lat || !navigator.geolocation || geoRequested) return;
+  if (!tape.location?.lat || !navigator.geolocation || geoRequested) return;
   geoRequested = true;
   navigator.geolocation.getCurrentPosition(
-    pos => applyViewerLocation(pos.coords.latitude, pos.coords.longitude),
+    pos => {
+      viewerCoords = [pos.coords.latitude, pos.coords.longitude];
+      applyViewerLocation(...viewerCoords);
+    },
     () => {},
     { timeout: 10000, maximumAge: 300000 }
   );
@@ -871,7 +918,7 @@ function handleMotion(e) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
     load(currentIndex - 1);
-  } else if (rate < -250 && currentIndex >= 0 && currentIndex < TAPE.tracks.length - 1) {
+  } else if (rate < -250 && currentIndex >= 0 && currentIndex < tape.tracks.length - 1) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
     load(currentIndex + 1);
@@ -887,64 +934,60 @@ function enableMotionListeners() {
   window.addEventListener('deviceorientation', e => setVizOrientation(e.beta, e.gamma));
 }
 
-if (!isEmbed) {
-// π button: opt-in to orientation + device location (mobile only)
-const piBtnEl = document.getElementById('pi-btn');
-const hasPlaylistLoc = !!TAPE.location?.lat;
+// iOS 13+ gates device orientation behind a user-gesture permission — there
+// π doubles as that permission probe and its visibility is decided once at
+// startup. Everywhere else π is purely the location opt-in, so its
+// visibility depends on the current tape and re-evaluates on tape switch.
+const isIOSMotionGate = typeof DeviceOrientationEvent?.requestPermission === 'function';
 
-if (isMobile) {
-  if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-    // iOS 13+: probe for existing orientation permission
-    let resolved = false;
-    const earlyCheck = () => {
-      if (resolved) return;
-      resolved = true;
-      window.removeEventListener('deviceorientation', earlyCheck);
-      enableMotionListeners();
-      // Orientation already granted — probe geo (silent if previously granted)
-      requestViewerGeo();
-      // π stays hidden
-    };
-    window.addEventListener('deviceorientation', earlyCheck);
-    setTimeout(() => {
-      if (resolved) return;
-      resolved = true;
-      window.removeEventListener('deviceorientation', earlyCheck);
-      piBtnEl.hidden = false;
-    }, 500);
-
-    piBtnEl.addEventListener('click', async () => {
-      try {
-        const result = await DeviceOrientationEvent.requestPermission();
-        if (result === 'granted') enableMotionListeners();
-      } catch {
-        enableMotionListeners();
-      }
-      piBtnEl.hidden = true;
-      requestViewerGeo();
-    });
-  } else {
-    // Android: orientation fires without permission — set up immediately
-    enableMotionListeners();
-    if (hasPlaylistLoc) {
-      // Show π to request device location
-      piBtnEl.hidden = false;
-      piBtnEl.addEventListener('click', () => {
-        piBtnEl.hidden = true;
-        requestViewerGeo();
-      });
-    }
-  }
+function updatePiVisibility() {
+  if (isEmbed || (isMobile && isIOSMotionGate)) return;
+  const piBtnEl = document.getElementById('pi-btn');
+  if (piBtnEl) piBtnEl.hidden = !(tape.location?.lat && !geoRequested);
 }
 
-if (!isMobile) {
-  if (hasPlaylistLoc) {
+if (!isEmbed) {
+// π button: opt-in to orientation + device location
+const piBtnEl = document.getElementById('pi-btn');
+
+if (isMobile && isIOSMotionGate) {
+  // iOS 13+: probe for existing orientation permission
+  let resolved = false;
+  const earlyCheck = () => {
+    if (resolved) return;
+    resolved = true;
+    window.removeEventListener('deviceorientation', earlyCheck);
+    enableMotionListeners();
+    // Orientation already granted — probe geo (silent if previously granted)
+    requestViewerGeo();
+    // π stays hidden
+  };
+  window.addEventListener('deviceorientation', earlyCheck);
+  setTimeout(() => {
+    if (resolved) return;
+    resolved = true;
+    window.removeEventListener('deviceorientation', earlyCheck);
     piBtnEl.hidden = false;
-    piBtnEl.addEventListener('click', () => {
-      piBtnEl.hidden = true;
-      requestViewerGeo();
-    });
-  }
+  }, 500);
+
+  piBtnEl.addEventListener('click', async () => {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      if (result === 'granted') enableMotionListeners();
+    } catch {
+      enableMotionListeners();
+    }
+    piBtnEl.hidden = true;
+    requestViewerGeo();
+  });
+} else {
+  // Android: orientation fires without permission — set up immediately
+  if (isMobile) enableMotionListeners();
+  piBtnEl.addEventListener('click', () => {
+    piBtnEl.hidden = true;
+    requestViewerGeo();
+  });
+  updatePiVisibility();
 }
 
 // Fade-in for playlist metadata when scrolled into view
@@ -1009,7 +1052,8 @@ function startMarquee(el) {
 // MediaSession API — lock screen controls on mobile
 function updateMediaSession(state = "playing") {
   if (!("mediaSession" in navigator)) return;
-  const t = TAPE.tracks[currentIndex];
+  const t = tape.tracks[currentIndex];
+  if (!t) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: t.title,
     artist: t.artist,
@@ -1019,7 +1063,7 @@ function updateMediaSession(state = "playing") {
   navigator.mediaSession.setActionHandler("play", () => player.playVideo());
   navigator.mediaSession.setActionHandler("pause", () => player.pauseVideo());
   navigator.mediaSession.setActionHandler("nexttrack",
-    currentIndex + 1 < TAPE.tracks.length ? () => next() : null
+    currentIndex + 1 < tape.tracks.length ? () => next() : null
   );
   navigator.mediaSession.setActionHandler("previoustrack",
     currentIndex > 0 ? () => load(currentIndex - 1) : null
@@ -1041,6 +1085,84 @@ function updateMediaSession(state = "playing") {
     const t = Math.max(cur - off, 0);
     player.seekTo(t, true);
     navigator.mediaSession?.setPositionState?.({ duration: dur, position: t, playbackRate: 1 });
+  });
+}
+
+// ── Library tape switching ─────────────────────────────────────────────────
+// Hot-swaps the displayed tape in place: ?tape=<id> deep links on load,
+// drawer selections, and back/forward via history state. The baked-in tape
+// needs no fetch; anything else is fetched and validated, failing soft (the
+// current tape stays) on any error.
+
+function applyTape(nextTape) {
+  savePosition(); // a same-session return to the outgoing tape restores
+  try { player?.stopVideo?.(); } catch {}
+  resetPlaybackUI(); // runs against the outgoing tape's DOM — order matters
+  stopAmbient();
+  document.getElementById('btn-viz')?.setAttribute('hidden', '');
+
+  tape = nextTape;
+  computePrideState();
+
+  const newBg = resolveBg(tape.color, PALETTE);
+  document.documentElement.style.setProperty('--bg', newBg);
+  themeColorMeta.setAttribute('content', newBg);
+  setVizBgColor(newBg);
+  ensurePrideCanvas();
+
+  buildTrackList(tape.tracks);
+  document.title = tape.title;
+  document.getElementById('tape-title').textContent = tape.title;
+  initPlaylistMeta();
+  if (viewerCoords) applyViewerLocation(...viewerCoords);
+  updatePiVisibility();
+
+  setVizTape(tape.id, tape.viz, isPride);
+  preloadVizSelection();
+
+  // Same-session position for this tape (single sessionStorage slot — only
+  // the most recently saved tape restores)
+  const saved = getSavedPosition();
+  if (saved && player?.cueVideoById) load(saved.index, saved.time, true);
+
+  window.scrollTo({ top: 0 });
+  announce(tape.title);
+}
+
+let switchingTo = null;
+async function switchTape(id, { pushUrl = true } = {}) {
+  if (!id || id === tape.id || switchingTo === id) return;
+  switchingTo = id;
+  try {
+    let pl;
+    if (id === BAKED_ID) {
+      pl = originalTape;
+    } else {
+      const res = await fetch(`/playlists/${encodeURIComponent(id)}.json`);
+      if (!res.ok) throw new Error(`playlist fetch failed (${res.status})`);
+      pl = await res.json();
+      validatePlaylist(pl);
+      if (!pl.id) pl.id = id;
+    }
+    if (switchingTo !== id) return; // superseded by a newer switch — last one wins
+    applyTape(pl);
+    if (pushUrl) history.pushState({ tape: id }, '', tapeUrl(id, BAKED_ID, location.pathname));
+  } catch (e) {
+    console.warn('tape switch failed', e);
+  } finally {
+    if (switchingTo === id) switchingTo = null;
+  }
+}
+
+if (!isEmbed) {
+  const tapeParam = resolveTapeParam(location.search, BAKED_ID);
+  history.replaceState({ tape: tapeParam ?? BAKED_ID }, '', location.href);
+  // Deep link: the baked tape renders instantly, the linked tape swaps in
+  // when its JSON arrives (a failed fetch leaves the baked tape up)
+  if (tapeParam) switchTape(tapeParam, { pushUrl: false });
+  window.addEventListener('popstate', e => {
+    const id = e.state?.tape ?? resolveTapeParam(location.search, BAKED_ID) ?? BAKED_ID;
+    if (id !== tape.id) switchTape(id, { pushUrl: false });
   });
 }
 
