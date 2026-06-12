@@ -6,7 +6,7 @@ import {
   computeCanvasSize, tapGesture, progressRatio,
   createTiltState, setTiltInput, stepTilt, normalizeTilt,
   skipGesture, SKIP_MIN_DX, SKIP_MAX_DY, SKIP_MAX_MS,
-  crossfadeAlpha, VIZ_FADE_MS, resolveVizSelection, pickerRevealZone,
+  crossfadeAlpha, VIZ_FADE_MS, resolveVizSelection,
   updateDue, VIZ_FRAME_MS, reopenDue, VIZ_REOPEN_MAX_MS,
 } from './viz-logic.js';
 
@@ -244,14 +244,6 @@ describe('resolveVizSelection', () => {
   it('falls back to mesh when both are unknown or missing', () => {
     expect(resolveVizSelection('plasma', 'wormhole', IDS)).toBe('mesh');
     expect(resolveVizSelection(null, undefined, IDS)).toBe('mesh');
-  });
-});
-
-describe('pickerRevealZone', () => {
-  it('is true only in the bottom quarter of the screen', () => {
-    expect(pickerRevealZone(749, 1000)).toBe(false);
-    expect(pickerRevealZone(750, 1000)).toBe(true);
-    expect(pickerRevealZone(999, 1000)).toBe(true);
   });
 });
 

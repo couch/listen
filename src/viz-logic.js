@@ -189,8 +189,3 @@ export function resolveVizSelection(storedId, tapeViz, validIds, fallback = 'mes
   if (validIds.includes(tapeViz)) return tapeViz;
   return fallback;
 }
-
-// Desktop picker reveal: pointer hovering in the bottom quarter of the screen.
-export function pickerRevealZone(clientY, innerHeight) {
-  return clientY >= innerHeight * 0.75;
-}
