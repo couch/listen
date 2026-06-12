@@ -6,21 +6,25 @@
   <meta name="text-scale" content="scale">
   <title>edit tape</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://www.youtube.com https://nominatim.openstreetmap.org https://www.googleapis.com;">
-  <script type="module" crossorigin src="/assets/admin-Bce4iwIc.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/ids-C7ranKV5.js">
-  <link rel="stylesheet" crossorigin href="/assets/admin-Ido4kWBZ.css">
+  <script type="module" crossorigin src="/assets/admin-DitOHJ3A.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/ids-Dw-4tPH1.js">
+  <link rel="stylesheet" crossorigin href="/assets/admin-CYMK5Ljs.css">
 </head>
 <body>
 <script src="/config.js"></script>
 
 <div class="page">
 
-  <div id="playlist-bar">
-    <select id="playlist-select"></select>
-    <button class="bar-btn" id="new-btn">+ New</button>
-    <button class="bar-btn" id="delete-btn">Delete</button>
-    <span id="live-badge">● live</span>
-    <button class="bar-btn" id="set-live-btn">Set as live</button>
+  <div id="shelf-section">
+    <p class="section-label" id="tapes-label">tapes</p>
+    <ul id="tape-shelf"></ul>
+    <button id="new-btn">+ New</button>
+    <div id="tape-actions">
+      <span id="live-badge">● live</span>
+      <button class="text-btn" id="set-live-btn">Set as live</button>
+      <button class="text-btn" id="publish-btn">Publish</button>
+      <button class="text-btn" id="delete-btn">Delete</button>
+    </div>
   </div>
 
   <div id="settings">
@@ -30,7 +34,7 @@
     <div id="viz-row"></div>
     <div id="location-row">
       <span id="location-display"></span>
-      <button type="button" id="location-btn" class="bar-btn">Set location</button>
+      <button type="button" id="location-btn" class="text-btn">Set location</button>
     </div>
     <div id="api-key-row">
       <input id="yt-api-key" type="text" placeholder="YouTube API key (optional — enables playlist import)" spellcheck="false" autocomplete="off">
@@ -43,7 +47,7 @@
     <p id="empty-state" hidden>No tracks yet — add one below.</p>
     <div id="undo-bar" hidden>
       <span id="undo-msg"></span>
-      <button id="undo-btn" class="bar-btn">Undo</button>
+      <button id="undo-btn" class="text-btn">Undo</button>
     </div>
   </div>
 
@@ -55,7 +59,7 @@
     </div>
     <div id="import-row" hidden>
       <span id="import-status"></span>
-      <button id="import-btn" class="bar-btn">Import playlist →</button>
+      <button id="import-btn" class="text-btn">Import playlist →</button>
     </div>
     <div id="meta-row" hidden>
       <input id="meta-title" class="meta-field" type="text" placeholder="Title">
