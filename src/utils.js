@@ -199,6 +199,18 @@ export function isTransientPause(loadAt, now, maxAgeMs = TRANSIENT_PAUSE_MAX_MS)
   return loadAt !== null && now - loadAt < maxAgeMs;
 }
 
+// Returning to the foreground within this window after backgrounding (mobile,
+// where the OS pauses media on hide) auto-resumes playback — long enough for a
+// notification glance / quick reply / brief app-switch, short enough not to
+// surprise with sudden audio after a real departure.
+export const BG_RESUME_MAX_MS = 30000;
+
+// True when a foreground return at `now` should auto-resume: we were playing
+// when backgrounded (`hiddenAt` non-null marks that), within `maxMs`.
+export function shouldResumeOnForeground(wasPlaying, hiddenAt, now, maxMs = BG_RESUME_MAX_MS) {
+  return wasPlaying && hiddenAt !== null && now - hiddenAt <= maxMs;
+}
+
 // ── Save file list ──
 
 export function buildSaveFiles(currentId, playlists, idx) {

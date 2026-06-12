@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, extractId, parseTrackInput, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, extractId, parseTrackInput, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS, shouldResumeOnForeground, BG_RESUME_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
@@ -445,6 +445,31 @@ describe('isTransientPause', () => {
   });
   it('treats a load at t=0 as in flight', () => {
     expect(isTransientPause(0, 1)).toBe(true);
+  });
+});
+
+describe('shouldResumeOnForeground', () => {
+  it('resumes within the window when we were playing', () => {
+    expect(shouldResumeOnForeground(true, 1000, 1500)).toBe(true);
+  });
+  it('resumes just under the max age', () => {
+    expect(shouldResumeOnForeground(true, 0, BG_RESUME_MAX_MS - 1)).toBe(true);
+  });
+  it('resumes exactly at the max age (inclusive)', () => {
+    expect(shouldResumeOnForeground(true, 0, BG_RESUME_MAX_MS)).toBe(true);
+  });
+  it('does not resume beyond the max age', () => {
+    expect(shouldResumeOnForeground(true, 0, BG_RESUME_MAX_MS + 1)).toBe(false);
+  });
+  it('does not resume when not playing at hide time', () => {
+    expect(shouldResumeOnForeground(false, 1000, 1500)).toBe(false);
+  });
+  it('does not resume with no recorded hide time', () => {
+    expect(shouldResumeOnForeground(true, null, 1500)).toBe(false);
+  });
+  it('honors a custom maxMs', () => {
+    expect(shouldResumeOnForeground(true, 0, 150, 100)).toBe(false);
+    expect(shouldResumeOnForeground(true, 0, 50, 100)).toBe(true);
   });
 });
 
