@@ -1,4 +1,4 @@
-import{C as c,P as p,a as m}from"./main-DP0h6V2S.js";import{u as h,w as n}from"./ids-5mOaK_zc.js";const r=[180,240],s=.15,u=12,_=.08,l=12,v=.45,d=.16,f=Math.PI*2;function b(t,e,o=null){const i=o||new Float32Array(2);return i[0]=s*Math.sin(f*t/r[0]+e*1.3),i[1]=s*Math.sin(f*t/r[1]+e*2.7),i}function g(t){if(t<=0||t>=l)return 0;const e=Math.min(t/4,1),o=Math.min((l-t)/4,1);return e*e*(3-2*e)*o*o*(3-2*o)}const x=m+`
+import{C as c,P as p,a as m}from"./main-BxcJ_Bjs.js";import{u as h,w as n}from"./ids-QpOg36tb.js";const r=[180,240],s=.15,u=12,_=.08,l=12,v=.45,d=.16,f=Math.PI*2;function b(t,e,o=null){const i=o||new Float32Array(2);return i[0]=s*Math.sin(f*t/r[0]+e*1.3),i[1]=s*Math.sin(f*t/r[1]+e*2.7),i}function g(t){if(t<=0||t>=l)return 0;const e=Math.min(t/4,1),o=Math.min((l-t)/4,1);return e*e*(3-2*e)*o*o*(3-2*o)}const x=m+`
 uniform vec2 u_drift;
 uniform vec2 u_tilt;
 
