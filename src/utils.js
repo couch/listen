@@ -13,6 +13,16 @@ export function resolveBg(color, palette = PALETTE, rng = Math.random) {
   return color;
 }
 
+// A MediaPositionState WebKit will accept, or null when there's nothing
+// valid to report. Safari enforces the dictionary strictly — duration must
+// be a finite non-negative number and position must not exceed it — and
+// throws TypeError where Chrome forgives, so the clamping lives here.
+export function positionState(dur, pos) {
+  if (!Number.isFinite(dur) || dur < 0) return null;
+  const p = Number.isFinite(pos) ? Math.min(Math.max(pos, 0), dur) : 0;
+  return { duration: dur, position: p, playbackRate: 1 };
+}
+
 export function extractPlaylistId(raw) {
   const m = raw.trim().match(/[?&]list=([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;

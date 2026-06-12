@@ -1,10 +1,33 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PALETTE, resolveBg, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
+import { PALETTE, resolveBg, positionState, extractId, haversine, fuzzyCoord, fmt, buildConfig, hexToRgb, rgbToHex, hexToHsl, hslToHex, smootherstep, dimColor, pickDriftTarget, buildSaveFiles, isTransientPause, TRANSIENT_PAUSE_MAX_MS } from './utils.js';
 
 describe('PALETTE', () => {
   it('has 10 entries', () => expect(PALETTE).toHaveLength(10));
   it('every entry is a valid hex color', () => {
     PALETTE.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
+  });
+});
+
+describe('positionState', () => {
+  it('passes a valid duration/position through with playbackRate 1', () => {
+    expect(positionState(200, 30)).toEqual({ duration: 200, position: 30, playbackRate: 1 });
+  });
+  it('clamps position into [0, duration]', () => {
+    expect(positionState(200, 250).position).toBe(200);
+    expect(positionState(200, -5).position).toBe(0);
+  });
+  it('treats a non-finite position as 0', () => {
+    expect(positionState(200, NaN).position).toBe(0);
+    expect(positionState(200, undefined).position).toBe(0);
+  });
+  it('returns null when duration is unusable', () => {
+    expect(positionState(NaN, 10)).toBeNull();
+    expect(positionState(undefined, 10)).toBeNull();
+    expect(positionState(-1, 10)).toBeNull();
+    expect(positionState(Infinity, 10)).toBeNull();
+  });
+  it('accepts a zero duration', () => {
+    expect(positionState(0, 10)).toEqual({ duration: 0, position: 0, playbackRate: 1 });
   });
 });
 
