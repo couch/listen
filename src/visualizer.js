@@ -440,7 +440,14 @@ export function initVisualizer(reducedMotion, isPride = false, opts = {}) {
     btnViz.setAttribute('aria-label', 'Open visualizer');
     btnViz.setAttribute('hidden', '');
     btnViz.textContent = '⊙';
-    btnViz.addEventListener('click', openFromPlayer);
+    btnViz.addEventListener('click', () => {
+      // onUserOpen runs synchronously inside this click — the user-gesture
+      // context iOS requires for permission prompts. The auto-reopen path
+      // (maybeReopenVisualizer → openFromPlayer) is not a gesture and never
+      // calls it.
+      vizOpts.onUserOpen?.();
+      openFromPlayer();
+    });
     controls.insertBefore(btnViz, timeEl);
   }
 }

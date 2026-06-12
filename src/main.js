@@ -763,6 +763,8 @@ if (!isEmbed) initVisualizer(reducedMotion, isPride, {
     else if (currentIndex > 0) load(currentIndex - 1);
   },
   isPlaying: () => playing,
+  // ⊙ click (user gesture): iOS orientation permission prompt
+  onUserOpen: requestVizOrientation,
   // The opaque viz canvas hides the page — pause the decorative layers
   // behind it while the overlay is open, resume them on close
   onOpenChange(open) {
@@ -885,6 +887,24 @@ function enableMotionListeners() {
   window.addEventListener('devicemotion', handleMotion);
   // Tilt feeds the visualizer's liquid-gel color motion (no-op while closed)
   window.addEventListener('deviceorientation', e => setVizOrientation(e.beta, e.gamma));
+}
+
+// iOS: orientation grants expire each session and need a user gesture, so
+// entering the visualizer (where tilt matters most) prompts for access —
+// the ⊙ click invokes this synchronously via the onUserOpen opt. Orientation
+// only: π keeps the geolocation job (and stays as the motion fallback).
+function requestVizOrientation() {
+  if (!isMobile || motionListenersEnabled) return;
+  if (typeof DeviceOrientationEvent?.requestPermission !== 'function') return; // Android/desktop
+  DeviceOrientationEvent.requestPermission().then(result => {
+    if (result !== 'granted') return;
+    enableMotionListeners();
+    // With motion granted, π's only remaining purpose is device location
+    if (!TAPE.location?.lat) {
+      const pi = document.getElementById('pi-btn');
+      if (pi) pi.hidden = true;
+    }
+  }).catch(() => {});
 }
 
 if (!isEmbed) {
