@@ -333,6 +333,8 @@
 #fetch-status { font-size: 0.75rem; opacity: 0.55; margin-top: 8px; min-height: 16px; }
 #fetch-status.error { opacity: 0.8; color: rgba(255,180,180,1); }
 
+#file-hint { font-size: 0.7rem; opacity: 0.45; margin-top: 2px; line-height: 1.5; }
+
 /* ── Actions ── */
 #actions { display: flex; align-items: center; gap: 16px; }
 

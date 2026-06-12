@@ -39,6 +39,7 @@ Test files live alongside source: `src/utils.test.js`, `src/strings.test.js`, `s
 - Changing GitHub API logic (`github.js`) → update the GitHub API section of `admin.test.js`
 - Changing schema rules (`schema.js`) → update the schema section of `admin.test.js`
 - Changing an audio source (`src/sources/*.js`) → update its test file (`sources.test.js` for ids.js metadata, `youtube.test.js`/`file.test.js` for the pure mappers and the jsdom-driven `<audio>` behavior)
+- Changing the local dev tape helpers (`local-tape.js`, node-side like `sw-build.js`) → update `local-tape.test.js`
 - Changing shared visualizer logic (`viz-logic.js`) → update `viz-logic.test.js`
 - Adding or changing a visualization (`src/viz/<id>.js`) → update `src/viz/<id>.test.js`; the entry contract is asserted for every registered id in `src/viz/registry.test.js`
 - Adding a new pure function → add a `describe` block in the appropriate test file
@@ -259,6 +260,8 @@ One hidden in-document `<audio preload="auto" playsinline>`; plays any http(s) U
 - Cue path: `src` set, seek applied on `loadedmetadata`, then CUED (paints the restored scrubber like YT's cue).
 - `stop()` empties `src` + `load()` to release the connection; the error event that emptying fires is filtered by the no-src guard.
 - Same-origin self-hosted audio belongs under `public/` (deploys outside `/assets/`, so the SW's cache-first branch never eats its Range requests).
+- **Hosted-file requirements** (documented in the README and surfaced as the admin's `T.fileHint` when a file URL is pasted — keep all three in sync): the uploader must hold sharing rights (own work / licensed / public domain — the repo is publicly fetchable); `url` must be https in production (mixed content; schema accepts http for dev), publicly fetchable, on a host answering Range requests with 206 (seeking; Safari may refuse without it). Formats: MP3, M4A/AAC, FLAC, WAV play everywhere; Ogg Vorbis/Opus/WebM lack older-Safari support; live streams play with duration 0 (`normalizeDuration`).
+- **Local dev tape**: drop audio files into `local-audio/` (gitignored) and open `?tape=local` — `serveLocalTape()` in vite.config.js generates `/playlists/local.json` from the directory listing (absolute URLs from the request Host, so tunnels work) and serves `/local-audio/*` with 206 Range support. Pure helpers (`buildLocalTape`, `trackMetaFromFilename` — `Artist - Title.ext` convention, leading track numbers stripped — `isLocalAudioFile`, `localAudioType`) live in `src/local-tape.js`, node-side like `sw-build.js`. First 12 files (schema cap), natural sort; empty dir falls through to the ordinary failed-fetch path (player keeps its tape). Dev only — builds never see it, and the player needs no special casing because `?tape=local` is just a tape fetch.
 
 ### Adding a source (incl. the licensed-embed family)
 

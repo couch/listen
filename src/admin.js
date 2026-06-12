@@ -523,7 +523,14 @@ const metaTitle = document.getElementById("meta-title");
 const metaArtist = document.getElementById("meta-artist");
 const addBtn = document.getElementById("add-btn");
 
+function setFileHint(show) {
+  const el = document.getElementById('file-hint');
+  if (show) el.textContent = T.fileHint;
+  el.hidden = !show;
+}
+
 async function doFetch() {
+  setFileHint(false);
   const input = parseTrackInput(ytInput.value);
   if (!input) { setFetchStatus(T.noId, true); return; }
   if (input.kind === 'ytPlaylist') { updateImportRow(); return; }
@@ -535,6 +542,7 @@ async function doFetch() {
     metaRow.hidden = false;
     metaTitle.focus();
     setFetchStatus(T.fileDetected);
+    setFileHint(true); // rights + format requirements for hosted audio
     return;
   }
   fetchBtn.disabled = true;
@@ -564,7 +572,7 @@ addBtn.addEventListener("click", () => {
   renderTracks();
   ytInput.value = ""; metaTitle.value = ""; metaArtist.value = "";
   metaRow.hidden = true; state.pending = null;
-  setFetchStatus(""); ytInput.focus();
+  setFetchStatus(""); setFileHint(false); ytInput.focus();
 });
 
 function setFetchStatus(msg, isError = false) {

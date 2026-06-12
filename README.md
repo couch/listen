@@ -27,7 +27,7 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 **Playlist management (admin)**
 - Styled like the player it edits: the page background live-previews the edited tape's color, playlists sit on a cassette-spine shelf (published first, in drawer order; unpublished spines are dimmed with a dashed edge; the edited tape sits pulled off the shelf), and track rows carry the player's type and spacing
 - Create, edit, reorder (drag), and delete playlists without touching JSON
-- Fetch track title and artist automatically from YouTube oEmbed; pasting any other http(s) URL adds it as a direct-audio track (manual title/artist — file tracks wear a hostname badge in the track list)
+- Fetch track title and artist automatically from YouTube oEmbed; pasting any other http(s) URL adds it as a direct-audio track (manual title/artist — file tracks wear a hostname badge in the track list, and a hint spells out the rights, https/Range, and format requirements for hosted audio)
 - Import an entire YouTube playlist by URL — requires a YouTube Data API v3 key (stored in `localStorage`, never sent anywhere except Google)
 - 5-second undo after deleting a track
 - Color picker: fixed hex, random-per-load, or Pride rainbow
@@ -124,6 +124,13 @@ public/
 
 To self-host audio files in this repo, put them under `public/` (e.g. `public/audio/song.mp3`, served at `/audio/song.mp3`). They deploy outside `/assets/`, so the service worker's cache-first handling never touches them and the Range requests audio seeking needs pass straight through. GitHub limits repo files to 100 MB; for larger libraries point `url` at any static host with Range support (object storage, Internet Archive, an Audius stream endpoint, …).
 
+Requirements for hosted audio, wherever it lives:
+
+- **Rights** — only host audio you're entitled to share: your own work, recordings licensed for redistribution (e.g. Creative Commons, with attribution where required), or public domain. Buying a track does not grant redistribution rights; this repo is publicly fetchable.
+- **HTTPS** — the deployed site is https, so http `url`s are blocked as mixed content (the admin accepts http for local development only). The URL must be publicly fetchable without auth or cookies.
+- **Range requests** — the host should answer `Range` requests with `206`; without them seeking breaks and Safari may refuse to play at all. Object storage, GitHub Pages, and the Internet Archive all support this.
+- **Formats** — MP3, M4A/AAC, FLAC, and WAV play in every current browser. Ogg Vorbis/Opus and WebM lack support in older Safari; live streams (Icecast etc.) play but show no duration.
+
 **`playlists/index.json`**
 ```json
 { "active": "1748649600000", "ids": ["1748649600000"], "published": ["1748649600000"] }
@@ -216,6 +223,10 @@ npm run build     # production build → dist/
 ```
 
 `config.js` and `playlists/` are served from the project root by a custom Vite middleware. The admin requires `python3 server.py` running alongside for local file saves.
+
+### Local audio files
+
+To exercise the file source against real audio during development, drop files into `local-audio/` (gitignored, create it at the repo root) and open `http://localhost:5173/?tape=local`. The dev server generates the playlist from the directory listing — filenames following `Artist - Title.mp3` (an optional leading track number is stripped) fill in the track metadata — and serves the files with Range support. Accepted extensions: mp3, m4a, aac, flac, wav, ogg, oga, opus, webm; first 12 files in natural sort order. Dev only: production builds know nothing about `local-audio/`, and `?tape=local` on the deployed site is an ordinary missing tape (the player keeps its current tape).
 
 ## Keyboard Controls
 
