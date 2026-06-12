@@ -19,6 +19,13 @@ export function drawerEntries(index, activeId) {
   return published;
 }
 
+// The library button appears only when there is genuinely a library: more
+// than one published tape. (drawerEntries may pad the shelf with the active
+// tape, but an unpublished tape alone doesn't warrant the affordance.)
+export function drawerEligible(index) {
+  return (Array.isArray(index?.published) ? index.published.length : 0) > 1;
+}
+
 // Deterministic display color for a tape spine. "random" tapes pick a stable
 // palette color from the id (same tape, same spine every visit); "pride" is
 // a sentinel the CSS renders as a rainbow gradient. FNV-1a — tape ids are

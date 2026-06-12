@@ -98,7 +98,10 @@ body.is-offline .track:hover { background: transparent; }
   padding: 0 28px;
 }
 
-/* Header row: title left, library button right (embed keeps a bare title) */
+/* Header row: [≣ library][title][↑ share] — the ≣ hugs the left edge, the
+   side its drawer slides out from (embed keeps a bare title). Both button
+   slots are reserved via visibility, never display, so the title's position
+   doesn't depend on whether a library or native share exists. */
 #tape-head {
   display: flex;
   align-items: center;
@@ -111,6 +114,7 @@ body.is-offline .track:hover { background: transparent; }
   margin-bottom: 0;
   flex: 1;
   min-width: 0;
+  padding-left: 0; /* the reserved ≣ slot provides the left gutter */
 }
 
 #library-btn {
@@ -127,6 +131,7 @@ body.is-offline .track:hover { background: transparent; }
   user-select: none;
   -webkit-user-select: none;
   flex-shrink: 0;
+  visibility: hidden; /* drawer.js reveals it when a library exists */
 }
 
 @media (hover: hover) { #library-btn:hover { color: rgba(255,255,255,0.55); } }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTapeParam, drawerEntries, spineColor, spineTextColor, tapeUrl, shelfOrder, reorderPublished } from './library.js';
+import { resolveTapeParam, drawerEntries, drawerEligible, spineColor, spineTextColor, tapeUrl, shelfOrder, reorderPublished } from './library.js';
 import { PALETTE } from './utils.js';
 
 describe('resolveTapeParam', () => {
@@ -43,6 +43,20 @@ describe('drawerEntries', () => {
     const index = { active: '1', ids: ['1', '2'], published: ['2'] };
     drawerEntries(index, '1');
     expect(index.published).toEqual(['2']);
+  });
+});
+
+describe('drawerEligible', () => {
+  it('is eligible with more than one published tape', () => {
+    expect(drawerEligible({ active: '1', ids: ['1', '2'], published: ['1', '2'] })).toBe(true);
+  });
+  it('is not eligible with a single published tape, even alongside an unpublished active one', () => {
+    expect(drawerEligible({ active: '2', ids: ['1', '2'], published: ['1'] })).toBe(false);
+  });
+  it('is not eligible with no published field or an empty one', () => {
+    expect(drawerEligible({ active: '1', ids: ['1', '2'] })).toBe(false);
+    expect(drawerEligible({ active: '1', ids: ['1', '2'], published: [] })).toBe(false);
+    expect(drawerEligible(undefined)).toBe(false);
   });
 });
 

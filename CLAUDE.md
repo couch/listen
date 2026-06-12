@@ -15,7 +15,7 @@ Minimalist YouTube audio player and tape-sharing tool. Deployed to GitHub Pages 
 | File | Purpose |
 |------|---------|
 | `src/main.js` | Player: playback, UI, gestures, geolocation, tape hot-swap (`applyTape`/`switchTape`) |
-| `src/library.js` | Pure tape-library logic: `resolveTapeParam`, `drawerEntries`, `spineColor`, `spineTextColor`, `tapeUrl`, `shelfOrder`, `reorderPublished` |
+| `src/library.js` | Pure tape-library logic: `resolveTapeParam`, `drawerEntries`, `drawerEligible`, `spineColor`, `spineTextColor`, `tapeUrl`, `shelfOrder`, `reorderPublished` |
 | `src/drawer.js` | Library drawer DOM: ≣ button, cassette-spine shelf, open/close |
 | `src/admin.js` | Admin: auth, playlist CRUD, spine shelf (published-first, drag reorders `published`), publish toggle, save dispatch |
 | `src/shared.css` | Tokens (`--ease`), reset, `[hidden]` guard, `.section-label`, `.spine` component — `@import`ed first by `style.css` and `admin.css` |

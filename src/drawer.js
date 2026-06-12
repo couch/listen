@@ -4,7 +4,7 @@
 import { L } from './strings.js';
 import { PALETTE } from './utils.js';
 import { validateIndex, validatePlaylist } from './schema.js';
-import { drawerEntries, spineColor, spineTextColor } from './library.js';
+import { drawerEntries, drawerEligible, spineColor, spineTextColor } from './library.js';
 
 export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
   const head = document.getElementById('tape-head');
@@ -12,14 +12,14 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
 
   const btn = document.createElement('button');
   btn.id = 'library-btn';
-  btn.hidden = true;
   btn.textContent = '≣';
   btn.setAttribute('aria-label', L.lb);
   btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('aria-controls', 'library-drawer');
-  // header cluster order is [≣ library][↑ share]; insertBefore(…, null)
-  // degrades to append if the share slot is ever absent
-  head.insertBefore(btn, head.querySelector('#share-btn'));
+  // The button hugs the left edge — the side the drawer slides out from.
+  // Its slot is reserved in CSS (visibility, not display) so the title's
+  // position never depends on whether a library exists.
+  head.prepend(btn);
 
   const drawer = document.createElement('div');
   drawer.id = 'library-drawer';
@@ -38,8 +38,8 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
   let shelfLoaded = false;
   let isOpen = false;
 
-  // Reveal the button only when the drawer would show at least two tapes;
-  // a missing or invalid index just leaves it hidden.
+  // Reveal the button only when more than one tape is published; a missing
+  // or invalid index just leaves the slot invisible.
   (window.requestIdleCallback || (fn => setTimeout(fn, 0)))(async () => {
     try {
       const res = await fetch('/playlists/index.json');
@@ -47,7 +47,7 @@ export function initDrawer({ bakedTape, getCurrentTapeId, onSelect }) {
       const index = await res.json();
       validateIndex(index);
       entryIds = drawerEntries(index, bakedTape.id);
-      if (entryIds.length >= 2) btn.hidden = false;
+      if (drawerEligible(index)) btn.style.visibility = 'visible';
     } catch {}
   });
 
