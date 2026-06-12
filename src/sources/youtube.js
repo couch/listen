@@ -21,6 +21,17 @@ export function mapYouTubeError() {
   return 'unplayable';
 }
 
+// The IFrame call a load() resolves to, extracted pure. startSeconds without
+// cue = play from that offset (resume rows); a plain play keeps the bare-id
+// call shape loadVideoById has always received.
+export function loadCommand(track, { startSeconds, cue } = {}) {
+  if (cue) return { method: 'cueVideoById', arg: { videoId: track.id, startSeconds } };
+  return {
+    method: 'loadVideoById',
+    arg: startSeconds !== undefined ? { videoId: track.id, startSeconds } : track.id,
+  };
+}
+
 /**
  * YouTube IFrame API source. The API script loads eagerly at construction —
  * creating the player from an async callback later would lose the
@@ -67,9 +78,9 @@ export function createYouTubeSource({ onReady, onState, onError }) {
 
   return {
     isReady: () => ready,
-    load(track, { startSeconds, cue } = {}) {
-      if (cue) player.cueVideoById({ videoId: track.id, startSeconds });
-      else player.loadVideoById(track.id);
+    load(track, opts = {}) {
+      const { method, arg } = loadCommand(track, opts);
+      player[method](arg);
     },
     play: () => player?.playVideo?.(),
     pause: () => player?.pauseVideo?.(),

@@ -41,6 +41,20 @@ export function positionFor(map, tapeId, trackCount) {
   return { index: s.index, time: Number.isFinite(s.time) ? s.time : 0 };
 }
 
+// What a tape switch does to the player bar. The bar is global: a started
+// track (playing or paused mid-way) survives the switch.
+// - 'reset'  — bar idle (or relink impossible): stop, rebuild, auto-cue the
+//   incoming tape's saved spot — the pre-global behavior
+// - 'relink' — switching back to the playing tape and its track list still
+//   matches: re-couple the rebuilt rows to live playback
+// - 'detach' — a different tape while the bar is occupied: playback continues,
+//   the track list shows the incoming tape's resume chip instead
+export function tapeSwitchAction(occupied, sameId, trackMatches) {
+  if (!occupied) return 'reset';
+  if (!sameId) return 'detach';
+  return trackMatches ? 'relink' : 'reset';
+}
+
 export function extractPlaylistId(raw) {
   const m = raw.trim().match(/[?&]list=([a-zA-Z0-9_-]+)/);
   return m ? m[1] : null;

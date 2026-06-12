@@ -1,8 +1,8 @@
 import './style.css';
 import { L, lang, fmtDate } from './strings.js';
-import { PALETTE, resolveBg, positionState, parsePositions, positionFor, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
+import { PALETTE, resolveBg, positionState, parsePositions, positionFor, tapeSwitchAction, haversine, fmt, hexToRgb, rgbToHex, smootherstep, dimColor, pickDriftTarget, isTransientPause } from './utils.js';
 import { validatePlaylist } from './schema.js';
-import { STATE, sourceOf, capsOf, attributionFor, artworkFor } from './sources/ids.js';
+import { STATE, sourceOf, sameTrack, capsOf, attributionFor, artworkFor } from './sources/ids.js';
 import { sourceFactory } from './sources/registry.js';
 import { resolveTapeParam, tapeUrl } from './library.js';
 import { initDrawer } from './drawer.js';
@@ -148,8 +148,13 @@ function buildTrackList(tracks) {
   const progress = document.createElement("div");
   progress.className = "track-progress";
 
+  // Resume-timecode chip — filled by renderResumeIndicator on a tape that
+  // isn't the one playing
+  const resume = document.createElement("span");
+  resume.className = "track-resume";
+
   info.append(title, artist);
-  li.append(progress, num, info);
+  li.append(progress, num, info, resume);
   li.addEventListener("click", () => onTrackClick(i));
   trackEls.push(li);
   list.appendChild(li);
@@ -174,9 +179,22 @@ if (!isEmbed) {
 const controllers = {};
 let active = null;
 let activeSourceId = null;
-let pendingTrackIndex = -1;
+// The bar is global: playingTape is the tape object owning the loaded track
+// (null = bar idle), decoupled from the displayed `tape` so a library switch
+// never interrupts playback. currentIndex indexes playingTape.tracks. All
+// row-coupled DOM work gates on isLinked() — every path that makes a tape
+// playing assigns the same object, so identity is the whole check.
+let playingTape = null;
+const isLinked = () => playingTape !== null && playingTape === tape;
+// A queued load whose source controller wasn't ready yet — carries its tape
+// and resume offset so a flush after a tape switch still loads the right track
+let pendingLoad = null;
 let currentIndex = -1;
 let playing = false;
+// A PLAYING has occurred since the last load — distinguishes a paused
+// mid-track bar (survives a tape switch) from an untouched startup cue
+// (doesn't); lastLoadWasCue goes stale after cue→play so it can't serve.
+let started = false;
 let ticker = null;
 let focusedIndex = -1;
 // Track transition in flight: performance.now() of the last load(). The
@@ -190,10 +208,10 @@ let lastLoadWasCue = false;
 const POS_KEY = 'muxtape-pos';
 
 function savePosition(overrideTime) {
-  if (currentIndex < 0 || !tape.id) return;
+  if (currentIndex < 0 || !playingTape?.id) return;
   try {
     const map = parsePositions(sessionStorage.getItem(POS_KEY));
-    map[tape.id] = {
+    map[playingTape.id] = {
       index: currentIndex,
       time: overrideTime !== undefined ? overrideTime : (active ? Math.floor(active.getCurrentTime()) : 0),
     };
@@ -201,15 +219,17 @@ function savePosition(overrideTime) {
   } catch {}
 }
 
-function clearSavedPosition() {
-  if (!tape.id) return;
+function clearSavedPosition(tapeId) {
+  if (!tapeId) return;
   try {
     const map = parsePositions(sessionStorage.getItem(POS_KEY));
-    delete map[tape.id];
+    delete map[tapeId];
     sessionStorage.setItem(POS_KEY, JSON.stringify(map));
   } catch {}
 }
 
+// The displayed tape's slot — startup restore, the idle auto-cue on a tape
+// switch, and the resume chip on a non-playing tape's last-played row
 function getSavedPosition() {
   try {
     return positionFor(parsePositions(sessionStorage.getItem(POS_KEY)), tape.id, tape.tracks.length);
@@ -256,12 +276,12 @@ function warmControllers() {
 }
 
 function onSourceReady(sid) {
-  if (pendingTrackIndex >= 0) {
-    if (sourceOf(tape.tracks[pendingTrackIndex]) !== sid) return;
-    const idx = pendingTrackIndex;
-    pendingTrackIndex = -1;
+  if (pendingLoad) {
+    if (sourceOf(pendingLoad.from.tracks[pendingLoad.index]) !== sid) return;
+    const p = pendingLoad;
+    pendingLoad = null;
     updateBtn();
-    load(idx);
+    load(p.index, p);
   } else {
     maybeRestoreSavedPosition();
   }
@@ -275,7 +295,7 @@ function maybeRestoreSavedPosition() {
   const saved = getSavedPosition();
   if (!saved) { savedRestoreDone = true; return; }
   if (!controllerFor(sourceOf(tape.tracks[saved.index])).isReady()) return; // its onReady comes back here
-  load(saved.index, saved.time, true);
+  load(saved.index, { startSeconds: saved.time, cue: true, silent: true });
 }
 
 // Every 'unplayable' is fatal for this track (the YT codes — invalid id,
@@ -306,9 +326,9 @@ function showBufferingBanner(withRetry = false) {
     btn.className = 'banner-action';
     btn.textContent = '↺';
     btn.setAttribute('aria-label', 'retry');
-    btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); load(currentIndex); });
+    btn.addEventListener('click', () => { clearBufferingWatchdog(); hideBufferingBanner(); load(currentIndex, { from: playingTape }); });
     el.appendChild(btn);
-  } else if (currentIndex + 1 < tape.tracks.length) {
+  } else if (playingTape && currentIndex + 1 < playingTape.tracks.length) {
     const btn = document.createElement('button');
     btn.className = 'banner-action';
     btn.textContent = '⏭︎';
@@ -340,6 +360,7 @@ function handleState(state) {
     hideBufferingBanner();
     if (document.body.classList.contains('is-offline')) goOnline();
     playing = true;
+    started = true;
     updateBtn();
     startTicker();
     updateMediaSession();
@@ -353,8 +374,10 @@ function handleState(state) {
     document.getElementById('btn-viz')?.removeAttribute('hidden');
     preloadVizSelection();
     acquireWakeLock();
-    trackEls[currentIndex]?.classList.remove('paused');
-    trackEls[currentIndex]?.classList.add('playing');
+    if (isLinked()) {
+      trackEls[currentIndex]?.classList.remove('paused');
+      trackEls[currentIndex]?.classList.add('playing');
+    }
   } else if (state === STATE.PAUSED) {
     // First PAUSED inside a track transition is loadVideoById's transient
     // pause, not the user's — consume the marker so the next pause is real.
@@ -373,8 +396,10 @@ function handleState(state) {
     document.getElementById('btn-viz')?.setAttribute('hidden', '');
     if (!transientPause && isVisualizerOpen()) closeVisualizer();
     releaseWakeLock();
-    trackEls[currentIndex]?.classList.remove('playing');
-    trackEls[currentIndex]?.classList.add('paused');
+    if (isLinked()) {
+      trackEls[currentIndex]?.classList.remove('playing');
+      trackEls[currentIndex]?.classList.add('paused');
+    }
   } else if (state === STATE.BUFFERING) {
     clearBufferingWatchdog();
     bufferingWatchdog = setTimeout(() => {
@@ -408,7 +433,7 @@ function handleState(state) {
       scrub.setAttribute("aria-valuenow", Math.round(ratio * 100));
       scrub.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       setMediaPosition(dur, cur);
-      const p = trackEls[currentIndex]?.querySelector(".track-progress");
+      const p = isLinked() ? trackEls[currentIndex]?.querySelector(".track-progress") : null;
       if (p) { p.style.transition = "none"; p.style.width = pct; }
       requestAnimationFrame(() => {
         scrubFill.style.transition = "";
@@ -421,36 +446,39 @@ function handleState(state) {
 function onTrackClick(i) {
   const t = tape.tracks[i];
   if (!t) return; // empty tape, or an index from a stale handler
-  if (!controllerFor(sourceOf(t)).isReady()) {
-    pendingTrackIndex = i;
-    document.getElementById("btn-play").textContent = "·";
+  if (isLinked() && i === currentIndex) {
+    playing ? active.pause() : active.play();
     return;
   }
-  if (i === currentIndex) {
-    playing ? active.pause() : active.play();
-  } else {
-    load(i);
-  }
+  // On a tape that isn't the one playing, its last-played row resumes at the
+  // saved timecode — with playback, unlike the idle cue restore
+  const saved = isLinked() ? null : getSavedPosition();
+  load(i, saved && saved.index === i ? { startSeconds: saved.time } : undefined);
 }
 
-function load(i, startSeconds, silent = false) {
-  const t = tape.tracks[i];
+// cue = load without playing (saved-position restore); startSeconds without
+// cue = start playback from that offset (a resume-row click). `from` is the
+// tape the index belongs to — the displayed tape for user clicks, playingTape
+// for next/prev/retry so they advance the playing tape even when another is
+// displayed.
+function load(i, { startSeconds, cue = false, silent = false, from = tape } = {}) {
+  const t = from.tracks[i];
   if (!t) return; // empty tape, or an index from a stale handler
   const sid = sourceOf(t);
   const c = controllerFor(sid);
   if (!c.isReady()) {
-    pendingTrackIndex = i;
+    pendingLoad = { index: i, startSeconds, cue, silent, from };
     document.getElementById("btn-play").textContent = "·";
     return;
   }
   savedRestoreDone = true; // an explicit load supersedes the startup restore
   if (!silent && !isEmbed) navigator.vibrate?.(30);
   clearActive();
+  playingTape = from;
+  started = false;
+  const linked = isLinked();
   barEl.classList.add("bar-visible");
-  requestAnimationFrame(() => {
-    cachedBarH = barEl.offsetHeight;
-    document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
-  });
+  measureBar();
   const scrubFill = document.getElementById("scrubber-fill");
   scrubFill.style.transition = "none";
   scrubFill.style.width = "0%";
@@ -467,15 +495,16 @@ function load(i, startSeconds, silent = false) {
   if (prev && prev !== c) { try { prev.stop(); } catch {} }
   currentIndex = i;
   trackLoadAt = capsOf(sid).needsTransientPauseGuard ? performance.now() : null;
-  lastLoadWasCue = startSeconds !== undefined;
+  lastLoadWasCue = cue;
   updateMediaSession("paused");
-  if (isPride) {
+  if (isPride && linked) {
+    // Per-track pride colors belong to the displayed tape's spectrum
     prideColorIdx = (prideStartIdx + i) % PRIDE_COLORS.length;
     stopColorDrift();
     document.documentElement.style.setProperty("--bg", trackPrideColors[i]);
   }
-  document.title = `${t.title} — ${t.artist} | ${tape.title}`;
-  c.load(t, { startSeconds, cue: startSeconds !== undefined });
+  document.title = `${t.title} — ${t.artist} | ${from.title}`;
+  c.load(t, { startSeconds, cue });
   const npTitle = document.getElementById("np-title");
   const npArtist = document.getElementById("np-artist");
   npTitle.querySelector("span").textContent = t.title;
@@ -485,25 +514,30 @@ function load(i, startSeconds, silent = false) {
   attr.href = a.href;
   attr.textContent = a.label ? L.auf(a.label) : L.au;
   attr.style.display = "block";
-  const el = trackEls[i];
-  el.classList.add("active");
-  el.setAttribute("aria-pressed", "true");
+  if (linked) {
+    clearResumeIndicator(); // the live active row replaces the chip
+    const el = trackEls[i];
+    el.classList.add("active");
+    el.setAttribute("aria-pressed", "true");
+    scrollTrackIntoView(el);
+    startMarquee(el.querySelector(".track-title"));
+    startMarquee(el.querySelector(".track-artist"));
+  }
   announce(L.np(t.title, t.artist));
   if (isVisualizerOpen()) updateVisualizerTrack(t.title, t.artist);
-  scrollTrackIntoView(el);
   startMarquee(npTitle);
   startMarquee(npArtist);
-  startMarquee(el.querySelector(".track-title"));
-  startMarquee(el.querySelector(".track-artist"));
+  updateNowPlayingChip();
 }
 
 function next() {
-  if (currentIndex + 1 < tape.tracks.length) {
-    load(currentIndex + 1);
+  if (playingTape && currentIndex + 1 < playingTape.tracks.length) {
+    load(currentIndex + 1, { from: playingTape });
   } else {
+    const endedId = playingTape?.id;
     resetPlaybackUI();
     document.title = tape.title;
-    clearSavedPosition(); // this tape finished — other tapes keep their spots
+    clearSavedPosition(endedId); // this tape finished — other tapes keep their spots
     announce(L.pe);
   }
 }
@@ -538,12 +572,15 @@ function resetPlaybackUI() {
   setMediaPosition(); // clear
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
   currentIndex = -1;
-  pendingTrackIndex = -1;
+  pendingLoad = null;
+  playingTape = null;
+  started = false;
   trackLoadAt = null;
   // Detach the source so any late events from a stopped controller are
   // filtered out by the activeSourceId guard
   active = null;
   activeSourceId = null;
+  updateNowPlayingChip();
   barEl.classList.remove("bar-visible");
   document.documentElement.style.setProperty('--bar-h', '0px');
   document.getElementById("scrubber-fill").style.width = "0%";
@@ -599,7 +636,7 @@ document.addEventListener("keydown", e => {
       next();
     } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
       e.preventDefault();
-      if (currentIndex > 0) load(currentIndex - 1);
+      if (currentIndex > 0) load(currentIndex - 1, { from: playingTape });
     }
     return;
   }
@@ -619,10 +656,11 @@ document.addEventListener("keydown", e => {
     }
   } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
     e.preventDefault();
-    setFocused(focusedIndex < 0 ? (currentIndex >= 0 ? currentIndex : 0) : (focusedIndex + 1) % n);
+    // currentIndex indexes the playing tape — only a valid list seed when linked
+    setFocused(focusedIndex < 0 ? (isLinked() && currentIndex >= 0 ? currentIndex : 0) : (focusedIndex + 1) % n);
   } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
     e.preventDefault();
-    setFocused(focusedIndex < 0 ? (currentIndex >= 0 ? currentIndex : 0) : (focusedIndex - 1 + n) % n);
+    setFocused(focusedIndex < 0 ? (isLinked() && currentIndex >= 0 ? currentIndex : 0) : (focusedIndex - 1 + n) % n);
   } else if (e.key === "Enter" && focusedIndex >= 0) {
     onTrackClick(focusedIndex);
   } else if (e.key === "Tab" && !e.shiftKey && document.activeElement?.id === "attribution") {
@@ -687,7 +725,7 @@ function snapSeek(pct) {
   // Scrubber fill — bypasses the 500ms ticker delay
   document.getElementById("scrubber-fill").style.width = w;
   // Track progress — disable transition for instant snap, restore for playback
-  const p = trackEls[currentIndex]?.querySelector(".track-progress");
+  const p = isLinked() ? trackEls[currentIndex]?.querySelector(".track-progress") : null;
   if (p) {
     p.style.transition = "none";
     p.style.width = w;
@@ -723,12 +761,12 @@ function startTicker() {
     if (now - lastSlowUpdate >= 500) {
       const first = lastSlowUpdate === 0;
       lastSlowUpdate = now;
-      const p = trackEls[currentIndex]?.querySelector(".track-progress");
+      const p = isLinked() ? trackEls[currentIndex]?.querySelector(".track-progress") : null;
       if (p) {
         if (first) {
           p.style.transition = "none";
           p.style.width = pct;
-          requestAnimationFrame(() => { const q = trackEls[currentIndex]?.querySelector(".track-progress"); if (q) q.style.transition = ""; });
+          requestAnimationFrame(() => { const q = isLinked() ? trackEls[currentIndex]?.querySelector(".track-progress") : null; if (q) q.style.transition = ""; });
         } else {
           p.style.width = pct;
         }
@@ -738,7 +776,7 @@ function startTicker() {
       s.setAttribute("aria-valuetext", L.of(fmt(cur), fmt(dur)));
       setMediaPosition(dur, cur);
       if (now - lastPositionSave >= 30000) { lastPositionSave = now; savePosition(); }
-      if (isVisualizerOpen()) updateVisualizer(cur, dur, tape.tracks[currentIndex]?.title, tape.tracks[currentIndex]?.artist);
+      if (isVisualizerOpen()) updateVisualizer(cur, dur, playingTape?.tracks[currentIndex]?.title, playingTape?.tracks[currentIndex]?.artist);
     }
     ticker = requestAnimationFrame(tick);
   }
@@ -835,7 +873,7 @@ if (!isEmbed) initVisualizer(reducedMotion, isPride, {
   // the viz-open arrow keys
   onTrackSkip(dir) {
     if (dir > 0) next();
-    else if (currentIndex > 0) load(currentIndex - 1);
+    else if (currentIndex > 0) load(currentIndex - 1, { from: playingTape });
   },
   isPlaying: () => playing,
   // ⊙ click (user gesture): iOS orientation permission prompt
@@ -891,6 +929,80 @@ window.addEventListener('resize', () => {
     document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
   }
 });
+
+function measureBar() {
+  requestAnimationFrame(() => {
+    cachedBarH = barEl.offsetHeight;
+    document.documentElement.style.setProperty('--bar-h', `${cachedBarH}px`);
+  });
+}
+
+// ── Global player bar ──────────────────────────────────────────────────────
+// When the displayed tape isn't the one playing (unlinked), the now-playing
+// block grows a source-tape chip and taps back to that tape; the displayed
+// tape's last-played row carries a resume-timecode chip instead of the
+// auto-cue. Both are inert while linked.
+
+const npTapeBtn = document.getElementById('np-tape');
+
+function updateNowPlayingChip() {
+  if (!npTapeBtn) return;
+  const unlinked = !isLinked() && !!playingTape?.id;
+  npTapeBtn.hidden = !unlinked;
+  barEl.classList.toggle('np-unlinked', unlinked);
+  if (unlinked) {
+    npTapeBtn.querySelector('span').textContent = playingTape.title;
+    npTapeBtn.setAttribute('aria-label', L.bk(playingTape.title));
+  }
+  // The chip adds/removes a bar line — keep scroll clearance in sync
+  if (barEl.classList.contains('bar-visible')) measureBar();
+}
+
+document.getElementById('now-playing').addEventListener('click', () => {
+  if (!isLinked() && playingTape?.id) switchTape(playingTape.id);
+});
+
+function clearResumeIndicator() {
+  trackEls.forEach(el => {
+    if (!el.classList.contains('resumable')) return;
+    el.classList.remove('resumable');
+    const r = el.querySelector('.track-resume');
+    if (r) r.textContent = '';
+    const i = +el.dataset.i;
+    const t = tape.tracks[i];
+    if (t) el.setAttribute('aria-label', L.by(t.title, t.artist));
+  });
+}
+
+function renderResumeIndicator(saved) {
+  clearResumeIndicator();
+  if (!saved) return;
+  const el = trackEls[saved.index];
+  const r = el?.querySelector('.track-resume');
+  if (!r) return;
+  el.classList.add('resumable');
+  r.textContent = `⏵ ${fmt(saved.time)}`;
+  const t = tape.tracks[saved.index];
+  el.setAttribute('aria-label', `${L.by(t.title, t.artist)} · ${L.rs(fmt(saved.time))}`);
+}
+
+// Re-couple the rebuilt track list to live playback after switching back to
+// the playing tape — no state event will re-fire to paint these.
+function relinkRows() {
+  const el = trackEls[currentIndex];
+  if (!el) return;
+  el.classList.add('active', playing ? 'playing' : 'paused');
+  el.setAttribute('aria-pressed', 'true');
+  startMarquee(el.querySelector('.track-title'));
+  startMarquee(el.querySelector('.track-artist'));
+  const dur = active?.getDuration();
+  if (dur > 0) {
+    const p = el.querySelector('.track-progress');
+    p.style.transition = 'none';
+    p.style.width = `${(active.getCurrentTime() / dur) * 100}%`;
+    requestAnimationFrame(() => { p.style.transition = ''; });
+  }
+}
 
 function initPlaylistMeta() {
   if (isEmbed) return;
@@ -956,11 +1068,11 @@ function handleMotion(e) {
   if (rate > 250 && currentIndex > 0) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
-    load(currentIndex - 1);
-  } else if (rate < -250 && currentIndex >= 0 && currentIndex < tape.tracks.length - 1) {
+    load(currentIndex - 1, { from: playingTape });
+  } else if (rate < -250 && currentIndex >= 0 && playingTape && currentIndex < playingTape.tracks.length - 1) {
     flickCooldown = true;
     setTimeout(() => { flickCooldown = false; }, 800);
-    load(currentIndex + 1);
+    load(currentIndex + 1, { from: playingTape });
   }
 }
 
@@ -1112,7 +1224,7 @@ function startMarquee(el) {
 // MediaSession API — lock screen controls on mobile
 function updateMediaSession(state = "playing") {
   if (!("mediaSession" in navigator)) return;
-  const t = tape.tracks[currentIndex];
+  const t = playingTape?.tracks[currentIndex];
   if (!t) return;
   const artwork = artworkFor(t);
   navigator.mediaSession.metadata = new MediaMetadata({
@@ -1124,10 +1236,10 @@ function updateMediaSession(state = "playing") {
   navigator.mediaSession.setActionHandler("play", () => active?.play());
   navigator.mediaSession.setActionHandler("pause", () => active?.pause());
   navigator.mediaSession.setActionHandler("nexttrack",
-    currentIndex + 1 < tape.tracks.length ? () => next() : null
+    currentIndex + 1 < playingTape.tracks.length ? () => next() : null
   );
   navigator.mediaSession.setActionHandler("previoustrack",
-    currentIndex > 0 ? () => load(currentIndex - 1) : null
+    currentIndex > 0 ? () => load(currentIndex - 1, { from: playingTape }) : null
   );
   navigator.mediaSession.setActionHandler("seekforward", ({ seekOffset } = {}) => {
     const off = seekOffset || 10;
@@ -1157,10 +1269,27 @@ function updateMediaSession(state = "playing") {
 
 function applyTape(nextTape) {
   savePosition(); // a same-session return to the outgoing tape restores
-  try { active?.stop(); } catch {}
-  resetPlaybackUI(); // runs against the outgoing tape's DOM — order matters
+  // The bar is global — a started track (playing or paused mid-way) survives
+  // the switch; only an idle bar (nothing loaded, or an untouched startup
+  // cue) lets the incoming tape's saved spot take over.
+  const occupied = !!playingTape && (playing || started);
+  const sameId = occupied && !!nextTape.id && nextTape.id === playingTape.id;
+  const action = tapeSwitchAction(occupied, sameId,
+    sameId && sameTrack(playingTape.tracks[currentIndex], nextTape.tracks[currentIndex]));
+
+  if (action === 'reset') {
+    try { active?.stop(); } catch {}
+    resetPlaybackUI(); // runs against the outgoing tape's DOM — order matters
+  } else {
+    // Playback continues; the overlay still closes before setVizTape (the
+    // documented no-live-render-race rule) and the outgoing tape's
+    // decorative layers stop, restarted against the new bg below.
+    if (isVisualizerOpen()) closeVisualizer();
+    stopColorDrift();
+    if (isPride) stopPrideCanvas();
+  }
   stopAmbient();
-  document.getElementById('btn-viz')?.setAttribute('hidden', '');
+  if (action === 'reset' || !playing) document.getElementById('btn-viz')?.setAttribute('hidden', '');
 
   tape = nextTape;
   computePrideState();
@@ -1173,7 +1302,7 @@ function applyTape(nextTape) {
   ensurePrideCanvas();
 
   buildTrackList(tape.tracks);
-  document.title = tape.title;
+  if (action === 'reset') document.title = tape.title; // else the playing track keeps it
   document.getElementById('tape-title').textContent = tape.title;
   initPlaylistMeta();
   if (viewerCoords) applyViewerLocation(...viewerCoords);
@@ -1182,15 +1311,37 @@ function applyTape(nextTape) {
   setVizTape(tape.id, tape.viz, isPride);
   preloadVizSelection();
 
-  // Same-session position for this tape — every tape keeps its own slot in
-  // the position map, so A→B→A returns to A's spot
-  const saved = getSavedPosition();
-  if (saved && controllerFor(sourceOf(tape.tracks[saved.index])).isReady()) {
-    load(saved.index, saved.time, true);
+  if (action === 'relink') {
+    // Back to the playing tape: adopt the fresh object (isLinked() holds
+    // again) and re-couple the rebuilt rows to live playback
+    playingTape = nextTape;
+    if (isPride) prideColorIdx = (prideStartIdx + currentIndex) % PRIDE_COLORS.length;
+    relinkRows();
+  } else if (action === 'detach') {
+    renderResumeIndicator(getSavedPosition());
+  }
+  updateNowPlayingChip();
+  if (action !== 'reset' && playing) {
+    // No PLAYING event will re-fire to restart these for the new tape
+    startColorDrift();
+    if (!isVisualizerOpen()) {
+      startAmbient();
+      if (isPride) startPrideCanvas();
+    }
+  }
+
+  if (action === 'reset') {
+    // Same-session position for this tape — every tape keeps its own slot in
+    // the position map, so A→B→A returns to A's spot
+    const saved = getSavedPosition();
+    if (saved && controllerFor(sourceOf(tape.tracks[saved.index])).isReady()) {
+      load(saved.index, { startSeconds: saved.time, cue: true, silent: true });
+    }
   }
 
   drawer?.markActive(tape.id);
   window.scrollTo({ top: 0 });
+  if (action === 'relink') scrollTrackIntoView(trackEls[currentIndex]);
   announce(tape.title);
 }
 
