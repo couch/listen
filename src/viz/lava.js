@@ -1,3 +1,8 @@
+// ARCHIVED (2026-06): unregistered — no loader in registry.js, no id in
+// ids.js, so this module is never imported and never enters the build.
+// lava.test.js still exercises it. To reinstate: re-add the loader and the
+// id/name entries, restore the CLAUDE.md subsection and gallery listing.
+//
 // Lava lamp — metaball wax blobs rising and falling through the live-bg
 // "liquid". Tilt sloshes the wax toward gravity; a tap heats the nearest
 // blob (it swells and drifts up) or splits a big one into a rising

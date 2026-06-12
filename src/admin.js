@@ -6,7 +6,7 @@ import { T } from './admin-strings.js';
 import { checkAuth, getGHConfig, IS_LOCAL } from './admin-auth.js';
 import { githubCommit, githubDeleteFile as ghDeleteFile } from './github.js';
 import { validatePlaylist, validateIndex } from './schema.js';
-import { VIZ_IDS, VIZ_NAMES, DEFAULT_VIZ_ID } from './viz/ids.js';
+import { VIZ_IDS, VIZ_NAMES, DEFAULT_VIZ_ID, resolveVizId } from './viz/ids.js';
 
 const YT_API_KEY_STORE = 'muxtape-yt-api-key';
 
@@ -170,7 +170,9 @@ function loadPlaylist(id) {
 
   state.title = p.title;
   state.color = p.color;
-  state.viz = p.viz || DEFAULT_VIZ_ID;
+  // Archived/unknown stored ids resolve to the default so a chip is
+  // always highlighted; a re-save then writes the fallback
+  state.viz = resolveVizId(p.viz);
   state.tracks = p.tracks.map(t => ({ ...t }));
   state.pendingId = null;
   state.location = p.location || null;

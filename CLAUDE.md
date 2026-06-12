@@ -97,18 +97,7 @@ iOS-wallpaper-style soft color field. No hard edges by construction.
 - **Tilt** (`createTiltState`/`stepTilt`/`normalizeTilt` in `viz-logic.js` — shared): under-damped spring (stiffness 14, damping 6 ≈ 0.8× critical — gel overshoot) chasing the deviation from a slow-adapting baseline (τ = 3.5 s = the resting pose). Output ±1 → site offset × `TILT_GAIN` 0.18 × per-site parallax depth (0.6–1.1), applied inside `computeSites` (JS-side, no `u_tilt`). Holding still → deviation decays → autonomous drift resumes automatically; tilt is purely additive, no mode switch. `normalizeTilt` remaps beta/gamma per `screen.orientation.angle`, ±45° → ±1.
 - **Tuning knobs** (exported constants in `mesh.js`): `FALLOFF_*` (region size — too low and the normalized blend averages to a flat wash), `AMP_PRIMARY`/`AMP_EPI` (travel), `SITE_PERIODS`/`EPI_PERIODS` (speed), `TILT_GAIN`. Tune from headless screenshots (see Visual verification).
 
-#### 2. Lava lamp (`src/viz/lava.js`)
-
-Metaball wax in live-bg liquid. Playful, physical.
-
-- **Rendering**: `u_blobs[7]` vec4 (x, y aspect-space, radius, palette slot) — 5 primary + 2 satellite slots (r = 0 inactive). Metaball field `f = Σ r²/(d²+1e-4)`; wax color = field-weighted blend of per-blob `paletteAt(slot)` colors so merging blobs smear hues; body `smoothstep(1.0, 1.18, f)` with inner-depth brightening (`mix(0.8, 1.3, smoothstep(1.0, 2.6, f))`); rim light band `smoothstep(1.0,1.06,f) − smoothstep(1.06,1.3,f)` in `mix(waxCol, white, 0.55)` × 0.45. Liquid = slot 0 verbatim × vertical shade (0.85→1.05). Heat-shimmer fbm warp (amp 0.015, t·0.08). Blooms = mesh-style rings at 0.4 gain (heat ripples). House breathing/vignette/dither.
-- **Palette**: `[bg, hsl(h, s·0.9, 10) shade, hsl(h+25, ≤90, 38) wax deep, hsl(h+40, 90, 60) wax bright]`; blob slots alternate 2/3. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, blob slots cycle 1–8 (chosen in `computeLavaBlobs` by `paletteCount ≥ 9`).
-- **Motion** (`computeLavaBlobs(t, seed, aspect, tiltX, tiltY, paletteCount, state, out)`): rise/fall `y = 0.5 + 0.42·sin(TAU·t/RISE_i)`, RISE = [120, 90, 144, 180, 72]; sway amp 0.08, XP = [60, 80, 48, 90, 72]; radius breathe ±0.04 around `LAVA_R_BASE` 0.15, RP = [30, 36, 40, 45, 60]; squash ×(1−0.2·|y−0.5|·2) near extremes.
-- **Tilt**: gravity slosh — `x += tiltX·LAVA_TILT_GAIN(0.25)·depth`, `y += tiltY·0.12·depth`, depth 0.7–1.2 seeded per blob.
-- **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
-- **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
-
-#### 3. Rain on glass (`src/viz/rain.js`)
+#### 2. Rain on glass (`src/viz/rain.js`)
 
 Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro showcase.
 
@@ -119,7 +108,7 @@ Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro
 - **Interaction**: tap/auto/track = splat via the shared bloom buffer only (no per-viz hooks).
 - **Tuning knobs**: `RAIN_LAYER_SCALES`/`RAIN_SPEEDS` (density/speed), `RAIN_REFRACT` (lens strength), `RAIN_TRAIL`, `RAIN_GRAV_GAIN`/`RAIN_RATE_GAIN`, bokeh count/periods, dry-column threshold 0.22 and drop-size range in the shader.
 
-#### 4. Aurora (`src/viz/aurora.js`)
+#### 3. Aurora (`src/viz/aurora.js`)
 
 Light curtains rippling over a dusk sky; the horizon glow is the live bg. Grand, ambient.
 
@@ -130,7 +119,7 @@ Light curtains rippling over a dusk sky; the horizon glow is the live bg. Grand,
 - **Interaction**: tap/auto/track = shimmer pulse via the shared bloom buffer (no per-viz hooks).
 - **Tuning knobs**: `AURORA_FLOW` (ripple speed), band ks 200/25 (edge crispness/glow length), fold-mask floor 0.1 (gap depth), ray frequency 26, layer spacing 0.12, star grid/threshold, `WIND_*`/`AURORA_*` gains.
 
-#### 5. Ink in water (`src/viz/ink.js`)
+#### 4. Ink in water (`src/viz/ink.js`)
 
 Dark plumes billowing up through live-bg water. Late-night, sparse.
 
@@ -141,7 +130,7 @@ Dark plumes billowing up through live-bg water. Late-night, sparse.
 - **Interaction**: tap = drop at touch, auto/track = drop at random position — all via the shared buffer, no per-viz hooks.
 - **Tuning knobs**: `INK_LIFE`/`INK_DILUTE_TAU` (persistence), `INK_RISE`/`INK_SPREAD`/`INK_SIGMA0` (plume shape), curl warp 0.09/0.9 and density thresholds 0.18/0.62 in the shader (tendril character), wisp gain 0.18.
 
-#### 6. Incense ribbon (`src/viz/incense.js`)
+#### 5. Incense ribbon (`src/viz/incense.js`)
 
 One luminous smoke line rising from an ember. Piano/sparse, contemplative.
 
@@ -152,7 +141,7 @@ One luminous smoke line rising from an ember. Piano/sparse, contemplative.
 - **Interaction**: tap/auto/track = smoke ring via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `RIBBON_PERIODS`/`RIBBON_AMPS`/`RIBBON_WINDS` (sway character), K range 4000/250 (dispersion), jitter 0.06 (turbulence), `DRAFT_GAIN`, ember ks/throb, ring shape.
 
-#### 7. Neon Lissajous scope (`src/viz/scope.js`)
+#### 6. Neon Lissajous scope (`src/viz/scope.js`)
 
 A phosphor beam tracing generative Lissajous figures. **The beam IS the live bg color** (invariant 1). Electronic.
 
@@ -163,7 +152,7 @@ A phosphor beam tracing generative Lissajous figures. **The beam IS the live bg 
 - **Interaction**: tap = traveling pulse (shared buffer); `trackEvent` increments `state.figureOffset` — each track gets the next figure.
 - **Tuning knobs**: `SCOPE_SEGMENTS` (smoothness vs cost), glow/halo ks 2600/60, brightness-average kernel 400, persistence decay 5, `FIGURE_HOLD`/`FIGURE_MORPH`, `HEAD_PERIOD`, `PULSE_*`, figure scale 0.36.
 
-#### 8. Starfield warp (`src/viz/stars.js`)
+#### 7. Starfield warp (`src/viz/stars.js`)
 
 Four parallax shells of stars streaming out of a vanishing point over a live-bg nebula. Soundtracks, momentum.
 
@@ -174,7 +163,7 @@ Four parallax shells of stars streaming out of a vanishing point over a live-bg 
 - **Interaction**: tap/auto/track = comet via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `STAR_LAYER_*` (depth/speed), presence threshold 0.86 (density), radius/jitter constants (size vs cell-cut safety), streak factor 2.0, `VP_GAIN`, `COMET_*`.
 
-#### 9. Paper topography (`src/viz/topo.js`)
+#### 8. Paper topography (`src/viz/topo.js`)
 
 Hand-drawn contour lines of a slowly remolding landscape on live-bg paper. Folk, quiet.
 
@@ -185,7 +174,7 @@ Hand-drawn contour lines of a slowly remolding landscape on live-bg paper. Folk,
 - **Interaction**: tap = new peak via the shared buffer (`eventLife: PEAK_LIFE` 12) — contour rings bloom outward as it grows, then erode away; auto/track = peak at random position.
 - **Tuning knobs**: `TOPO_CONTOURS` (line density), line widths 0.09/0.035 and alphas, `PEAK_*`, `TOPO_DRIFT_*`, `TOPO_TILT_GAIN`, grain amp.
 
-#### 10. Underwater caustics (`src/viz/caustics.js`)
+#### 9. Underwater caustics (`src/viz/caustics.js`)
 
 Refracted-light web over sunlit live-bg water, god rays slanting from the surface. Chill.
 
@@ -196,7 +185,7 @@ Refracted-light web over sunlit live-bg water, god rays slanting from the surfac
 - **Interaction**: tap/auto/track = ripple ring via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `CAUSTIC_SCALE`/`RIDGE_POW` (web fineness/contrast), `CAUSTIC_SPEEDS`, layer rotation angles, depth dim 0.6, `SUN_GAIN`, ripple band/displacement.
 
-#### 11. Kaleidoscope mandala (`src/viz/kaleido.js`)
+#### 10. Kaleidoscope mandala (`src/viz/kaleido.js`)
 
 The one **feedback** visualization (`feedback: true` on the entry → viz-gl's FBO ping-pong path). Pop/funk, hypnotic.
 
@@ -206,6 +195,21 @@ The one **feedback** visualization (`feedback: true` on the entry → viz-gl's F
 - **Tilt**: tiltX precesses the symmetry axis (the whole mandala swings).
 - **Interaction**: `tap` **re-seeds** — `RESEED_DECAY` 0.8 for `RESEED_T` 0.5 s (fast clear) + a 3-spark burst at the tap's radius/angle (mirrored k-fold automatically); `trackEvent` steps the symmetry order through `KALEIDO_KS` [6, 8, 10, 12] + bursts. Stale future timestamps from the hourly wrap are dropped in `frame()`.
 - **Tuning knobs**: `KALEIDO_DECAY`/`RESEED_*` (trail length/clear feel), zoom 1.01 (expansion speed), `KALEIDO_KS`, `SPARK_*` (seeding density/size), floor 0.18 / halo 0.5, flower thresholds.
+
+### Archived visualizations
+
+Unregistered, not bundled: the module and its test stay in `src/viz/` (kept green), but there is no loader in registry.js and no id in ids.js, so Vite never imports it. **Never reuse an archived id** — stored references (`viz` in playlists, localStorage overrides) resolve to the default at runtime, and the schema deliberately accepts any string so saved playlists stay valid. To reinstate: re-add the loader + id/name entries and move the subsection back up.
+
+#### Lava lamp (`src/viz/lava.js`)
+
+Metaball wax in live-bg liquid. Playful, physical.
+
+- **Rendering**: `u_blobs[7]` vec4 (x, y aspect-space, radius, palette slot) — 5 primary + 2 satellite slots (r = 0 inactive). Metaball field `f = Σ r²/(d²+1e-4)`; wax color = field-weighted blend of per-blob `paletteAt(slot)` colors so merging blobs smear hues; body `smoothstep(1.0, 1.18, f)` with inner-depth brightening (`mix(0.8, 1.3, smoothstep(1.0, 2.6, f))`); rim light band `smoothstep(1.0,1.06,f) − smoothstep(1.06,1.3,f)` in `mix(waxCol, white, 0.55)` × 0.45. Liquid = slot 0 verbatim × vertical shade (0.85→1.05). Heat-shimmer fbm warp (amp 0.015, t·0.08). Blooms = mesh-style rings at 0.4 gain (heat ripples). House breathing/vignette/dither.
+- **Palette**: `[bg, hsl(h, s·0.9, 10) shade, hsl(h+25, ≤90, 38) wax deep, hsl(h+40, 90, 60) wax bright]`; blob slots alternate 2/3. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, blob slots cycle 1–8 (chosen in `computeLavaBlobs` by `paletteCount ≥ 9`).
+- **Motion** (`computeLavaBlobs(t, seed, aspect, tiltX, tiltY, paletteCount, state, out)`): rise/fall `y = 0.5 + 0.42·sin(TAU·t/RISE_i)`, RISE = [120, 90, 144, 180, 72]; sway amp 0.08, XP = [60, 80, 48, 90, 72]; radius breathe ±0.04 around `LAVA_R_BASE` 0.15, RP = [30, 36, 40, 45, 60]; squash ×(1−0.2·|y−0.5|·2) near extremes.
+- **Tilt**: gravity slosh — `x += tiltX·LAVA_TILT_GAIN(0.25)·depth`, `y += tiltY·0.12·depth`, depth 0.7–1.2 seeded per blob.
+- **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
+- **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
 
 ### Adding a visualization
 

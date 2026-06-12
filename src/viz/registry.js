@@ -8,8 +8,9 @@ import mesh from './mesh.js';
 import { VIZ_IDS, DEFAULT_VIZ_ID } from './ids.js';
 
 // One loader per non-default visualization; Vite code-splits each import().
+// Archived visualizations (see ids.js) have no loader — their modules stay
+// in src/viz/ but are never imported, so they never enter the build.
 const LOADERS = {
-  lava: () => import('./lava.js'),
   rain: () => import('./rain.js'),
   aurora: () => import('./aurora.js'),
   ink: () => import('./ink.js'),

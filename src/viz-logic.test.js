@@ -233,13 +233,13 @@ describe('crossfadeAlpha', () => {
 });
 
 describe('resolveVizSelection', () => {
-  const IDS = ['mesh', 'lava', 'rain', 'aurora'];
+  const IDS = ['mesh', 'topo', 'rain', 'aurora'];
   it('prefers the stored listener override', () => {
-    expect(resolveVizSelection('rain', 'lava', IDS)).toBe('rain');
+    expect(resolveVizSelection('rain', 'topo', IDS)).toBe('rain');
   });
   it('falls back to the playlist default when the override is unknown', () => {
-    expect(resolveVizSelection('plasma', 'lava', IDS)).toBe('lava');
-    expect(resolveVizSelection(null, 'lava', IDS)).toBe('lava');
+    expect(resolveVizSelection('plasma', 'topo', IDS)).toBe('topo');
+    expect(resolveVizSelection(null, 'topo', IDS)).toBe('topo');
   });
   it('falls back to mesh when both are unknown or missing', () => {
     expect(resolveVizSelection('plasma', 'wormhole', IDS)).toBe('mesh');
