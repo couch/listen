@@ -3,7 +3,7 @@
 // chunk into the bundle. Names are stylistic titles and stay untranslated,
 // like track titles; only the picker's group label is localized.
 
-export const VIZ_IDS = ['mesh', 'rain', 'aurora', 'ink', 'incense', 'scope', 'stars', 'topo', 'caustics', 'kaleido'];
+export const VIZ_IDS = ['mesh', 'rain', 'aurora', 'ink', 'incense', 'scope', 'stars', 'topo', 'caustics', 'kaleido', 'disco'];
 
 // Archived ids — modules kept in src/viz/ but unregistered (no loader, not
 // bundled). Never reuse an archived id: stored references (playlist `viz`,
@@ -21,6 +21,7 @@ export const VIZ_NAMES = {
   topo: 'Topo',
   caustics: 'Caustics',
   kaleido: 'Kaleido',
+  disco: 'Disco',
 };
 
 export const DEFAULT_VIZ_ID = 'mesh';

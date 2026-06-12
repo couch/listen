@@ -31,3 +31,6 @@ The player's eleven visualizations (⊙ button during playback; picker in the lo
 
 ![Kaleido](kaleido.jpg)
 **Kaleido** — The feedback visualization: every frame folds the last into a precessing k-fold mirrored wedge, seeded by scheduled sparks that trail into mandalas. Taps fast-clear and re-bloom at your finger; each track change steps the symmetry order (6→8→10→12).
+
+![Disco](disco.jpg)
+**Disco** — A faceted mirror ball hanging in a room washed in the live background, slowly turning while its soft light spots sweep the walls and a few facets glint at a time. Tilt swings the ball (the whole light field follows); a tap is a sparkle burst — spots flare and the ball answers.

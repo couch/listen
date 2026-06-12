@@ -20,6 +20,7 @@ const LOADERS = {
   topo: () => import('./topo.js'),
   caustics: () => import('./caustics.js'),
   kaleido: () => import('./kaleido.js'),
+  disco: () => import('./disco.js'),
 };
 
 const cache = new Map([[DEFAULT_VIZ_ID, Promise.resolve(mesh)]]);
