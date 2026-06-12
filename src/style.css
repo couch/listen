@@ -738,6 +738,17 @@ body.viz-active { overflow: hidden; }
   margin: 6px 10px;
 }
 
+/* Dim the shelf so the playing tape's live drift color is what catches the
+   eye — too many bright spines make the list hard to scan. The displayed tape
+   stays legible (mid tier); everything else recedes into the dark drawer. */
+#library-shelf .spine { opacity: 0.4; filter: saturate(0.7); }
+#library-shelf .spine.spine-active { opacity: 0.7; filter: saturate(0.85); }
+#library-shelf .spine.spine-playing { opacity: 1; filter: none; }
+@media (hover: hover) {
+  #library-shelf .spine:hover { opacity: 0.85; filter: none; }
+  #library-shelf .spine.spine-playing:hover { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #library-drawer, #library-scrim { transition: none; }
 }
