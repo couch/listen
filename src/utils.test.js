@@ -346,6 +346,13 @@ describe('buildSaveFiles', () => {
     expect(JSON.parse(pf.content)).toEqual(playlist);
   });
 
+  it('index.json content round-trips a published array', () => {
+    const pubIdx = { active: '100', ids: ['100'], published: ['100'] };
+    const files = buildSaveFiles('100', playlists, pubIdx);
+    const indexFile = files.find(f => f.path === 'playlists/index.json');
+    expect(JSON.parse(indexFile.content)).toEqual(pubIdx);
+  });
+
   it('does not duplicate the active playlist when current === active', () => {
     const files = buildSaveFiles('100', playlists, idx);
     const playlistFiles = files.filter(f => f.path.startsWith('playlists/') && f.path.endsWith('.json') && f.path !== 'playlists/index.json');

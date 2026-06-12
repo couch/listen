@@ -138,6 +138,25 @@ function updateLiveBadge() {
   document.getElementById("set-live-btn").hidden = live;
 }
 
+// ── Publish (library curation — order managed in Phase B's shelf) ──
+function isPublished(id) {
+  return (idx.published || []).includes(id);
+}
+
+function updatePublishBtn() {
+  document.getElementById("publish-btn").textContent = isPublished(currentId) ? T.unpubBtn : T.pubBtn;
+}
+
+document.getElementById("publish-btn").addEventListener("click", () => {
+  if (!currentId) return;
+  if (isPublished(currentId)) {
+    idx.published = idx.published.filter(id => id !== currentId);
+  } else {
+    idx.published = [...(idx.published || []), currentId];
+  }
+  updatePublishBtn();
+});
+
 function updateLiveUI() {
   updateLiveBadge();
   selectEl.querySelectorAll("option").forEach(opt => {
@@ -185,6 +204,7 @@ function loadPlaylist(id) {
   document.getElementById("meta-row").hidden = true;
   setFetchStatus("");
   updateLiveBadge();
+  updatePublishBtn();
   updateLocationDisplay();
 }
 
@@ -216,6 +236,7 @@ document.getElementById("delete-btn").addEventListener("click", async () => {
 
   const idToDelete = currentId;
   idx.ids = idx.ids.filter(id => id !== idToDelete);
+  if (idx.published) idx.published = idx.published.filter(id => id !== idToDelete);
   delete playlists[idToDelete];
   if (idx.active === idToDelete) idx.active = idx.ids[0];
   currentId = idx.active;
@@ -549,6 +570,7 @@ function applyStrings() {
   document.getElementById('delete-btn').textContent = T.delBtn;
   document.getElementById('live-badge').textContent = T.liveBadge;
   document.getElementById('set-live-btn').textContent = T.setLiveBtn;
+  updatePublishBtn();
   document.getElementById('tape-name').placeholder = T.titlePh;
   document.querySelector('#tracks-section .section-label').textContent = T.tracksLbl;
   document.getElementById('empty-state').textContent = T.empty;
