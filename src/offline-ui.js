@@ -13,7 +13,7 @@
  *   dimColor: (hex: string) => string,
  *   offlineText: string,
  *   getPlaying: () => boolean,
- *   getPlayer: () => { pauseVideo?: () => void } | null,
+ *   getPlayer: () => { pause: () => void } | null,
  *   getCurrentIndex: () => number,
  *   releaseWakeLock: () => void,
  *   stopColorDrift: () => void,
@@ -76,7 +76,7 @@ export function createOfflineUI(deps) {
     offlineHadBar = barEl.classList.contains('bar-visible');
     if (offlineHadBar) {
       if (getPlaying()) {
-        getPlayer()?.pauseVideo();
+        getPlayer()?.pause();
         savePosition();
       }
       barEl.classList.remove('bar-visible');

@@ -133,31 +133,31 @@ describe('createOfflineUI', () => {
     });
 
     it('hides bar and pauses player when bar is visible and playing', () => {
-      const pauseVideo = vi.fn();
+      const pause = vi.fn();
       const deps = makeDeps({
         getPlaying: () => true,
-        getPlayer: () => ({ pauseVideo }),
+        getPlayer: () => ({ pause }),
       });
       deps.barEl.classList.add('bar-visible');
       const { goOffline } = createOfflineUI(deps);
       goOffline();
       expect(deps.barEl.classList.contains('bar-visible')).toBe(false);
       expect(document.documentElement.style.getPropertyValue('--bar-h')).toBe('0px');
-      expect(pauseVideo).toHaveBeenCalledOnce();
+      expect(pause).toHaveBeenCalledOnce();
       expect(deps.savePosition).toHaveBeenCalledOnce();
     });
 
     it('hides bar without pausing when bar visible but not playing', () => {
-      const pauseVideo = vi.fn();
+      const pause = vi.fn();
       const deps = makeDeps({
         getPlaying: () => false,
-        getPlayer: () => ({ pauseVideo }),
+        getPlayer: () => ({ pause }),
       });
       deps.barEl.classList.add('bar-visible');
       const { goOffline } = createOfflineUI(deps);
       goOffline();
       expect(deps.barEl.classList.contains('bar-visible')).toBe(false);
-      expect(pauseVideo).not.toHaveBeenCalled();
+      expect(pause).not.toHaveBeenCalled();
     });
 
     it('cancels a pending hideListener from a prior goOnline', () => {
