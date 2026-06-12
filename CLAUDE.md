@@ -74,9 +74,9 @@ All entry functions are pure (no DOM/GL) and unit-tested alongside (`src/viz/<id
 - `src/visualizer.js` — DOM/lifecycle owner: overlay, ⊙ entry button, entry/exit fade (400 ms), gestures, rAF loop, track metadata corner, active/pending visualization state. Opens only during playback; closes on ×, Escape, a real pause, going offline, or playlist end — the transient PAUSED that YouTube fires inside `loadVideoById` during a track change does *not* close it (main.js keeps a transition marker `trackLoadAt`, set in `load()`, consumed by the first PAUSED, cleared on PLAYING/CUED/error, 5 s max age via `isTransientPause` in utils.js; the `offline` handler closes the overlay explicitly since its pause can race the marker). Self-healing: a WebGL context lost and not restored within 3.5 s (`CTX_LOSS_CLOSE_MS`), or a visualization `frame()` throwing (the rAF loop is try/catch-guarded), auto-closes the overlay so the player UI is never stranded behind a dead canvas. A context loss while open also records reopen eligibility (`sysClosedAt` — the OS reclaimed the GPU process, not a user choice; the pause that follows a GPU kill closes through the ordinary pause path, so eligibility is recorded at the loss itself): `maybeReopenVisualizer()` (called on context restore and on every PLAYING) reinstates the overlay within `VIZ_REOPEN_MAX_MS` (10 min) if playback is on and the context is back. Explicit exits (×, Escape → `userClose`) clear eligibility and never auto-reopen; a frame-crash close doesn't set it (our bug, not the OS). Restore-in-place (context back while still open) clears it too. No fullscreen navigation gestures — swipes over the field are inert (taps bloom). The one navigation gesture is element-scoped: a horizontal touch swipe over the lower-left metadata block (`#viz-text`, enlarged hit area, `skipGesture`: ≥60 px travel, ≤40 px vertical drift, ≤600 ms) skips next (left) / previous (right) via the `onTrackSkip(dir)` callback `main.js` passes to `initVisualizer(reducedMotion, isPride, opts)` — same moves as the viz-open arrow keys. `frame(state, ctx)` receives `ctx = { t, dt, aspect, tiltX, tiltY, blooms, paletteData, paletteCount }` and returns the uniform values for its spec.
 - **Crossfade between visualizations**: 600 ms (`VIZ_FADE_MS`), eased by `crossfadeAlpha`; outgoing viz renders opaque, incoming alpha-blends on top; both states step and both palettes follow the bg drift during the fade; outside transitions exactly one program runs. The incoming viz gets a fresh `initState(seed)` and a reset bloom buffer. Reduced motion: instant swap.
 - **Shared event machinery** (visualizer.js, invariant 2 enforced centrally): `spawnEvent` always writes the `u_blooms[12]` ring buffer — each shader *reinterprets* those records in its own vocabulary — then calls the per-viz `tap()` hook (or `trackEvent()` on track change). `eventLife` = max bloom age the shader honors.
-- **Picker** (`src/viz-picker.js`, DOM only): `#viz-picker` in the overlay's bottom-right corner — a faint `⁘` toggle (`aria-expanded`, localized `L.vz` label) pinned to the corner with a `role="radiogroup"` menu of visualization names opening **upward** from it (active = `●` + `aria-checked`; the container is `column-reverse` because the invisible menu participates in layout — a plain column pushes the toggle to mid-screen). Hover-capable pointers: everything is hidden until the mouse enters the bottom-quarter reveal zone **or is anywhere over the picker itself** (`pickerRevealZone(e.clientY) || picker.root.contains(e.target)` on overlay `pointermove` — the open menu extends above the zone, so zone-only reveal made the top items unreachable; 400 ms grace on leave; also visible on `:focus-within`). Touch: the toggle is always faintly present; the menu auto-hides after 6 s idle or an outside tap. First reveal calls `warmAll()` (preloads every viz chunk). Selecting calls `selectVisualization(id)`: persist → `ensureLoaded` → `beginTransition` crossfade; a failed chunk load or shader compile reverts the selection to what's running. Overlay tap/bloom gestures ignore `#viz-picker` (and `#viz-text`/`#viz-exit`). **Hit-testing rule**: interactive overlay children must get `pointer-events: auto` only under `.viz-open` (`#viz-overlay.viz-open #viz-text` in CSS), and `closeVisualizer` strips `.picker-open`/`.picker-reveal` — an unconditional auto (or a surviving class) keeps invisible blocks hit-testable over the playback drawer when the overlay is closed.
+- **Picker** (`src/viz-picker.js`, DOM only): `#viz-picker` in the overlay's bottom-right corner — an always-visible faint `⁘` toggle (`aria-expanded`, localized `L.vz` label) pinned to the corner; the `role="radiogroup"` menu of visualization names **accordion-expands upward out of it** (`#viz-picker-menu-wrap` animates `grid-template-rows` 0fr→1fr to intrinsic height — no max-height magic number; the menu inside is `min-height: 0; overflow: hidden`; the container is `column-reverse` because the wrap participates in layout, so growth extends upward; `prefers-reduced-motion` drops the transition). **One state class `.picker-open`, set only by `setOpen()`** — desktop hover, touch tap, and keyboard all go through it, so `aria-expanded` always tracks. Hover-fine pointers: open on root `pointerenter`, close after `PICKER_LEAVE_GRACE_MS` (400 ms) on `pointerleave` — both guarded `e.pointerType === 'mouse'` (on hybrid touch+hover devices a tap fires pointerenter before click and would open-then-toggle-closed); no idle timer (it would collapse the menu mid-hover). Touch: tap toggles, 6 s idle close, outside tap closes (overlay pointerdown). Keyboard: `focusin` (`:focus-visible` only) opens, `focusout` beyond the root closes. First reveal (toggle click, hover enter, or focus) calls `warmAll()` (preloads every viz chunk). Selecting calls `selectVisualization(id)`: persist → `ensureLoaded` → `beginTransition` crossfade; a failed chunk load or shader compile reverts the selection to what's running. Overlay tap/bloom gestures ignore `#viz-picker` (and `#viz-text`/`#viz-exit`). **Hit-testing rule**: interactive overlay children must get `pointer-events: auto` only under `.viz-open` (`#viz-overlay.viz-open #viz-text` in CSS) or `.picker-open` (the menu), and `closeVisualizer` calls `picker.setOpen(false)` — an unconditional auto (or a surviving class) keeps invisible blocks hit-testable over the playback drawer when the overlay is closed.
 - **Persistence**: selection priority is localStorage override > `TAPE.viz` (author default, set in the admin's chip picker) > `mesh` (`resolveVizSelection`; unknown ids fall through). The override lives in localStorage `muxtape-viz`, a JSON map `{ [playlistId]: vizId }` (key `'_'` when `TAPE.id` is absent), written on picker selection; all access is try/catch. `main.js` passes `tapeId`/`defaultViz` into `initVisualizer` and calls `preloadVizSelection()` when playback starts so a non-mesh selection's chunk is warm before the overlay opens; if it isn't (or its shader fails), the overlay opens with mesh and crossfades over when ready.
-- Wiring in `main.js`: `tickDrift` writes `--bg`/theme-color/`setVizBgColor(hex)` at 10 Hz (`DRIFT_WRITE_MS` throttle via `updateDue` — invisible on a 45 s ramp, avoids per-frame style invalidation); `enableMotionListeners()` (behind the iOS π-button permission flow) feeds `deviceorientation` → `setVizOrientation(beta, gamma)`. `initVisualizer` opts also carry `isPlaying()` (gates auto-reopen) and `onOpenChange(open)` (main.js stops the ambient orbs / pride canvas while the opaque overlay hides them, resumes on close if playing; the PLAYING branch gates `startAmbient`/`startPrideCanvas` on `!isVisualizerOpen()` for the same reason).
+- Wiring in `main.js`: `tickDrift` writes `--bg`/theme-color/`setVizBgColor(hex)` at 10 Hz (`DRIFT_WRITE_MS` throttle via `updateDue` — invisible on a 45 s ramp, avoids per-frame style invalidation); `enableMotionListeners()` feeds `deviceorientation` → `setVizOrientation(beta, gamma)`; on iOS the grant comes from the ⊙ click via the `onUserOpen` opt (`requestVizOrientation` — invoked synchronously in the click handler, the gesture context iOS requires; auto-reopen never calls it; orientation only, π keeps geolocation and stays as the motion fallback, hidden after a grant when the playlist has no location). `initVisualizer` opts also carry `isPlaying()` (gates auto-reopen) and `onOpenChange(open)` (main.js stops the ambient orbs / pride canvas while the opaque overlay hides them, resumes on close if playing; the PLAYING branch gates `startAmbient`/`startPrideCanvas` on `!isVisualizerOpen()` for the same reason).
 - Performance: canvas renders at 0.6× of DPR-capped (≤2) CSS resolution (`computeCanvasSize`); the rAF loop draws at 30 fps regardless of display refresh (`updateDue`/`VIZ_FRAME_MS` — half the GPU work at 60 Hz, a quarter on 120 Hz); `powerPreference: 'low-power'`; rAF paused when tab hidden; decorative layers behind the overlay paused while open (`onOpenChange`).
 - Reduced motion: a single static frame at synthetic t=30 s; taps place a mid-life event and redraw once.
 
@@ -97,18 +97,7 @@ iOS-wallpaper-style soft color field. No hard edges by construction.
 - **Tilt** (`createTiltState`/`stepTilt`/`normalizeTilt` in `viz-logic.js` — shared): under-damped spring (stiffness 14, damping 6 ≈ 0.8× critical — gel overshoot) chasing the deviation from a slow-adapting baseline (τ = 3.5 s = the resting pose). Output ±1 → site offset × `TILT_GAIN` 0.18 × per-site parallax depth (0.6–1.1), applied inside `computeSites` (JS-side, no `u_tilt`). Holding still → deviation decays → autonomous drift resumes automatically; tilt is purely additive, no mode switch. `normalizeTilt` remaps beta/gamma per `screen.orientation.angle`, ±45° → ±1.
 - **Tuning knobs** (exported constants in `mesh.js`): `FALLOFF_*` (region size — too low and the normalized blend averages to a flat wash), `AMP_PRIMARY`/`AMP_EPI` (travel), `SITE_PERIODS`/`EPI_PERIODS` (speed), `TILT_GAIN`. Tune from headless screenshots (see Visual verification).
 
-#### 2. Lava lamp (`src/viz/lava.js`)
-
-Metaball wax in live-bg liquid. Playful, physical.
-
-- **Rendering**: `u_blobs[7]` vec4 (x, y aspect-space, radius, palette slot) — 5 primary + 2 satellite slots (r = 0 inactive). Metaball field `f = Σ r²/(d²+1e-4)`; wax color = field-weighted blend of per-blob `paletteAt(slot)` colors so merging blobs smear hues; body `smoothstep(1.0, 1.18, f)` with inner-depth brightening (`mix(0.8, 1.3, smoothstep(1.0, 2.6, f))`); rim light band `smoothstep(1.0,1.06,f) − smoothstep(1.06,1.3,f)` in `mix(waxCol, white, 0.55)` × 0.45. Liquid = slot 0 verbatim × vertical shade (0.85→1.05). Heat-shimmer fbm warp (amp 0.015, t·0.08). Blooms = mesh-style rings at 0.4 gain (heat ripples). House breathing/vignette/dither.
-- **Palette**: `[bg, hsl(h, s·0.9, 10) shade, hsl(h+25, ≤90, 38) wax deep, hsl(h+40, 90, 60) wax bright]`; blob slots alternate 2/3. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, blob slots cycle 1–8 (chosen in `computeLavaBlobs` by `paletteCount ≥ 9`).
-- **Motion** (`computeLavaBlobs(t, seed, aspect, tiltX, tiltY, paletteCount, state, out)`): rise/fall `y = 0.5 + 0.42·sin(TAU·t/RISE_i)`, RISE = [120, 90, 144, 180, 72]; sway amp 0.08, XP = [60, 80, 48, 90, 72]; radius breathe ±0.04 around `LAVA_R_BASE` 0.15, RP = [30, 36, 40, 45, 60]; squash ×(1−0.2·|y−0.5|·2) near extremes.
-- **Tilt**: gravity slosh — `x += tiltX·LAVA_TILT_GAIN(0.25)·depth`, `y += tiltY·0.12·depth`, depth 0.7–1.2 seeded per blob.
-- **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
-- **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
-
-#### 3. Rain on glass (`src/viz/rain.js`)
+#### 2. Rain on glass (`src/viz/rain.js`)
 
 Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro showcase.
 
@@ -119,7 +108,7 @@ Bokeh lights behind a pane; beaded drops refract them as they run down. The gyro
 - **Interaction**: tap/auto/track = splat via the shared bloom buffer only (no per-viz hooks).
 - **Tuning knobs**: `RAIN_LAYER_SCALES`/`RAIN_SPEEDS` (density/speed), `RAIN_REFRACT` (lens strength), `RAIN_TRAIL`, `RAIN_GRAV_GAIN`/`RAIN_RATE_GAIN`, bokeh count/periods, dry-column threshold 0.22 and drop-size range in the shader.
 
-#### 4. Aurora (`src/viz/aurora.js`)
+#### 3. Aurora (`src/viz/aurora.js`)
 
 Light curtains rippling over a dusk sky; the horizon glow is the live bg. Grand, ambient.
 
@@ -130,7 +119,7 @@ Light curtains rippling over a dusk sky; the horizon glow is the live bg. Grand,
 - **Interaction**: tap/auto/track = shimmer pulse via the shared bloom buffer (no per-viz hooks).
 - **Tuning knobs**: `AURORA_FLOW` (ripple speed), band ks 200/25 (edge crispness/glow length), fold-mask floor 0.1 (gap depth), ray frequency 26, layer spacing 0.12, star grid/threshold, `WIND_*`/`AURORA_*` gains.
 
-#### 5. Ink in water (`src/viz/ink.js`)
+#### 4. Ink in water (`src/viz/ink.js`)
 
 Dark plumes billowing up through live-bg water. Late-night, sparse.
 
@@ -141,7 +130,7 @@ Dark plumes billowing up through live-bg water. Late-night, sparse.
 - **Interaction**: tap = drop at touch, auto/track = drop at random position — all via the shared buffer, no per-viz hooks.
 - **Tuning knobs**: `INK_LIFE`/`INK_DILUTE_TAU` (persistence), `INK_RISE`/`INK_SPREAD`/`INK_SIGMA0` (plume shape), curl warp 0.09/0.9 and density thresholds 0.18/0.62 in the shader (tendril character), wisp gain 0.18.
 
-#### 6. Incense ribbon (`src/viz/incense.js`)
+#### 5. Incense ribbon (`src/viz/incense.js`)
 
 One luminous smoke line rising from an ember. Piano/sparse, contemplative.
 
@@ -152,7 +141,7 @@ One luminous smoke line rising from an ember. Piano/sparse, contemplative.
 - **Interaction**: tap/auto/track = smoke ring via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `RIBBON_PERIODS`/`RIBBON_AMPS`/`RIBBON_WINDS` (sway character), K range 4000/250 (dispersion), jitter 0.06 (turbulence), `DRAFT_GAIN`, ember ks/throb, ring shape.
 
-#### 7. Neon Lissajous scope (`src/viz/scope.js`)
+#### 6. Neon Lissajous scope (`src/viz/scope.js`)
 
 A phosphor beam tracing generative Lissajous figures. **The beam IS the live bg color** (invariant 1). Electronic.
 
@@ -163,7 +152,7 @@ A phosphor beam tracing generative Lissajous figures. **The beam IS the live bg 
 - **Interaction**: tap = traveling pulse (shared buffer); `trackEvent` increments `state.figureOffset` — each track gets the next figure.
 - **Tuning knobs**: `SCOPE_SEGMENTS` (smoothness vs cost), glow/halo ks 2600/60, brightness-average kernel 400, persistence decay 5, `FIGURE_HOLD`/`FIGURE_MORPH`, `HEAD_PERIOD`, `PULSE_*`, figure scale 0.36.
 
-#### 8. Starfield warp (`src/viz/stars.js`)
+#### 7. Starfield warp (`src/viz/stars.js`)
 
 Four parallax shells of stars streaming out of a vanishing point over a live-bg nebula. Soundtracks, momentum.
 
@@ -174,7 +163,7 @@ Four parallax shells of stars streaming out of a vanishing point over a live-bg 
 - **Interaction**: tap/auto/track = comet via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `STAR_LAYER_*` (depth/speed), presence threshold 0.86 (density), radius/jitter constants (size vs cell-cut safety), streak factor 2.0, `VP_GAIN`, `COMET_*`.
 
-#### 9. Paper topography (`src/viz/topo.js`)
+#### 8. Paper topography (`src/viz/topo.js`)
 
 Hand-drawn contour lines of a slowly remolding landscape on live-bg paper. Folk, quiet.
 
@@ -185,7 +174,7 @@ Hand-drawn contour lines of a slowly remolding landscape on live-bg paper. Folk,
 - **Interaction**: tap = new peak via the shared buffer (`eventLife: PEAK_LIFE` 12) — contour rings bloom outward as it grows, then erode away; auto/track = peak at random position.
 - **Tuning knobs**: `TOPO_CONTOURS` (line density), line widths 0.09/0.035 and alphas, `PEAK_*`, `TOPO_DRIFT_*`, `TOPO_TILT_GAIN`, grain amp.
 
-#### 10. Underwater caustics (`src/viz/caustics.js`)
+#### 9. Underwater caustics (`src/viz/caustics.js`)
 
 Refracted-light web over sunlit live-bg water, god rays slanting from the surface. Chill.
 
@@ -196,7 +185,7 @@ Refracted-light web over sunlit live-bg water, god rays slanting from the surfac
 - **Interaction**: tap/auto/track = ripple ring via the shared buffer (no per-viz hooks).
 - **Tuning knobs**: `CAUSTIC_SCALE`/`RIDGE_POW` (web fineness/contrast), `CAUSTIC_SPEEDS`, layer rotation angles, depth dim 0.6, `SUN_GAIN`, ripple band/displacement.
 
-#### 11. Kaleidoscope mandala (`src/viz/kaleido.js`)
+#### 10. Kaleidoscope mandala (`src/viz/kaleido.js`)
 
 The one **feedback** visualization (`feedback: true` on the entry → viz-gl's FBO ping-pong path). Pop/funk, hypnotic.
 
@@ -206,6 +195,32 @@ The one **feedback** visualization (`feedback: true` on the entry → viz-gl's F
 - **Tilt**: tiltX precesses the symmetry axis (the whole mandala swings).
 - **Interaction**: `tap` **re-seeds** — `RESEED_DECAY` 0.8 for `RESEED_T` 0.5 s (fast clear) + a 3-spark burst at the tap's radius/angle (mirrored k-fold automatically); `trackEvent` steps the symmetry order through `KALEIDO_KS` [6, 8, 10, 12] + bursts. Stale future timestamps from the hourly wrap are dropped in `frame()`.
 - **Tuning knobs**: `KALEIDO_DECAY`/`RESEED_*` (trail length/clear feel), zoom 1.01 (expansion speed), `KALEIDO_KS`, `SPARK_*` (seeding density/size), floor 0.18 / halo 0.5, flower thresholds.
+
+#### 11. Disco ball (`src/viz/disco.js`)
+
+A faceted mirror ball near the top of a live-bg room, slowly turning; its light spots sweep the walls. Restrained — slow drift, a few glints at a time, never a strobe.
+
+- **Rendering**: room = `mix(slot1 shadow, slot0, clamp(0.55 + 0.5·pool, 0, 1))`, `pool = exp(−|p−ball|·1.2) + 0.15·(fbm−0.5)` — bg-colored wall wash dominates (invariant 1). **Spots**: polar grid around `u_ball` — spoke coord `su = (θ/TAU + u_rot/TAU)·SPOKES` (θ from straight down), ring `sv = r·RINGS`; cell hashes use `mod(spoke, SPOKES)` so they're invariant when `u_rot`'s fract wraps each revolution (**both angular hashes — spokes and ball facets — must be taken mod their count, or everything re-rolls at the wrap**). Per cell (full 3×3 neighborhood — radial σ outgrows the ring pitch and jitter wanders): presence hash > 0.62, center jittered ±0.2 cell, anisotropic gaussian in screen units (tangential = arc length, radial = ring pitch), σt `DISCO_SPOT_R`·(0.5+r), σr ×(1+`DISCO_ELONG`·r); brightness `(0.4+0.6·h)·exp(−r·1.1)` × ±15% twinkle (20 s); masked inside 1.5–2.4× ball radius. **Ball**: disc SDF (`DISCO_BALL_R` 0.13, fixed-width AA), hemisphere `lat = asin(clamp(y, ±0.985))` / `lon = atan(x, max(z, 0.05)) + u_rot` (pole/rim NaN guards), facet grid at `TAU/DISCO_FACETS` (24), flat-shaded from the facet-center normal (hard mirror-tile edges intended, bounded in the disc), grout lines, per-facet hash variation; **glints**: facet flares slot-4 when `fract(gh·7.3 + u_glint) < window` (0.05 — a few at a time). Thin slot-1 rod; faint slot-2 halo outside the rim. Blooms = **sparkle bursts**: pulse `smoothstep(0,0.15,age)·exp(−age·1.1)`; a gaussian patch boosts spot brightness ×(1+2·pulse), Σpulses widen the glint window ×(1+2·Σ) (the ball answers), plus fine `pow(vnoise(p·18),6)` shimmer ×0.25. House breathing/vignette/dither.
+- **Palette**: `[bg wall wash, hsl(h, ≤50, 8) shadow/rod, hsl(h+15, 25, 82) spot light, hsl(h, 8, 60) facet silver, hsl(h+30, 15, 93) glint]`. Pride (in-shader): per-spot tint `paletteAt(1 + mod(floor(h·8), 8))` mixed 45% toward pale; ball stays silver, glints near-white.
+- **Motion**: `discoRot(t)` = TAU·fract(t/`DISCO_ROT_PERIOD` 48); sway `DISCO_SWAY_AMP` 0.015 on `DISCO_SWAY_PERIOD` 18; glint era `GLINT_PERIOD` 12; twinkle 20 (in-shader, u_time). All divide 3600; all phases arrive as JS uniforms (`u_ball '2f'`, `u_rot '1f'`, `u_glint '1f'`).
+- **Tilt** (`discoBallPos`, clamped ±1): tiltX leans the pendulum ×`DISCO_TILT_GAIN` 0.08, tiltY bobs the hang height ×`DISCO_BOB` 0.04 — the spot grid is ball-centered, so the whole light field swings with the ball.
+- **Interaction**: tap/auto/track = sparkle burst via the shared bloom buffer (no per-viz hooks). `eventLife: DISCO_FLASH_LIFE` 4.
+- **Tuning knobs**: `DISCO_ROT_PERIOD`/`DISCO_SWAY_*`/`GLINT_PERIOD` (tempo), `DISCO_BALL_R`/`DISCO_BALL_Y`/`DISCO_FACETS` (the ball), `DISCO_SPOKES`/`DISCO_RINGS`/presence 0.62/`DISCO_SPOT_R`/`DISCO_ELONG`/`DISCO_SPOT_GAIN` (spot field), glint window 0.05, `DISCO_TILT_GAIN`/`DISCO_BOB`, `DISCO_FLASH_LIFE`.
+
+### Archived visualizations
+
+Unregistered, not bundled: the module and its test stay in `src/viz/` (kept green), but there is no loader in registry.js and no id in ids.js, so Vite never imports it. **Never reuse an archived id** — stored references (`viz` in playlists, localStorage overrides) resolve to the default at runtime, and the schema deliberately accepts any string so saved playlists stay valid. To reinstate: re-add the loader + id/name entries and move the subsection back up.
+
+#### Lava lamp (`src/viz/lava.js`)
+
+Metaball wax in live-bg liquid. Playful, physical.
+
+- **Rendering**: `u_blobs[7]` vec4 (x, y aspect-space, radius, palette slot) — 5 primary + 2 satellite slots (r = 0 inactive). Metaball field `f = Σ r²/(d²+1e-4)`; wax color = field-weighted blend of per-blob `paletteAt(slot)` colors so merging blobs smear hues; body `smoothstep(1.0, 1.18, f)` with inner-depth brightening (`mix(0.8, 1.3, smoothstep(1.0, 2.6, f))`); rim light band `smoothstep(1.0,1.06,f) − smoothstep(1.06,1.3,f)` in `mix(waxCol, white, 0.55)` × 0.45. Liquid = slot 0 verbatim × vertical shade (0.85→1.05). Heat-shimmer fbm warp (amp 0.015, t·0.08). Blooms = mesh-style rings at 0.4 gain (heat ripples). House breathing/vignette/dither.
+- **Palette**: `[bg, hsl(h, s·0.9, 10) shade, hsl(h+25, ≤90, 38) wax deep, hsl(h+40, 90, 60) wax bright]`; blob slots alternate 2/3. Pride: `[bg, …PRIDE_COLORS_VIZ[1..]]`, blob slots cycle 1–8 (chosen in `computeLavaBlobs` by `paletteCount ≥ 9`).
+- **Motion** (`computeLavaBlobs(t, seed, aspect, tiltX, tiltY, paletteCount, state, out)`): rise/fall `y = 0.5 + 0.42·sin(TAU·t/RISE_i)`, RISE = [120, 90, 144, 180, 72]; sway amp 0.08, XP = [60, 80, 48, 90, 72]; radius breathe ±0.04 around `LAVA_R_BASE` 0.15, RP = [30, 36, 40, 45, 60]; squash ×(1−0.2·|y−0.5|·2) near extremes.
+- **Tilt**: gravity slosh — `x += tiltX·LAVA_TILT_GAIN(0.25)·depth`, `y += tiltY·0.12·depth`, depth 0.7–1.2 seeded per blob.
+- **Interaction**: tap → `nearestBlob` within 2.5r gets `heat[i] = t`; `lavaHeatBoost(age) = exp(−age/3)` swells radius ×(1+0.35·boost) and lifts (`LAVA_HEAT_RISE` 0.25). A heated blob over `LAVA_SPLIT_R` 0.18 **splits** instead: a satellite slot (r 0.07, parent's color) rises at `LAVA_SAT_RISE` 0.05/s and melts away over `LAVA_SAT_LIFE` 8 s. Track change (`trackEvent`) stokes the biggest blob. Taps in open liquid just ripple (shared bloom). `state.aspect` is cached in `frame()` for tap coordinate conversion.
+- **Tuning knobs**: `LAVA_R_BASE` (wax amount), `LAVA_*_PERIODS` (speed), `LAVA_HEAT_*`/`LAVA_SPLIT_R`/`LAVA_SAT_*` (interaction feel), `LAVA_TILT_GAIN`, field thresholds 1.0/1.18 in the shader (wax surface tension).
 
 ### Adding a visualization
 
