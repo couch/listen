@@ -74,7 +74,11 @@ body {
 /* The tape you're hearing carries a small now-playing equalizer (.eq, below)
    instead of a color highlight: selection drives spine color, playback drives
    the equalizer. .eq is hidden until the spine is the playing one. */
-.spine .eq { display: none; color: rgba(255,255,255,0.88); }
+/* The spine row is a fixed 52px centered flex line, so baseline alignment would
+   de-centre the title; instead the eq stays centred and is nudged so its bar
+   bottom lands on the title's baseline (the bar bottom is stable — scaleY's
+   transform-origin is the bottom). */
+.spine .eq { display: none; color: rgba(255,255,255,0.88); transform: translateY(-1.5px); }
 .spine.spine-playing .eq { display: inline-flex; }
 .spine[data-text="dark"] .eq { color: rgba(0,0,0,0.7); }
 

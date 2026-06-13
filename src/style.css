@@ -317,7 +317,7 @@ body.is-offline .track:hover { background: transparent; }
    tapping the now-playing block snaps back to the source tape */
 #np-tape {
   display: flex;
-  align-items: center;
+  align-items: baseline; /* equalizer bar-bottom sits on the tape-name baseline */
   gap: 5px;
   background: none;
   border: none;
