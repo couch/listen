@@ -317,7 +317,7 @@ body.is-offline .track:hover { background: transparent; }
    tapping the now-playing block snaps back to the source tape */
 #np-tape {
   display: flex;
-  align-items: center;
+  align-items: baseline; /* equalizer bar-bottom sits on the tape-name baseline */
   gap: 5px;
   background: none;
   border: none;
@@ -334,7 +334,7 @@ body.is-offline .track:hover { background: transparent; }
 /* the now-playing equalizer leads the chip (replacing the old ≣ glyph); the
    title span takes the remaining width and ellipsizes */
 #np-tape .eq { width: 11px; height: 9px; }
-#np-tape > span:last-child {
+#np-tape .np-tape-title {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -416,13 +416,17 @@ body.is-offline .track:hover { background: transparent; }
   padding: 40px 28px max(calc(var(--bar-h, 0px) + 40px), calc(env(safe-area-inset-bottom) + 28px));
 }
 
-/* dates + distance, each on its own line (a populating distance line never
-   reflows the dates) */
+/* dates + distance as a bulleted list; the bullet sits in the track-number column
+   and the text aligns with the track titles (28 + 20 + 16 = 64px), so the footer
+   reads on the same grid as the rows above. Each line is its own <li>, so a
+   populating distance line never reflows the dates. */
 #playlist-meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
+  gap: 11px;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
   color: rgba(255,255,255,0.35);
@@ -431,31 +435,47 @@ body.is-offline .track:hover { background: transparent; }
 }
 
 #playlist-meta.visible { opacity: 1; }
-.meta-line { white-space: nowrap; }
 
-/* the distance line's resting state is a tap-to-reveal invitation; once located
-   it just shows the distance text */
-.meta-loc-cta {
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: color 0.15s;
+.meta-line { display: flex; align-items: baseline; gap: 16px; }
+.meta-line::before {
+  content: '•';
+  flex: 0 0 20px;
+  text-align: right;
+  opacity: 0.45;
 }
+.meta-line > span { white-space: nowrap; }
+
+/* the distance line's resting state is a tap-to-reveal invitation styled like a
+   link (underline + chevron) so it clearly reads as tappable; once located it just
+   shows the plain distance text */
+.meta-loc-cta { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .meta-loc-cta:focus-visible {
   outline: 2px solid rgba(255,255,255,0.4);
   outline-offset: 3px;
+  border-radius: 2px;
 }
-.meta-loc-note {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.6875rem;
-  opacity: 0.6;
+.meta-loc-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.meta-loc-hook {
+  align-self: flex-start;
+  color: rgba(255,255,255,0.62);
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.32);
+  text-underline-offset: 3px;
+  transition: color 0.15s, text-decoration-color 0.15s;
 }
+.meta-loc-hook::after { content: ' ›'; }
+.meta-loc-note { font-size: 0.6875rem; opacity: 0.6; white-space: normal; }
+.meta-loc-cta:active .meta-loc-hook { color: rgba(255,255,255,0.95); }
 @media (hover: hover) {
-  .meta-loc-cta:hover { color: rgba(255,255,255,0.55); }
+  .meta-loc-cta:hover .meta-loc-hook {
+    color: rgba(255,255,255,0.9);
+    text-decoration-color: rgba(255,255,255,0.6);
+  }
 }
 
 @media (max-width: 480px) {
   #playlist-footer { padding: 32px 20px max(calc(var(--bar-h, 0px) + 36px), calc(env(safe-area-inset-bottom) + 24px)); }
+  .meta-line { gap: 14px; }
 }
 
 /* share lives in the header cluster beside ≣ — header metrics, and an
@@ -776,6 +796,21 @@ body.viz-active { overflow: hidden; }
   #library-shelf .spine:hover { filter: saturate(0.6); }
   #library-shelf .spine.spine-active:hover { filter: none; }
 }
+
+/* The viewed spine wears the live --bg — the exact color shown full-screen for
+   this tape (static until it plays, drifting once it does), so the drawer item
+   matches the background you're looking at side-by-side. Overrides the tape's own
+   --spine and any pride gradient. --bg is dark by construction and the full view
+   uses light text on it, so force light text/eq even if the tape resolved to
+   data-text="dark". */
+#library-shelf .spine.spine-active {
+  background-color: var(--bg, var(--spine, #444));
+  background-image: repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.04) 0 1px, transparent 1px 8px);
+}
+#library-shelf .spine.spine-active .spine-title,
+#library-shelf .spine.spine-active .eq { color: rgba(255,255,255,0.88); }
+#library-shelf .spine.spine-active .spine-count { color: rgba(255,255,255,0.45); }
 
 @media (prefers-reduced-motion: reduce) {
   #library-drawer, #library-scrim { transition: none; }

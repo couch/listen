@@ -164,7 +164,7 @@ buildTrackList(tape.tracks);
 if (!isEmbed) {
   const footer = document.createElement('div');
   footer.id = 'playlist-footer';
-  const metaEl = document.createElement('div');
+  const metaEl = document.createElement('ul');
   metaEl.id = 'playlist-meta';
   footer.appendChild(metaEl);
   list.after(footer);
@@ -991,7 +991,7 @@ function updateNowPlayingChip() {
   npTapeBtn.hidden = !unlinked;
   barEl.classList.toggle('np-unlinked', unlinked);
   if (unlinked) {
-    npTapeBtn.querySelector('span').textContent = playingTape.title;
+    npTapeBtn.querySelector('.np-tape-title').textContent = playingTape.title;
     npTapeBtn.setAttribute('aria-label', L.bk(playingTape.title));
   }
   // The chip adds/removes a bar line — keep scroll clearance in sync
@@ -1044,15 +1044,17 @@ function relinkRows() {
   }
 }
 
-// Footer metadata: created / edited dates, each on its own line (no track count
-// — the track list is already numbered). The distance line is appended last by
-// initLocationLine. Lines never share a row, so a populating distance line can't
-// reflow the dates.
+// Footer metadata: a bulleted list (created / edited dates, then the distance
+// line) whose text aligns to the track-title column of the grid (no track count
+// — the track list is already numbered). Each line is its own <li>, so a
+// populating distance line can't reflow the dates.
 function metaLine(text) {
-  const d = document.createElement('div');
-  d.className = 'meta-line';
-  d.textContent = text;
-  return d;
+  const li = document.createElement('li');
+  li.className = 'meta-line';
+  const span = document.createElement('span');
+  span.textContent = text;
+  li.appendChild(span);
+  return li;
 }
 
 function initPlaylistMeta() {
@@ -1088,12 +1090,16 @@ function clearLocInteractive(line) {
 function renderLocTeaser(line) {
   line.className = 'meta-line meta-loc meta-loc-cta';
   line.replaceChildren();
+  const body = document.createElement('span');
+  body.className = 'meta-loc-body';
   const hook = document.createElement('span');
+  hook.className = 'meta-loc-hook';
   hook.textContent = L.lh;
   const note = document.createElement('span');
   note.className = 'meta-loc-note';
   note.textContent = L.lp;
-  line.append(hook, note);
+  body.append(hook, note);
+  line.appendChild(body);
   line.setAttribute('role', 'button');
   line.setAttribute('tabindex', '0');
   line.onclick = requestViewerGeo;
@@ -1106,7 +1112,7 @@ function renderLocTeaser(line) {
 function initLocationLine() {
   const meta = document.getElementById('playlist-meta');
   if (!meta || !tape.location?.lat || !navigator.geolocation) return;
-  const line = document.createElement('div');
+  const line = document.createElement('li');
   line.className = 'meta-line meta-loc';
   line.id = 'playlist-loc';
   meta.appendChild(line);
@@ -1131,14 +1137,21 @@ function applyViewerLocation(lat, lng) {
   const distKm = haversine(tape.location.lat, tape.location.lng, lat, lng);
   const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
   clearLocInteractive(line);
-  line.textContent = distKm < 24 ? L.nb : L.fa(dist);
+  const span = document.createElement('span');
+  span.textContent = distKm < 24 ? L.nb : L.fa(dist);
+  line.replaceChildren(span);
 }
 
 function requestViewerGeo() {
   if (!tape.location?.lat || !navigator.geolocation || geoRequested) return;
   geoRequested = true;
   const line = locLine();
-  if (line) { clearLocInteractive(line); line.textContent = L.ll; } // "locating…"
+  if (line) { // "locating…"
+    clearLocInteractive(line);
+    const span = document.createElement('span');
+    span.textContent = L.ll;
+    line.replaceChildren(span);
+  }
   navigator.geolocation.getCurrentPosition(
     pos => {
       viewerCoords = [pos.coords.latitude, pos.coords.longitude];

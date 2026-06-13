@@ -74,7 +74,11 @@ body {
 /* The tape you're hearing carries a small now-playing equalizer (.eq, below)
    instead of a color highlight: selection drives spine color, playback drives
    the equalizer. .eq is hidden until the spine is the playing one. */
-.spine .eq { display: none; color: rgba(255,255,255,0.88); }
+/* The spine row is a fixed 52px centered flex line, so baseline alignment would
+   de-centre the title; instead the eq stays centred and is nudged so its bar
+   bottom lands on the title's baseline (the bar bottom is stable — scaleY's
+   transform-origin is the bottom). */
+.spine .eq { display: none; color: rgba(255,255,255,0.88); transform: translateY(-1.5px); }
 .spine.spine-playing .eq { display: inline-flex; }
 .spine[data-text="dark"] .eq { color: rgba(0,0,0,0.7); }
 
@@ -111,19 +115,24 @@ body {
   height: 12px;
   flex-shrink: 0;
 }
+/* Bars scale via transform (not animated height) — a % height on a flex child
+   reflows the row every frame and iOS Safari can collapse it; scaleY never
+   touches layout, so the neighbouring title stays put. */
 .eq i {
   flex: 1;
+  height: 100%;
   background: currentColor;
   border-radius: 1px;
+  transform: scaleY(0.4);
   transform-origin: bottom;
   animation: eq-bar 0.9s var(--ease, ease) infinite;
 }
 .eq i:nth-child(1) { animation-delay: -0.15s; animation-duration: 1.1s; }
 .eq i:nth-child(2) { animation-delay: -0.45s; }
 .eq i:nth-child(3) { animation-delay: -0.30s; animation-duration: 0.8s; }
-@keyframes eq-bar { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+@keyframes eq-bar { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
 
 @media (prefers-reduced-motion: reduce) {
   .spine { transition: none; }
-  .eq i { animation: none; height: 55%; }
+  .eq i { animation: none; transform: scaleY(0.55); }
 }
