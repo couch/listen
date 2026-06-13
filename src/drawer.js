@@ -86,13 +86,17 @@ export function initDrawer({ bakedTape, getCurrentTapeId, getPlayingTapeId, onSe
         spine.style.setProperty('--spine', color);
         spine.dataset.text = spineTextColor(color);
       }
+      const eq = document.createElement('span');
+      eq.className = 'eq';
+      eq.setAttribute('aria-hidden', 'true');
+      eq.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
       const title = document.createElement('span');
       title.className = 'spine-title';
       title.textContent = pl.title || 'untitled';
       const count = document.createElement('span');
       count.className = 'spine-count';
       count.textContent = L.tr(pl.tracks.length);
-      spine.append(title, count);
+      spine.append(eq, title, count);
       spine.addEventListener('click', () => {
         if (id !== getCurrentTapeId()) onSelect(id);
         close();
@@ -113,9 +117,10 @@ export function initDrawer({ bakedTape, getCurrentTapeId, getPlayingTapeId, onSe
     });
   }
 
-  // The spine of the tape currently being heard wears the live --bg drift color
-  // (CSS .spine-playing) — set from the playing tape, which may differ from the
-  // displayed/active one when the bar is detached.
+  // The spine of the tape currently being heard shows the now-playing equalizer
+  // (CSS .spine-playing reveals its .eq) — set from the playing tape, which may
+  // differ from the displayed/active one when the bar is detached. Selection
+  // (.spine-active) drives color; playback drives the equalizer.
   function markPlaying() {
     const pid = getPlayingTapeId?.();
     shelf.querySelectorAll('.spine').forEach(s =>

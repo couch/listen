@@ -83,7 +83,6 @@ document.getElementById("tape").setAttribute("aria-label", L.pl);
 document.getElementById("bar").setAttribute("aria-label", L.pc);
 document.getElementById("scrubber").setAttribute("aria-label", L.pp);
 document.getElementById("btn-play").setAttribute("aria-label", L.play);
-document.getElementById("pi-btn")?.setAttribute("aria-label", L.pi);
 document.getElementById("share-btn")?.setAttribute("aria-label", L.sh);
 
 // Share button — revealed only where native share is available; the slot
@@ -168,8 +167,6 @@ if (!isEmbed) {
   const metaEl = document.createElement('div');
   metaEl.id = 'playlist-meta';
   footer.appendChild(metaEl);
-  const piEl = document.getElementById('pi-btn');
-  if (piEl) footer.appendChild(piEl);
   list.after(footer);
 }
 
@@ -1047,47 +1044,117 @@ function relinkRows() {
   }
 }
 
+// Footer metadata: created / edited dates, each on its own line (no track count
+// — the track list is already numbered). The distance line is appended last by
+// initLocationLine. Lines never share a row, so a populating distance line can't
+// reflow the dates.
+function metaLine(text) {
+  const d = document.createElement('div');
+  d.className = 'meta-line';
+  d.textContent = text;
+  return d;
+}
+
 function initPlaylistMeta() {
   if (isEmbed) return;
-  const count = tape.tracks?.length ?? 0;
-  let meta = L.tr(count);
+  const el = document.getElementById('playlist-meta');
+  if (!el) return;
+  el.replaceChildren();
   const created = tape.created;
   const lastEdited = tape.lastEdited || created;
   if (created) {
-    meta += ` · ${L.cr} ${fmtDate(created)}`;
-    if (lastEdited && lastEdited !== created) meta += ` · ${L.ed} ${fmtDate(lastEdited)}`;
+    el.appendChild(metaLine(`${L.cr} ${fmtDate(created)}`));
+    if (lastEdited && lastEdited !== created) el.appendChild(metaLine(`${L.ed} ${fmtDate(lastEdited)}`));
   }
-  const el = document.getElementById('playlist-meta');
-  if (el) { el.dataset.base = meta; el.textContent = meta; }
+  initLocationLine();
 }
-initPlaylistMeta();
 
-// Viewer coords are cached so a tape switch can re-derive the distance line
-// for the new tape's location without another permission round-trip
+// Viewer coords are cached so a tape switch can re-derive the distance line for
+// the new tape's location without another permission round-trip.
 let viewerCoords = null;
+const locLine = () => document.getElementById('playlist-loc');
+
+function clearLocInteractive(line) {
+  line.className = 'meta-line meta-loc';
+  line.onclick = null;
+  line.onkeydown = null;
+  line.removeAttribute('role');
+  line.removeAttribute('tabindex');
+}
+
+// Resting state on a located tape: a tappable invitation rather than an
+// unprompted geolocation request (which reads as a grab, and whose denial
+// sticks). The tap is the gesture the prompt wants; curiosity precedes it.
+function renderLocTeaser(line) {
+  line.className = 'meta-line meta-loc meta-loc-cta';
+  line.replaceChildren();
+  const hook = document.createElement('span');
+  hook.textContent = L.lh;
+  const note = document.createElement('span');
+  note.className = 'meta-loc-note';
+  note.textContent = L.lp;
+  line.append(hook, note);
+  line.setAttribute('role', 'button');
+  line.setAttribute('tabindex', '0');
+  line.onclick = requestViewerGeo;
+  line.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); requestViewerGeo(); } };
+}
+
+// Only tapes with their own coordinates get a distance line. The viewer's coords
+// are reused for the session (set once, every located tape resolves instantly).
+// The Permissions API lets prior grantors skip the tap; everyone else taps.
+function initLocationLine() {
+  const meta = document.getElementById('playlist-meta');
+  if (!meta || !tape.location?.lat || !navigator.geolocation) return;
+  const line = document.createElement('div');
+  line.className = 'meta-line meta-loc';
+  line.id = 'playlist-loc';
+  meta.appendChild(line);
+
+  if (viewerCoords) { applyViewerLocation(...viewerCoords); return; }
+
+  const perms = navigator.permissions?.query?.({ name: 'geolocation' });
+  if (!perms) { renderLocTeaser(line); return; } // older Safari — no Permissions API
+  perms.then(status => {
+    const l = locLine();
+    if (!l) return;
+    if (status.state === 'granted') requestViewerGeo();   // silent upgrade — no tap
+    else if (status.state === 'prompt') renderLocTeaser(l);
+    else l.remove();                                       // denied → dates only, no nag
+  }).catch(() => { const l = locLine(); if (l) renderLocTeaser(l); });
+}
 
 function applyViewerLocation(lat, lng) {
   if (!tape.location?.lat) return;
+  const line = locLine();
+  if (!line) return;
   const distKm = haversine(tape.location.lat, tape.location.lng, lat, lng);
   const dist = L.mi ? Math.round(distKm * 0.621371) : Math.round(distKm);
-  const el = document.getElementById('playlist-meta');
-  if (!el) return;
-  const distText = distKm < 24 ? L.nb : L.fa(dist);
-  el.textContent = (el.dataset.base || '') + ' · ' + distText;
+  clearLocInteractive(line);
+  line.textContent = distKm < 24 ? L.nb : L.fa(dist);
 }
 
 function requestViewerGeo() {
   if (!tape.location?.lat || !navigator.geolocation || geoRequested) return;
   geoRequested = true;
+  const line = locLine();
+  if (line) { clearLocInteractive(line); line.textContent = L.ll; } // "locating…"
   navigator.geolocation.getCurrentPosition(
     pos => {
       viewerCoords = [pos.coords.latitude, pos.coords.longitude];
       applyViewerLocation(...viewerCoords);
     },
-    () => {},
+    () => {
+      // Denied or unavailable — re-offer the tap (manual retry only, so a
+      // granted-but-unavailable position can't spin in a silent retry loop).
+      geoRequested = false;
+      const l = locLine();
+      if (l) renderLocTeaser(l);
+    },
     { timeout: 10000, maximumAge: 300000 }
   );
 }
+initPlaylistMeta(); // after the helpers above are defined (initLocationLine reads viewerCoords)
 
 // Mobile: quick left/right roll → previous/next track
 function scrollTrackIntoView(el) {
@@ -1128,82 +1195,25 @@ function enableMotionListeners() {
   window.addEventListener('deviceorientation', e => setVizOrientation(e.beta, e.gamma));
 }
 
-// iOS 13+ gates device orientation behind a user-gesture permission — there
-// π doubles as that permission probe and its visibility is decided once at
-// startup. Everywhere else π is purely the location opt-in, so its
-// visibility depends on the current tape and re-evaluates on tape switch.
+// iOS 13+ gates device orientation behind a user-gesture permission. The only
+// place tilt matters is the visualizer, so that grant is requested from the ⊙
+// button (onUserOpen → requestVizOrientation) — there is no separate startup
+// button. Android/desktop fire orientation without a prompt, so listeners attach
+// at startup. Geolocation is handled entirely by the footer's tap-to-reveal line.
 const isIOSMotionGate = typeof DeviceOrientationEvent !== 'undefined'
   && typeof DeviceOrientationEvent.requestPermission === 'function';
 
-// iOS: orientation grants expire each session and need a user gesture, so
-// entering the visualizer (where tilt matters most) prompts for access —
-// the ⊙ click invokes this synchronously via the onUserOpen opt. Orientation
-// only: π keeps the geolocation job (and stays as the motion fallback).
 function requestVizOrientation() {
   if (!isMobile || motionListenersEnabled || !isIOSMotionGate) return;
   DeviceOrientationEvent.requestPermission().then(result => {
-    if (result !== 'granted') return;
-    enableMotionListeners();
-    // With motion granted, π's only remaining purpose is device location
-    if (!tape.location?.lat) {
-      const pi = document.getElementById('pi-btn');
-      if (pi) pi.hidden = true;
-    }
+    if (result === 'granted') enableMotionListeners();
   }).catch(() => {});
 }
 
-function updatePiVisibility() {
-  if (isEmbed || (isMobile && isIOSMotionGate)) return;
-  const piBtnEl = document.getElementById('pi-btn');
-  if (piBtnEl) piBtnEl.hidden = !(tape.location?.lat && !geoRequested);
-}
-
 if (!isEmbed) {
-// π button: opt-in to orientation + device location. embed.html has no π —
-// loaded top-level (outside an iframe) isEmbed is false there, so guard.
-const piBtnEl = document.getElementById('pi-btn');
-
-if (!piBtnEl) {
-  if (isMobile && !isIOSMotionGate) enableMotionListeners();
-} else if (isMobile && isIOSMotionGate) {
-  // iOS 13+: probe for existing orientation permission
-  let resolved = false;
-  const earlyCheck = () => {
-    if (resolved) return;
-    resolved = true;
-    window.removeEventListener('deviceorientation', earlyCheck);
-    enableMotionListeners();
-    // Orientation already granted — probe geo (silent if previously granted)
-    requestViewerGeo();
-    // π stays hidden
-  };
-  window.addEventListener('deviceorientation', earlyCheck);
-  setTimeout(() => {
-    if (resolved) return;
-    resolved = true;
-    window.removeEventListener('deviceorientation', earlyCheck);
-    piBtnEl.hidden = false;
-  }, 500);
-
-  piBtnEl.addEventListener('click', async () => {
-    try {
-      const result = await DeviceOrientationEvent.requestPermission();
-      if (result === 'granted') enableMotionListeners();
-    } catch {
-      enableMotionListeners();
-    }
-    piBtnEl.hidden = true;
-    requestViewerGeo();
-  });
-} else {
-  // Android: orientation fires without permission — set up immediately
-  if (isMobile) enableMotionListeners();
-  piBtnEl.addEventListener('click', () => {
-    piBtnEl.hidden = true;
-    requestViewerGeo();
-  });
-  updatePiVisibility();
-}
+// Android fires orientation/motion without permission — attach now. iOS waits
+// for the ⊙ grant (requestVizOrientation).
+if (isMobile && !isIOSMotionGate) enableMotionListeners();
 
 // Fade-in for playlist metadata when scrolled into view
 const _metaEl = document.getElementById('playlist-meta');
@@ -1347,9 +1357,7 @@ function applyTape(nextTape) {
   buildTrackList(tape.tracks);
   if (action === 'reset') document.title = tape.title; // else the playing track keeps it
   document.getElementById('tape-title').textContent = tape.title;
-  initPlaylistMeta();
-  if (viewerCoords) applyViewerLocation(...viewerCoords);
-  updatePiVisibility();
+  initPlaylistMeta(); // rebuilds the date lines and re-resolves the location line
 
   setVizTape(tape.id, tape.viz, isPride);
   preloadVizSelection();

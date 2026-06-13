@@ -316,7 +316,9 @@ body.is-offline .track:hover { background: transparent; }
 /* Source-tape chip — shown when the displayed tape isn't the one playing;
    tapping the now-playing block snaps back to the source tape */
 #np-tape {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   background: none;
   border: none;
   padding: 0;
@@ -326,13 +328,18 @@ body.is-offline .track:hover { background: transparent; }
   opacity: 0.45;
   margin-top: 3px;
   max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
   text-align: left;
 }
-#np-tape::before { content: '≣ '; } /* the library drawer's glyph */
+/* the now-playing equalizer leads the chip (replacing the old ≣ glyph); the
+   title span takes the remaining width and ellipsizes */
+#np-tape .eq { width: 11px; height: 9px; }
+#np-tape > span:last-child {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 @media (hover: hover) { #np-tape:hover { opacity: 0.75; } }
 #bar.np-unlinked #now-playing { cursor: pointer; }
 
@@ -406,13 +413,16 @@ body.is-offline .track:hover { background: transparent; }
 /* ── Playlist footer ── */
 
 #playlist-footer {
-  display: flex;
-  align-items: flex-end;
   padding: 40px 28px max(calc(var(--bar-h, 0px) + 40px), calc(env(safe-area-inset-bottom) + 28px));
 }
 
+/* dates + distance, each on its own line (a populating distance line never
+   reflows the dates) */
 #playlist-meta {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
   color: rgba(255,255,255,0.35);
@@ -421,12 +431,37 @@ body.is-offline .track:hover { background: transparent; }
 }
 
 #playlist-meta.visible { opacity: 1; }
+.meta-line { white-space: nowrap; }
+
+/* the distance line's resting state is a tap-to-reveal invitation; once located
+   it just shows the distance text */
+.meta-loc-cta {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+.meta-loc-cta:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.4);
+  outline-offset: 3px;
+}
+.meta-loc-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  opacity: 0.6;
+}
+@media (hover: hover) {
+  .meta-loc-cta:hover { color: rgba(255,255,255,0.55); }
+}
 
 @media (max-width: 480px) {
   #playlist-footer { padding: 32px 20px max(calc(var(--bar-h, 0px) + 36px), calc(env(safe-area-inset-bottom) + 24px)); }
 }
 
-#pi-btn, #share-btn {
+/* share lives in the header cluster beside ≣ — header metrics, and an
+   invisible-but-present slot where native share is unsupported so the
+   library button never shifts (main.js flips visibility on) */
+#share-btn {
   background: none;
   border: none;
   color: rgba(255,255,255,0.3);
@@ -434,24 +469,17 @@ body.is-offline .track:hover { background: transparent; }
   font-family: inherit;
   line-height: 1;
   cursor: pointer;
-  padding: 18px;
+  padding: 14px;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s;
   user-select: none;
   -webkit-user-select: none;
   flex-shrink: 0;
-}
-
-/* share lives in the header cluster beside ≣ — header metrics, and an
-   invisible-but-present slot where native share is unsupported so the
-   library button never shifts (main.js flips visibility on) */
-#share-btn {
-  padding: 14px;
   visibility: hidden;
 }
 
 @media (hover: hover) {
-  #pi-btn:hover, #share-btn:hover { color: rgba(255,255,255,0.55); }
+  #share-btn:hover { color: rgba(255,255,255,0.55); }
 }
 
 @property --mask-l {
@@ -738,15 +766,15 @@ body.viz-active { overflow: hidden; }
   margin: 6px 10px;
 }
 
-/* Dim the shelf so the playing tape's live drift color is what catches the
-   eye — too many bright spines make the list hard to scan. The displayed tape
-   stays legible (mid tier); everything else recedes into the dark drawer. */
-#library-shelf .spine { opacity: 0.4; filter: saturate(0.7); }
-#library-shelf .spine.spine-active { opacity: 0.7; filter: saturate(0.85); }
-#library-shelf .spine.spine-playing { opacity: 1; filter: none; }
+/* Selection drives color: the tape you're viewing keeps its full hue while
+   every other spine desaturates to grayscale, so the active one is unmistakable
+   and the shelf stays easy to scan. Playback is signalled separately by the
+   now-playing equalizer (.eq), not by color. */
+#library-shelf .spine { filter: saturate(0); }
+#library-shelf .spine.spine-active { filter: none; }
 @media (hover: hover) {
-  #library-shelf .spine:hover { opacity: 0.85; filter: none; }
-  #library-shelf .spine.spine-playing:hover { opacity: 1; }
+  #library-shelf .spine:hover { filter: saturate(0.6); }
+  #library-shelf .spine.spine-active:hover { filter: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
