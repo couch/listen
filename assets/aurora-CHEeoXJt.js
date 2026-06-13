@@ -1,4 +1,4 @@
-import{C as r,P as u,a as f}from"./main-C9KtPpyw.js";import{u as p,w as s}from"./ids-C-tL2VXR.js";const l=3,c=[120,90,144],d=60,h=.3,_=.5,m=.15,v=.25,n=6,g=Math.PI*2;function y(e,t,o=null){const i=o||new Float32Array(l);for(let a=0;a<l;a++)i[a]=t*(1.7+a*.93)+e/c[a];return i}function A(e,t){return h*Math.sin(g*e/d)+t*_}const b=f+`
+import{C as r,P as u,a as f}from"./main-DplLC4XF.js";import{u as p,w as s}from"./ids-C-tL2VXR.js";const l=3,c=[120,90,144],d=60,h=.3,_=.5,m=.15,v=.25,n=6,g=Math.PI*2;function y(e,t,o=null){const i=o||new Float32Array(l);for(let a=0;a<l;a++)i[a]=t*(1.7+a*.93)+e/c[a];return i}function A(e,t){return h*Math.sin(g*e/d)+t*_}const b=f+`
 uniform vec3 u_phase;  // per-layer curtain flow phase
 uniform float u_wind;  // sway offset (autonomous + tilt)
 uniform float u_lift;  // curtain height offset from forward tilt
