@@ -15,8 +15,8 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - MediaSession API: lock screen controls, album artwork, and scrubber position state
 - Wake Lock: screen stays on while playing; released on pause, tab hide, or going offline
 - Web Share: `↑` button in the header beside the library button opens the native share sheet (where supported; the slot stays reserved elsewhere so the header never shifts)
-- Tape library: a `≣` button left of the tape title — hugging the edge its drawer slides out from — opens a left drawer of published tapes, drawn as cassette spines in their playlist colors (the playing tape sits pulled off the shelf and wears the page's live background color, drifting in lockstep with it, so the drawer item matches the background you're looking at); picking one hot-swaps the whole player in place — track list, color, visualizer default, metadata — with no reload, and back/forward navigate the history. Every tape is also deep-linkable at `?tape=<id>` (a bad id falls back to the live tape). The button only appears when more than one tape is published (its slot stays reserved either way, so the title never shifts); publishing is editorial curation, not privacy — playlist JSON stays publicly fetchable either way, and share previews (OG tags) always describe the live tape
-- The player bar is global: a started track (playing or paused mid-way) keeps playing uninterrupted across tape switches. While browsing another tape, the bar grows a `≣ tape title` chip and tapping the now-playing block snaps the display back to the source tape (the active row re-couples, with progress); the browsed tape's last-played row shows a `⏵ timecode` chip instead of replacing the bar, and clicking it resumes that track from there — making it the playing tape
+- Tape library: a `≣` button left of the tape title — hugging the edge its drawer slides out from — opens a left drawer of published tapes, drawn as cassette spines (the tape you're viewing keeps its full playlist color and sits pulled off the shelf; every other spine desaturates to grayscale so the selected one is unmistakable; the tape currently playing carries a small now-playing equalizer animation rather than a color highlight — selection drives color, playback drives the equalizer); picking one hot-swaps the whole player in place — track list, color, visualizer default, metadata — with no reload, and back/forward navigate the history. Every tape is also deep-linkable at `?tape=<id>` (a bad id falls back to the live tape). The button only appears when more than one tape is published (its slot stays reserved either way, so the title never shifts); publishing is editorial curation, not privacy — playlist JSON stays publicly fetchable either way, and share previews (OG tags) always describe the live tape
+- The player bar is global: a started track (playing or paused mid-way) keeps playing uninterrupted across tape switches. While browsing another tape, the bar grows a chip — a now-playing equalizer animation beside the playing tape's title — and tapping the now-playing block snaps the display back to the source tape (the active row re-couples, with progress); the browsed tape's last-played row shows a `⏵ timecode` chip instead of replacing the bar, and clicking it resumes that track from there — making it the playing tape
 - Service worker caches the shell; playlist data always fetched fresh
 - Tab title updates to "Track — Artist | tape name" while playing; reverts to the tape name when the playlist ends
 - Playback persistence: last track and seek position saved in `sessionStorage` per playlist — every tape keeps its own slot for the session; resumes on reload without autoplay, and feeds the resume chips on non-playing tapes
@@ -66,9 +66,10 @@ An instance of this runs at [listen.couch.studio](https://listen.couch.studio).
 - Per-playlist default visualization, chosen in the admin's "visualization" chip row
 - Pride mode: each track row gets a color from the Progress Pride flag; background drifts through the spectrum during playback
 - Long track titles and artist names scroll horizontally (marquee) rather than truncating — in both the track list and the now-playing bar
-- Playlist footer: track count, created/edited dates, and listener distance shown below the track list; scroll to reveal
+- Playlist footer: created and edited dates, each on its own line, below the track list (no track count — the track list is already numbered); scroll to reveal
 - Playlist location: stores city and fuzzed coordinates (±1 mile — exact location never persisted) reverse-geocoded via OpenStreetMap Nominatim; distance shown using the viewer's device GPS, not IP
-- π button: on iOS, tapping it requests DeviceMotion permission (a fallback — opening the visualizer also prompts for it) plus device GPS for listener distance; on Android, wrist-flick works without permission and π only appears when the playlist has a location set (tapping prompts for GPS); hidden until needed, and hidden once motion is granted unless the playlist has a location
+- Listener distance: on a tape with a location, the footer's last line is a tap-to-reveal invitation ("how far away are you?" with a "computed on your device · never sent anywhere" note) rather than an unprompted permission grab — the tap is the gesture the browser prompt wants, and the reveal is the payoff. The haversine distance is computed in-browser and nothing is transmitted or stored (there is no backend). Viewers who granted before skip the tap (Permissions API silent upgrade); the granted coordinates are cached for the session, so every other located tape resolves its distance instantly on switch; a denial leaves just the dates and doesn't nag
+- Device orientation (visualizer tilt) on iOS is requested from the ⊙ visualizer button; on Android it works without a prompt. There is no longer a separate π button
 
 ## Structure
 
@@ -213,7 +214,7 @@ iOS requires HTTPS for device orientation and geolocation. Use a Cloudflare quic
 cloudflared tunnel --url http://localhost:5173
 ```
 
-Open the printed `https://….trycloudflare.com` URL on your phone and tap π to grant permissions.
+Open the printed `https://….trycloudflare.com` URL on your phone; open the visualizer (⊙) to grant device orientation, and tap the footer's distance line to grant geolocation.
 
 ## Development
 

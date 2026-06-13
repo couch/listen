@@ -67,12 +67,6 @@ export function createOfflineUI(deps) {
     document.body.classList.add('is-offline');
     trackEls.forEach(el => el.setAttribute('tabindex', '-1'));
 
-    const piEl = document.getElementById('pi-btn');
-    if (piEl && !piEl.hidden) {
-      piEl.dataset.wasVisible = '1';
-      piEl.hidden = true;
-    }
-
     offlineHadBar = barEl.classList.contains('bar-visible');
     if (offlineHadBar) {
       if (getPlaying()) {
@@ -98,12 +92,6 @@ export function createOfflineUI(deps) {
 
     document.body.classList.remove('is-offline');
     trackEls.forEach(el => el.setAttribute('tabindex', '0'));
-
-    const piEl = document.getElementById('pi-btn');
-    if (piEl && piEl.dataset.wasVisible) {
-      piEl.hidden = false;
-      delete piEl.dataset.wasVisible;
-    }
 
     if (offlineHadBar && getCurrentIndex() >= 0) {
       barEl.classList.add('bar-visible');
