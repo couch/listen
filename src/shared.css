@@ -132,6 +132,11 @@ body {
 .eq i:nth-child(3) { animation-delay: -0.30s; animation-duration: 0.8s; }
 @keyframes eq-bar { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
 
+/* the equalizer marks *active* playback — freeze the bars when audio is paused
+   (a track still loaded in the bar / on the playing spine). main.js toggles
+   .audio-playing on the document root from the playback state machine. */
+:root:not(.audio-playing) .eq i { animation-play-state: paused; }
+
 @media (prefers-reduced-motion: reduce) {
   .spine { transition: none; }
   .eq i { animation: none; transform: scaleY(0.55); }

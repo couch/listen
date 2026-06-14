@@ -188,6 +188,13 @@ const isLinked = () => playingTape !== null && playingTape === tape;
 let pendingLoad = null;
 let currentIndex = -1;
 let playing = false;
+// Mirror `playing` onto the document root so CSS can freeze the now-playing
+// equalizer (.eq) whenever audio is paused — the bars mark *active* playback,
+// not just a loaded track. Single source of truth: every write goes through here.
+function setPlaying(v) {
+  playing = v;
+  document.documentElement.classList.toggle('audio-playing', v);
+}
 // A PLAYING has occurred since the last load — distinguishes a paused
 // mid-track bar (survives a tape switch) from an untouched startup cue
 // (doesn't); lastLoadWasCue goes stale after cue→play so it can't serve.
@@ -390,7 +397,7 @@ function handleState(state) {
     clearBufferingWatchdog();
     hideBufferingBanner();
     if (document.body.classList.contains('is-offline')) goOnline();
-    playing = true;
+    setPlaying(true);
     started = true;
     updateBtn();
     startTicker();
@@ -425,7 +432,7 @@ function handleState(state) {
     trackLoadAt = null;
     clearBufferingWatchdog();
     hideBufferingBanner();
-    playing = false;
+    setPlaying(false);
     updateBtn();
     stopTicker();
     savePosition();
@@ -458,7 +465,7 @@ function handleState(state) {
   } else if (state === STATE.CUED) {
     trackLoadAt = null; // load() arms the marker on the cue path too
     clearBufferingWatchdog();
-    playing = false;
+    setPlaying(false);
     updateBtn();
     const cur = active.getCurrentTime();
     const dur = active.getDuration();
@@ -600,7 +607,7 @@ function setMediaPosition(dur, pos) {
 // outgoing tape's DOM before rebuilding).
 function resetPlaybackUI() {
   clearActive();
-  playing = false;
+  setPlaying(false);
   updateBtn();
   stopTicker();
   stopColorDrift();
@@ -1044,13 +1051,38 @@ function relinkRows() {
   }
 }
 
-// Footer metadata: a bulleted list (created / edited dates, then the distance
-// line) whose text aligns to the track-title column of the grid (no track count
-// — the track list is already numbered). Each line is its own <li>, so a
-// populating distance line can't reflow the dates.
-function metaLine(text) {
+// Footer metadata: each line wears an outline glyph tied to its meaning (sprout
+// = created, cycle arrows = edited, pin = the distance line) in the track-number
+// column, with the text aligned to the track-title column of the grid (no track
+// count — the track list is already numbered). Each line is its own <li>, so a
+// populating distance line can't reflow the dates. Glyphs are decorative (the
+// lines carry their own words), so they're aria-hidden; stroke/fill come from CSS.
+const META_SVG_NS = 'http://www.w3.org/2000/svg';
+const META_ICONS = {
+  // sprout / seedling: curved stem with a leaf splayed to each side (Lucide sprout)
+  created: ['M7 20h10', 'M10 20c5.5-2.5.8-6.4 3-10', 'M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z', 'M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z'],
+  // refresh / cycle arrows (Feather refresh-cw)
+  edited: ['M23 4 V10 H17', 'M1 20 V14 H7', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10', 'M1 14l4.64 4.36A9 9 0 0 0 20.49 15'],
+  // map pin (Feather map-pin)
+  location: ['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z', 'M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'],
+};
+function metaIcon(type) {
+  const svg = document.createElementNS(META_SVG_NS, 'svg');
+  svg.setAttribute('class', 'meta-icon');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of META_ICONS[type]) {
+    const p = document.createElementNS(META_SVG_NS, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  }
+  return svg;
+}
+
+function metaLine(text, glyph) {
   const li = document.createElement('li');
   li.className = 'meta-line';
+  li.appendChild(metaIcon(glyph));
   const span = document.createElement('span');
   span.textContent = text;
   li.appendChild(span);
@@ -1065,8 +1097,8 @@ function initPlaylistMeta() {
   const created = tape.created;
   const lastEdited = tape.lastEdited || created;
   if (created) {
-    el.appendChild(metaLine(`${L.cr} ${fmtDate(created)}`));
-    if (lastEdited && lastEdited !== created) el.appendChild(metaLine(`${L.ed} ${fmtDate(lastEdited)}`));
+    el.appendChild(metaLine(`${L.cr} ${fmtDate(created)}`, 'created'));
+    if (lastEdited && lastEdited !== created) el.appendChild(metaLine(`${L.ed} ${fmtDate(lastEdited)}`, 'edited'));
   }
   initLocationLine();
 }
@@ -1089,7 +1121,6 @@ function clearLocInteractive(line) {
 // sticks). The tap is the gesture the prompt wants; curiosity precedes it.
 function renderLocTeaser(line) {
   line.className = 'meta-line meta-loc meta-loc-cta';
-  line.replaceChildren();
   const body = document.createElement('span');
   body.className = 'meta-loc-body';
   const hook = document.createElement('span');
@@ -1099,7 +1130,7 @@ function renderLocTeaser(line) {
   note.className = 'meta-loc-note';
   note.textContent = L.lp;
   body.append(hook, note);
-  line.appendChild(body);
+  line.replaceChildren(metaIcon('location'), body);
   line.setAttribute('role', 'button');
   line.setAttribute('tabindex', '0');
   line.onclick = requestViewerGeo;
@@ -1139,7 +1170,7 @@ function applyViewerLocation(lat, lng) {
   clearLocInteractive(line);
   const span = document.createElement('span');
   span.textContent = distKm < 24 ? L.nb : L.fa(dist);
-  line.replaceChildren(span);
+  line.replaceChildren(metaIcon('location'), span);
 }
 
 function requestViewerGeo() {
@@ -1150,7 +1181,7 @@ function requestViewerGeo() {
     clearLocInteractive(line);
     const span = document.createElement('span');
     span.textContent = L.ll;
-    line.replaceChildren(span);
+    line.replaceChildren(metaIcon('location'), span);
   }
   navigator.geolocation.getCurrentPosition(
     pos => {

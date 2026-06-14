@@ -416,10 +416,10 @@ body.is-offline .track:hover { background: transparent; }
   padding: 40px 28px max(calc(var(--bar-h, 0px) + 40px), calc(env(safe-area-inset-bottom) + 28px));
 }
 
-/* dates + distance as a bulleted list; the bullet sits in the track-number column
-   and the text aligns with the track titles (28 + 20 + 16 = 64px), so the footer
-   reads on the same grid as the rows above. Each line is its own <li>, so a
-   populating distance line never reflows the dates. */
+/* dates + distance as an icon list; each line's glyph sits in the track-number
+   column and the text aligns with the track titles (28 + 20 + 16 = 64px), so the
+   footer reads on the same grid as the rows above. Each line is its own <li>, so
+   a populating distance line never reflows the dates. */
 #playlist-meta {
   list-style: none;
   margin: 0;
@@ -437,11 +437,20 @@ body.is-offline .track:hover { background: transparent; }
 #playlist-meta.visible { opacity: 1; }
 
 .meta-line { display: flex; align-items: baseline; gap: 16px; }
-.meta-line::before {
-  content: '•';
-  flex: 0 0 20px;
-  text-align: right;
-  opacity: 0.45;
+/* per-line glyph (sprout/cycle-arrows/pin) in the number column; 14px + 6px
+   margin = a 20px slot, so text still lands on the 64px track-title grid */
+.meta-icon {
+  flex: 0 0 14px;
+  width: 14px; height: 14px;
+  margin-right: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+  position: relative;
+  top: 2px; /* drop the box to the text's optical baseline */
 }
 .meta-line > span { white-space: nowrap; }
 
