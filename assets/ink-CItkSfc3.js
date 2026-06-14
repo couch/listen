@@ -1,4 +1,4 @@
-import{C as u,P as r,a as c}from"./main-CXmn9JnI.js";import{u as m,w as a}from"./ids-C-tL2VXR.js";const o=25,n=.04,d=.02,v=.05,_=18,l=.5;function p(t,e){const i=s=>Math.max(-1,Math.min(s,1));return[i(t)*l,i(e)*l]}const f=c+`
+import{C as u,P as r,a as c}from"./main-CI7Q_N02.js";import{u as m,w as a}from"./ids-C-tL2VXR.js";const o=25,n=.04,d=.02,v=.05,_=18,l=.5;function p(t,e){const i=s=>Math.max(-1,Math.min(s,1));return[i(t)*l,i(e)*l]}const f=c+`
 uniform vec2 u_lean;
 
 void main() {
