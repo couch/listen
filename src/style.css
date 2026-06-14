@@ -437,12 +437,13 @@ body.is-offline .track:hover { background: transparent; }
 #playlist-meta.visible { opacity: 1; }
 
 .meta-line { display: flex; align-items: baseline; gap: 16px; }
-/* per-line glyph (sprout/cycle-arrows/pin) in the number column; 14px + 6px
-   margin = a 20px slot, so text still lands on the 64px track-title grid */
+/* per-line glyph (sprout/cycle-arrows/pin) right-aligned in the 20px track-number
+   column so it lines up under the right-aligned track indices; 6px + 14px = the
+   20px slot, so text still lands on the 64px track-title grid */
 .meta-icon {
   flex: 0 0 14px;
   width: 14px; height: 14px;
-  margin-right: 6px;
+  margin-left: 6px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
